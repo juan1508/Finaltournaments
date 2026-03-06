@@ -7,7 +7,7 @@ from data import (
 )
 
 st.set_page_config(
-    page_title="MMJ Emirates Cup",
+    page_title="Federation MMJ",
     page_icon="fmmj.png",   # ← cambia esto
     layout="wide",
     initial_sidebar_state="expanded"
