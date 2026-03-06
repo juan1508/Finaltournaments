@@ -236,7 +236,7 @@ def render_standings(teams_sorted, table, highlight=2):
         dgc = "var(--green)" if s["DG"]>=0 else "var(--red)"
         html += f"""<tr>
             <td style="color:{rc};font-weight:700">{i+1}</td>
-            <td style="font-weight:600">{logo_img(team,22)}&nbsp;{tick}<span style="font-family:'Barlow Condensed';letter-spacing:1px">{team}</span> <span style="font-size:0.78rem;color:var(--muted);font-weight:400">{get_full_name(team)}</span></td>
+            <td style="font-weight:600">{logo_img(team,22)}&nbsp;{tick}<span style="font-family:'Barlow Condensed';letter-spacing:1px">{team}</span></td>
             <td>{s['PJ']}</td><td>{s['G']}</td><td>{s['E']}</td><td>{s['P']}</td>
             <td>{s['GF']}</td><td>{s['GC']}</td>
             <td style="color:{dgc}">{dg}</td>
