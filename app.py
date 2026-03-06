@@ -55,9 +55,9 @@ def logo_img(code, size=32):
 # ✅ Ahora usa CÓDIGOS de equipo — edita aquí para organizar los grupos
 # Las zonas con "format":"groups" dividen el listado en 2: primera mitad = Grupo A, segunda = Grupo B
 ZONES = {
-    "WEST ZONE":     {"teams": ["POR","LA","SJ","SEA","LAFC","RSL","SDFC","COL"],  "format":"groups",    "advance":2},
-    "MIDWEST ZONE":  {"teams": ["MIN","SKC","CIN","CHI","STL","CLB"],              "format":"groups",    "advance":2},
-    "SOUTH ZONE":    {"teams": ["DAL","ATX","HOU","CLT","NHS","ATL","ORL","MIA"],  "format":"groups",    "advance":2},
+    "WEST ZONE":     {"teams": ["LAFC","LA","SJ","SDFC","POR","RSL","SEA","COL"],  "format":"groups",    "advance":2},
+    "MIDWEST ZONE":  {"teams": ["MIN","SKC","STL","CHI","CIN","CLB"],              "format":"groups",    "advance":2},
+    "SOUTH ZONE":    {"teams": ["DAL","ATX","HOU","NHS","CLT","ATL","ORL","MIA"],  "format":"groups",    "advance":2},
     "NORTH ZONE":    {"teams": ["DCU","PHI","NYC","RBNY","NE"],                    "format":"roundrobin","advance":2},
     "CANADIAN ZONE": {"teams": ["MTL","TOR","VAN"],                                "format":"roundrobin","advance":1},
 }
@@ -203,7 +203,7 @@ def render_match(t1, t2, match_key, label=""):
 def compute_standings(teams, prefix):
     table = {t: {"PJ":0,"G":0,"E":0,"P":0,"GF":0,"GC":0,"DG":0,"PTS":0} for t in teams}
     for key, result in st.session_state.data.items():
-        if not key.startswith(prefix) or not result.get("played"):
+        if not key.startswith(prefix) or not isinstance(result, dict) or not result.get("played"):
             continue
         t1, t2 = result.get("t1"), result.get("t2")
         if not t1 or not t2 or t1 not in table or t2 not in table:
@@ -236,7 +236,7 @@ def render_standings(teams_sorted, table, highlight=2):
         dgc = "var(--green)" if s["DG"]>=0 else "var(--red)"
         html += f"""<tr>
             <td style="color:{rc};font-weight:700">{i+1}</td>
-            <td style="font-weight:600">{logo_img(team,22)}&nbsp;{tick}<span style="font-family:'Barlow Condensed';letter-spacing:1px">{team}</span></td>
+            <td style="font-weight:600">{logo_img(team,22)}&nbsp;{tick}<span style="font-family:'Barlow Condensed';letter-spacing:1px">{team}</span> <span style="font-size:0.78rem;color:var(--muted);font-weight:400">{get_full_name(team)}</span></td>
             <td>{s['PJ']}</td><td>{s['G']}</td><td>{s['E']}</td><td>{s['P']}</td>
             <td>{s['GF']}</td><td>{s['GC']}</td>
             <td style="color:{dgc}">{dg}</td>
