@@ -402,6 +402,7 @@ if tournament == "🏅 Palmarés MMJ":
             ("??",   "Campeón MMJ Cisco Super Cup V"),
         ],
         "SEASON Ⅵ": [
+            ("??",   "Campeón MMJ McDonald's Community Cup I"),
             ("??",   "Campeón Canadian Zone IV"),
             ("??",   "Campeón North Zone IV"),
             ("??",   "Campeón South Zone IV"),
@@ -411,7 +412,6 @@ if tournament == "🏅 Palmarés MMJ":
             ("??",   "Campeón MMJ Emirates Cup VI"),
             ("??",   "Campeón MMJ Streamlit League VI"),
             ("??",   "Campeón MMJ Cisco Super Cup VI"),
-            ("??",   "Campeón MMJ McDonald's Community Cup I"),
         ],
     }
 
