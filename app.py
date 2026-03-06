@@ -2,8 +2,8 @@ import streamlit as st
 import json
 import os
 from data import (
-    TEAM_COMPOSITIONS, ZONE_TO_CODE, PLAYER_DATA,
-    POS_COLORS, get_player_photo
+    TEAM_COMPOSITIONS, ZONE_TO_CODE, CODE_TO_DISPLAY,
+    PLAYER_DATA, POS_COLORS, get_player_photo
 )
 
 st.set_page_config(
@@ -30,34 +30,36 @@ if "data" not in st.session_state:
     st.session_state.data = load_data()
 
 # ─── TEAM LOOKUPS ─────────────────────────────────────────────────────────────
-def get_code(display_name):
-    return ZONE_TO_CODE.get(display_name, display_name)
+# ZONES usa códigos (ej: "LAFC", "SEA"). Las funciones aceptan código directamente.
 
-def get_logo_url(display_name):
-    code = get_code(display_name)
+def get_display(code):
+    """Código → nombre de display (ej: 'LA' → 'LA Galaxy')"""
+    return CODE_TO_DISPLAY.get(code, code)
+
+def get_logo_url(code):
     return TEAM_COMPOSITIONS.get(code, {}).get("logo", "")
 
-def get_team_players(display_name):
-    code = get_code(display_name)
+def get_team_players(code):
     return TEAM_COMPOSITIONS.get(code, {}).get("players", [])
 
-def get_full_name(display_name):
-    code = get_code(display_name)
-    return TEAM_COMPOSITIONS.get(code, {}).get("name", display_name)
+def get_full_name(code):
+    return TEAM_COMPOSITIONS.get(code, {}).get("name", code)
 
-def logo_img(display_name, size=32):
-    url = get_logo_url(display_name)
+def logo_img(code, size=32):
+    url = get_logo_url(code)
     if url:
         return f'<img src="{url}" width="{size}" height="{size}" style="object-fit:contain;vertical-align:middle;" onerror="this.style.display=\'none\'">'
     return ""
 
 # ─── ZONES ────────────────────────────────────────────────────────────────────
+# ✅ Ahora usa CÓDIGOS de equipo — edita aquí para organizar los grupos
+# Las zonas con "format":"groups" dividen el listado en 2: primera mitad = Grupo A, segunda = Grupo B
 ZONES = {
-    "WEST ZONE":     {"teams": ["LAFC","LA Galaxy","San Jose","San Diego FC","Portland","RSL","Seattle","Colorado"],     "format":"groups",    "advance":2},
-    "MIDWEST ZONE":  {"teams": ["Minnesota","Sporting KC","St. Louis","Chicago","Cincinnati","Columbus"],                "format":"groups",    "advance":2},
-    "SOUTH ZONE":    {"teams": ["Dallas","Austin","Houston","Nashville","Charlotte","Atlanta","Orlando","Miami"],         "format":"groups",    "advance":2},
-    "NORTH ZONE":    {"teams": ["DC United","Philadelphia","NYCFC","NY Red Bulls","New England"],                        "format":"roundrobin","advance":2},
-    "CANADIAN ZONE": {"teams": ["Montreal","Toronto","Vancouver"],                                                       "format":"roundrobin","advance":1},
+    "WEST ZONE":     {"teams": ["LAFC","LA","SJ","SDFC","POR","RSL","SEA","COL"],  "format":"groups",    "advance":2},
+    "MIDWEST ZONE":  {"teams": ["MIN","SKC","STL","CHI","CIN","CLB"],              "format":"groups",    "advance":2},
+    "SOUTH ZONE":    {"teams": ["DAL","ATX","HOU","NHS","CLT","ATL","ORL","MIA"],  "format":"groups",    "advance":2},
+    "NORTH ZONE":    {"teams": ["DCU","PHI","NYC","RBNY","NE"],                    "format":"roundrobin","advance":2},
+    "CANADIAN ZONE": {"teams": ["MTL","TOR","VAN"],                                "format":"roundrobin","advance":1},
 }
 
 ZONE_COLORS = {
@@ -65,7 +67,8 @@ ZONE_COLORS = {
     "NORTH ZONE":"#9B59B6","CANADIAN ZONE":"#E74C3C",
 }
 
-ALL_DISPLAY = list(ZONE_TO_CODE.keys())
+# Lista de todos los códigos para selectboxes
+ALL_CODES = list(TEAM_COMPOSITIONS.keys())
 
 # ─── STYLES ───────────────────────────────────────────────────────────────────
 st.markdown("""
@@ -233,7 +236,7 @@ def render_standings(teams_sorted, table, highlight=2):
         dgc = "var(--green)" if s["DG"]>=0 else "var(--red)"
         html += f"""<tr>
             <td style="color:{rc};font-weight:700">{i+1}</td>
-            <td style="font-weight:600">{logo_img(team,22)}&nbsp;{tick}{team}</td>
+            <td style="font-weight:600">{logo_img(team,22)}&nbsp;{tick}<span style="font-family:'Barlow Condensed';letter-spacing:1px">{team}</span> <span style="font-size:0.78rem;color:var(--muted);font-weight:400">{get_full_name(team)}</span></td>
             <td>{s['PJ']}</td><td>{s['G']}</td><td>{s['E']}</td><td>{s['P']}</td>
             <td>{s['GF']}</td><td>{s['GC']}</td>
             <td style="color:{dgc}">{dg}</td>
@@ -466,18 +469,19 @@ if tournament == "🏟️ Papa Johns Leagues Cup":
         st.markdown("<div class='info-box'>Los clasificados se actualizan automáticamente con los resultados de zona. Puedes ajustarlos manualmente aquí.</div>", unsafe_allow_html=True)
 
         c1,c2,c3,c4 = st.columns(4)
+        ff = lambda c: f"{c} — {get_full_name(c)}"
         with c1:
-            WZ_C = st.selectbox("WZ Campeón",  ALL_DISPLAY, index=ALL_DISPLAY.index(WZ_C) if WZ_C in ALL_DISPLAY else 0, key="pf_wzc")
-            WZ_S = st.selectbox("WZ Sub-Cam.", ALL_DISPLAY, index=ALL_DISPLAY.index(WZ_S) if WZ_S in ALL_DISPLAY else 1, key="pf_wzs")
+            WZ_C = st.selectbox("WZ Campeón",  ALL_CODES, index=ALL_CODES.index(WZ_C) if WZ_C in ALL_CODES else 0, format_func=ff, key="pf_wzc")
+            WZ_S = st.selectbox("WZ Sub-Cam.", ALL_CODES, index=ALL_CODES.index(WZ_S) if WZ_S in ALL_CODES else 1, format_func=ff, key="pf_wzs")
         with c2:
-            MZ_C = st.selectbox("MZ Campeón",  ALL_DISPLAY, index=ALL_DISPLAY.index(MZ_C) if MZ_C in ALL_DISPLAY else 0, key="pf_mzc")
-            MZ_S = st.selectbox("MZ Sub-Cam.", ALL_DISPLAY, index=ALL_DISPLAY.index(MZ_S) if MZ_S in ALL_DISPLAY else 1, key="pf_mzs")
+            MZ_C = st.selectbox("MZ Campeón",  ALL_CODES, index=ALL_CODES.index(MZ_C) if MZ_C in ALL_CODES else 0, format_func=ff, key="pf_mzc")
+            MZ_S = st.selectbox("MZ Sub-Cam.", ALL_CODES, index=ALL_CODES.index(MZ_S) if MZ_S in ALL_CODES else 1, format_func=ff, key="pf_mzs")
         with c3:
-            SZ_C = st.selectbox("SZ Campeón",  ALL_DISPLAY, index=ALL_DISPLAY.index(SZ_C) if SZ_C in ALL_DISPLAY else 0, key="pf_szc")
-            SZ_S = st.selectbox("SZ Sub-Cam.", ALL_DISPLAY, index=ALL_DISPLAY.index(SZ_S) if SZ_S in ALL_DISPLAY else 1, key="pf_szs")
+            SZ_C = st.selectbox("SZ Campeón",  ALL_CODES, index=ALL_CODES.index(SZ_C) if SZ_C in ALL_CODES else 0, format_func=ff, key="pf_szc")
+            SZ_S = st.selectbox("SZ Sub-Cam.", ALL_CODES, index=ALL_CODES.index(SZ_S) if SZ_S in ALL_CODES else 1, format_func=ff, key="pf_szs")
         with c4:
-            NZ_C = st.selectbox("NZ Campeón",  ALL_DISPLAY, index=ALL_DISPLAY.index(NZ_C) if NZ_C in ALL_DISPLAY else 0, key="pf_nzc")
-            CZ_C = st.selectbox("CZ Campeón",  ALL_DISPLAY, index=ALL_DISPLAY.index(CZ_C) if CZ_C in ALL_DISPLAY else 0, key="pf_czc")
+            NZ_C = st.selectbox("NZ Campeón",  ALL_CODES, index=ALL_CODES.index(NZ_C) if NZ_C in ALL_CODES else 0, format_func=ff, key="pf_nzc")
+            CZ_C = st.selectbox("CZ Campeón",  ALL_CODES, index=ALL_CODES.index(CZ_C) if CZ_C in ALL_CODES else 0, format_func=ff, key="pf_czc")
 
         st.markdown("---")
         st.markdown(f"""
@@ -591,17 +595,17 @@ elif tournament == "🥤 Cisco Super Cup":
     c1, c2 = st.columns(2)
     with c1:
         st.markdown("#### 🏆 Campeón Streamlit League")
-        sl_champ = st.selectbox("Equipo", ALL_DISPLAY,
-            index=ALL_DISPLAY.index(d_get(gk(T,"sl_champ"), ALL_DISPLAY[0])) if d_get(gk(T,"sl_champ")) in ALL_DISPLAY else 0,
-            key="csc_sl")
+        sl_champ = st.selectbox("Equipo", ALL_CODES,
+            index=ALL_CODES.index(d_get(gk(T,"sl_champ"), ALL_CODES[0])) if d_get(gk(T,"sl_champ")) in ALL_CODES else 0,
+            format_func=lambda c: f"{c} — {get_full_name(c)}", key="csc_sl")
         d_set(gk(T,"sl_champ"), sl_champ)
         st.markdown(f'<div style="text-align:center;padding:12px">{logo_img(sl_champ,72)}<br><span style="font-family:\'Bebas Neue\';font-size:1.1rem">{get_full_name(sl_champ)}</span></div>', unsafe_allow_html=True)
 
     with c2:
         st.markdown("#### 🏆 Campeón Emirates Cup")
-        ec_champ = st.selectbox("Equipo", ALL_DISPLAY,
-            index=ALL_DISPLAY.index(d_get(gk(T,"ec_champ"), ALL_DISPLAY[1])) if d_get(gk(T,"ec_champ")) in ALL_DISPLAY else 1,
-            key="csc_ec")
+        ec_champ = st.selectbox("Equipo", ALL_CODES,
+            index=ALL_CODES.index(d_get(gk(T,"ec_champ"), ALL_CODES[1])) if d_get(gk(T,"ec_champ")) in ALL_CODES else 1,
+            format_func=lambda c: f"{c} — {get_full_name(c)}", key="csc_ec")
         d_set(gk(T,"ec_champ"), ec_champ)
         st.markdown(f'<div style="text-align:center;padding:12px">{logo_img(ec_champ,72)}<br><span style="font-family:\'Bebas Neue\';font-size:1.1rem">{get_full_name(ec_champ)}</span></div>', unsafe_allow_html=True)
 
@@ -631,24 +635,24 @@ elif tournament == "🍔 McDonald's Community Cup":
     c1, c2 = st.columns(2)
     with c1:
         st.markdown('<div style="background:var(--card);border-top:3px solid var(--green);border-radius:0 0 8px 8px;padding:12px 16px;margin-bottom:12px"><div style="font-family:\'Barlow Condensed\';font-size:0.75rem;letter-spacing:2px;color:var(--green)">SEMIFINAL A</div><div style="font-size:0.82rem;color:var(--muted)">Campeón Streamlit League vs Último lugar</div></div>', unsafe_allow_html=True)
-        sl_champ = st.selectbox("🏆 Campeón Streamlit League", ALL_DISPLAY,
-            index=ALL_DISPLAY.index(d_get(gk(T,"sl_champ"), ALL_DISPLAY[0])) if d_get(gk(T,"sl_champ")) in ALL_DISPLAY else 0,
-            key="mcc_sl")
+        sl_champ = st.selectbox("🏆 Campeón Streamlit League", ALL_CODES,
+            index=ALL_CODES.index(d_get(gk(T,"sl_champ"), ALL_CODES[0])) if d_get(gk(T,"sl_champ")) in ALL_CODES else 0,
+            format_func=lambda c: f"{c} — {get_full_name(c)}", key="mcc_sl")
         d_set(gk(T,"sl_champ"), sl_champ)
-        last_place = st.selectbox("📉 Último lugar de la Liga", ALL_DISPLAY,
-            index=ALL_DISPLAY.index(d_get(gk(T,"last_place"), ALL_DISPLAY[-1])) if d_get(gk(T,"last_place")) in ALL_DISPLAY else len(ALL_DISPLAY)-1,
-            key="mcc_lp")
+        last_place = st.selectbox("📉 Último lugar de la Liga", ALL_CODES,
+            index=ALL_CODES.index(d_get(gk(T,"last_place"), ALL_CODES[-1])) if d_get(gk(T,"last_place")) in ALL_CODES else len(ALL_CODES)-1,
+            format_func=lambda c: f"{c} — {get_full_name(c)}", key="mcc_lp")
         d_set(gk(T,"last_place"), last_place)
 
     with c2:
         st.markdown('<div style="background:var(--card);border-top:3px solid var(--orange);border-radius:0 0 8px 8px;padding:12px 16px;margin-bottom:12px"><div style="font-family:\'Barlow Condensed\';font-size:0.75rem;letter-spacing:2px;color:var(--orange)">SEMIFINAL B</div><div style="font-size:0.82rem;color:var(--muted)">Campeón Papa Johns Leagues Cup vs Campeón Emirates Cup</div></div>', unsafe_allow_html=True)
-        pjlc_champ = st.selectbox("🏟️ Campeón Papa Johns Leagues Cup", ALL_DISPLAY,
-            index=ALL_DISPLAY.index(d_get(gk(T,"pjlc_champ"), ALL_DISPLAY[0])) if d_get(gk(T,"pjlc_champ")) in ALL_DISPLAY else 0,
-            key="mcc_pj")
+        pjlc_champ = st.selectbox("🏟️ Campeón Papa Johns Leagues Cup", ALL_CODES,
+            index=ALL_CODES.index(d_get(gk(T,"pjlc_champ"), ALL_CODES[0])) if d_get(gk(T,"pjlc_champ")) in ALL_CODES else 0,
+            format_func=lambda c: f"{c} — {get_full_name(c)}", key="mcc_pj")
         d_set(gk(T,"pjlc_champ"), pjlc_champ)
-        ec_champ = st.selectbox("🏆 Campeón Emirates Cup", ALL_DISPLAY,
-            index=ALL_DISPLAY.index(d_get(gk(T,"ec_champ"), ALL_DISPLAY[1])) if d_get(gk(T,"ec_champ")) in ALL_DISPLAY else 1,
-            key="mcc_ec")
+        ec_champ = st.selectbox("🏆 Campeón Emirates Cup", ALL_CODES,
+            index=ALL_CODES.index(d_get(gk(T,"ec_champ"), ALL_CODES[1])) if d_get(gk(T,"ec_champ")) in ALL_CODES else 1,
+            format_func=lambda c: f"{c} — {get_full_name(c)}", key="mcc_ec")
         d_set(gk(T,"ec_champ"), ec_champ)
 
     st.markdown("---")
