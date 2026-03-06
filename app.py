@@ -449,7 +449,7 @@ def title_icon_palmares(title):
     if "papa johns" in t:       return "🍕"
     if "mcdonald" in t:         return "🍔"
     if "west zone" in t:        return "🌅"
-    if "midwest zone" in t:     return "🌤️"
+    if "midwest zone" in t:     return "🫀"
     if "south zone" in t:       return "🌊"
     if "north zone" in t:       return "🗽"
     if "canadian zone" in t:    return "🍁"
