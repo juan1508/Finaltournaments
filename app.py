@@ -461,8 +461,8 @@ if tournament == "🏟️ Papa Johns Leagues Cup":
         zone_cols = st.columns(5)
         zone_info = [
             ("WEST",     "#E67E22", WZ_C, WZ_S),
-            ("MIDWEST",  "#3498DB", MZ_C, MZ_S),
-            ("SOUTH",    "#2ECC71", SZ_C, SZ_S),
+            ("MIDWEST",  "#2ECC71", MZ_C, MZ_S),
+            ("SOUTH",    "#3498DB", SZ_C, SZ_S),
             ("NORTH",    "#9B59B6", NZ_C, None),
             ("CANADIAN", "#E74C3C", CZ_C, None),
         ]
