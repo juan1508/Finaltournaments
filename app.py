@@ -66,7 +66,7 @@ ALL_CODES = list(TEAM_COMPOSITIONS.keys())
 
 # ─── TEAM COLORS (para Palmarés) ──────────────────────────────────────────────
 TEAM_COLORS = {
-    "NHS":  {"primary": "#e8e51d",  "secondary": "#1f1840"},
+    "NHS":  {"primary": "#8B0000",  "secondary": "#1A1A1A"},
     "ATX":  {"primary": "#00B140",  "secondary": "#000000"},
     "ATL":  {"primary": "#80000A",  "secondary": "#1A1A1A"},
     "LAFC": {"primary": "#C39E6D",  "secondary": "#000000"},
@@ -138,58 +138,39 @@ div[data-testid="stExpander"]{background:var(--card);border:1px solid var(--bord
 hr{border-color:var(--border)!important;}
 
 /* ── Palmarés Premium ── */
-@keyframes shimmer {
-    0%   { background-position: -200% center; }
-    100% { background-position:  200% center; }
-}
 @keyframes floatIn {
     from { opacity:0; transform:translateY(16px); }
     to   { opacity:1; transform:translateY(0);    }
 }
+@keyframes pulse-glow {
+    0%, 100% { filter: brightness(1) saturate(1);    }
+    50%       { filter: brightness(1.14) saturate(1.2); }
+}
 .champ-card {
-    position:relative; border-radius:14px; overflow:hidden;
+    border-radius:14px;
     text-align:center; padding:20px 14px 16px;
     min-width:155px; flex:1; max-width:205px;
-    animation: floatIn 0.45s ease both;
-    transition: transform 0.22s ease, box-shadow 0.22s ease;
+    animation: floatIn 0.45s ease both, pulse-glow 4s ease-in-out infinite;
+    transition: transform 0.22s ease, filter 0.22s ease;
     cursor:default;
 }
-.champ-card:hover { transform:translateY(-7px) scale(1.03); }
-.champ-card .shimmer-layer {
-    position:absolute; inset:0; z-index:1; border-radius:14px;
-    background: linear-gradient(90deg,
-        transparent 0%, rgba(255,255,255,0.10) 40%,
-        rgba(255,255,255,0.20) 50%, rgba(255,255,255,0.10) 60%,
-        transparent 100%);
-    background-size:200% 100%;
-    animation: shimmer 3.5s infinite linear;
-}
-.champ-card .inner { position:relative; z-index:2; }
-.champ-card .title-lbl {
-    font-family:'Barlow Condensed',sans-serif;
-    font-size:0.58rem; letter-spacing:2.5px;
-    text-transform:uppercase; margin-bottom:10px; font-weight:700;
-}
-.champ-card .team-code {
-    font-family:'Bebas Neue',sans-serif;
-    font-size:1.55rem; letter-spacing:3px; line-height:1;
-    margin:5px 0 2px;
-    text-shadow: 0 1px 6px rgba(0,0,0,0.7);
-}
-.champ-card .team-nm {
-    font-size:0.63rem; opacity:0.72; letter-spacing:0.4px;
+.champ-card:hover {
+    transform: translateY(-7px) scale(1.04);
+    filter: brightness(1.22) saturate(1.3) !important;
+    animation-play-state: paused;
 }
 .hof-card {
-    position:relative; border-radius:16px; overflow:hidden;
-    text-align:center; padding:22px 16px;
+    border-radius:16px;
+    text-align:center; padding:22px 14px 16px;
     min-width:148px; flex:1; max-width:195px;
-    transition: transform 0.22s ease, box-shadow 0.22s ease;
+    animation: pulse-glow 4s ease-in-out infinite;
+    transition: transform 0.22s ease, filter 0.22s ease;
     cursor:default;
 }
-.hof-card:hover { transform:translateY(-9px); }
-.hof-count {
-    font-family:'Bebas Neue',sans-serif;
-    font-size:3.4rem; line-height:1; margin:3px 0 0;
+.hof-card:hover {
+    transform: translateY(-9px) scale(1.04);
+    filter: brightness(1.22) saturate(1.3) !important;
+    animation-play-state: paused;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -468,18 +449,15 @@ def make_champ_card(code, title, delay_ms=0):
     border_color = f"{primary}AA" if not pending else "#2A2A3A"
     shadow = f"0 6px 28px rgba({rgb_p}, 0.38), 0 2px 8px rgba(0,0,0,0.55)" if not pending else "0 2px 10px rgba(0,0,0,0.4)"
 
-    return f"""<div style="
+    return f"""<div class="champ-card" style="
         background:{gradient};
         border-top:3px solid {t_color};
         border-left:1.5px solid {border_color};
         border-right:1.5px solid {border_color};
         border-bottom:1.5px solid {border_color};
-        border-radius:14px;
         box-shadow:{shadow};
-        padding:18px 14px 14px;
-        min-width:155px; flex:1; max-width:205px;
-        text-align:center;
         opacity:{opacity};
+        animation-delay:{delay_ms}ms;
     ">
         <div style="font-family:'Barlow Condensed',sans-serif;font-size:0.58rem;letter-spacing:2.5px;text-transform:uppercase;margin-bottom:10px;font-weight:700;color:{t_color};">{icon} {title_short}</div>
         <div style="margin-bottom:8px;">{logo_html}</div>
@@ -497,17 +475,13 @@ def make_hof_card(rank, code, count, medal_colors):
     logo_html = f'<img src="{logo_url}" width="58" height="58" style="object-fit:contain;display:block;margin:0 auto;">' if logo_url else ""
     gradient  = f"linear-gradient(155deg, {secondary}DD 0%, {primary}FF 55%, {secondary}AA 100%)"
 
-    return f"""<div style="
+    return f"""<div class="hof-card" style="
         background:{gradient};
         border-top:4px solid {mc};
         border-left:2px solid {mc}55;
         border-right:2px solid {mc}55;
         border-bottom:2px solid {mc}55;
-        border-radius:16px;
         box-shadow:0 8px 30px rgba({rgb_p},0.42);
-        padding:20px 14px 16px;
-        min-width:148px; flex:1; max-width:195px;
-        text-align:center;
     ">
         <div style="font-family:'Barlow Condensed',sans-serif;font-size:0.65rem;letter-spacing:2px;color:{mc};margin-bottom:4px;font-weight:700;">#{rank+1}</div>
         <div style="margin-bottom:8px;">{logo_html}</div>
