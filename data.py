@@ -355,6 +355,9 @@ ZONE_TO_CODE = {
     "Vancouver":    "VAN",
 }
 
+# ── Mapeo inverso: código → nombre de display ─────────────────
+CODE_TO_DISPLAY = {v: k for k, v in ZONE_TO_CODE.items()}
+
 def get_player_photo(player_name: str, sofifa_id: int) -> str:
     safe_name = player_name.encode("ascii", "ignore").decode("ascii")
     initials  = "+".join(safe_name.split()[:2]) or "PL"
