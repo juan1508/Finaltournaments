@@ -547,7 +547,7 @@ with st.sidebar:
     tournament = page
 
     st.markdown("<hr>", unsafe_allow_html=True)
-    st.markdown('<div style="font-size:0.75rem;color:var(--muted);text-align:center">MMJ Soccer League<br><span style="color:var(--gold)">Season 2025</span></div>', unsafe_allow_html=True)
+    st.markdown('<div style="font-size:0.75rem;color:var(--muted);text-align:center">Fedration MMJ<br><span style="color:var(--gold)">2026</span></div>', unsafe_allow_html=True)
 
 
 # ─── HEADER ───────────────────────────────────────────────────────────────────
