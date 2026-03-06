@@ -55,15 +55,15 @@ def logo_img(code, size=32):
 # ✅ Ahora usa CÓDIGOS de equipo — edita aquí para organizar los grupos
 # Las zonas con "format":"groups" dividen el listado en 2: primera mitad = Grupo A, segunda = Grupo B
 ZONES = {
-    "WEST ZONE":     {"teams": ["POR","LA","SJ","SEA","LAFC","RSL","SDFC","COL"],  "format":"groups",    "advance":2},
-    "MIDWEST ZONE":  {"teams": ["MIN","SKC","CIN","CHI","STL","CLB"],              "format":"groups",    "advance":2},
-    "SOUTH ZONE":    {"teams": ["DAL","ATX","HOU","CLT","NHS","ATL","ORL","MIA"],  "format":"groups",    "advance":2},
+    "WEST ZONE":     {"teams": ["LAFC","LA","SJ","SDFC","POR","RSL","SEA","COL"],  "format":"groups",    "advance":2},
+    "MIDWEST ZONE":  {"teams": ["MIN","SKC","STL","CHI","CIN","CLB"],              "format":"groups",    "advance":2},
+    "SOUTH ZONE":    {"teams": ["DAL","ATX","HOU","NHS","CLT","ATL","ORL","MIA"],  "format":"groups",    "advance":2},
     "NORTH ZONE":    {"teams": ["DCU","PHI","NYC","RBNY","NE"],                    "format":"roundrobin","advance":2},
     "CANADIAN ZONE": {"teams": ["MTL","TOR","VAN"],                                "format":"roundrobin","advance":1},
 }
 
 ZONE_COLORS = {
-    "WEST ZONE":"#E67E22","MIDWEST ZONE":"#2ECC71","SOUTH ZONE":"#3498DB",
+    "WEST ZONE":"#E67E22","MIDWEST ZONE":"#3498DB","SOUTH ZONE":"#2ECC71",
     "NORTH ZONE":"#9B59B6","CANADIAN ZONE":"#E74C3C",
 }
 
@@ -324,11 +324,15 @@ with st.sidebar:
         <div style="font-family:'Barlow Condensed';font-size:0.7rem;letter-spacing:4px;color:var(--muted)">TOURNAMENT HUB</div>
     </div><hr>""", unsafe_allow_html=True)
 
-    tournament = st.selectbox("🏆 Seleccionar Torneo", [
+    page = st.selectbox("📋 Navegación", [
+        "🏅 Palmarés MMJ",
         "🏟️ Papa Johns Leagues Cup",
         "🥤 Cisco Super Cup",
         "🍔 McDonald's Community Cup"
     ])
+
+    # alias para compatibilidad con el resto del código
+    tournament = page
 
     st.markdown("<hr>", unsafe_allow_html=True)
     st.markdown('<div style="font-size:0.75rem;color:var(--muted);text-align:center">MMJ Soccer League<br><span style="color:var(--gold)">Season 2025</span></div>', unsafe_allow_html=True)
@@ -336,6 +340,7 @@ with st.sidebar:
 
 # ─── HEADER ───────────────────────────────────────────────────────────────────
 TINFO = {
+    "🏅 Palmarés MMJ":              ("MMJ","PALMARÉS",          "HISTORIAL COMPLETO DE CAMPEONES"),
     "🏟️ Papa Johns Leagues Cup":   ("MMJ PAPA JOHNS","LEAGUES CUP",   "30 TEAMS · 5 ZONES · PHASE FINAL"),
     "🥤 Cisco Super Cup":          ("MMJ CISCO","SUPER CUP",           "STREAMLIT LEAGUE CHAMP VS EMIRATES CUP CHAMP"),
     "🍔 McDonald's Community Cup": ("MMJ McDONALD'S","COMMUNITY CUP", "4 TEAMS · 2 SEMIFINALES · GRAN FINAL"),
@@ -349,9 +354,195 @@ st.markdown(f"""
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# PALMARÉS MMJ
+# ═══════════════════════════════════════════════════════════════════════════════
+if tournament == "🏅 Palmarés MMJ":
+
+    # ── Datos históricos ──────────────────────────────────────────────────────
+    # Cada entrada: (código_equipo, título, "??" = pendiente)
+    PALMARES = {
+        "SEASON I": [
+            ("NHS",  "Campeón MMJ Streamlit League I"),
+            ("ATX",  "Campeón MMJ Emirates Cup I"),
+            ("ATX",  "Campeón MMJ Cisco Super Cup I"),
+        ],
+        "SEASON II": [
+            ("LAFC", "Campeón MMJ Streamlit League II"),
+            ("NHS",  "Campeón MMJ Emirates Cup II"),
+            ("LAFC", "Campeón MMJ Cisco Super Cup II"),
+        ],
+        "SEASON III": [
+            ("TOR",  "Campeón Canadian Zone I"),
+            ("NYC",  "Campeón North Zone I"),
+            ("NHS",  "Campeón South Zone I"),
+            ("CLB",  "Campeón Midwest Zone I"),
+            ("LAFC", "Campeón West Zone I"),
+            ("LAFC", "Campeón MMJ Streamlit League III"),
+            ("ATL",  "Campeón MMJ Emirates Cup III"),
+            ("ATL",  "Campeón MMJ Cisco Super Cup III"),
+        ],
+        "SEASON IV": [
+            ("MTL",  "Campeón Canadian Zone II"),
+            ("PHI",  "Campeón North Zone II"),
+            ("MIA",  "Campeón South Zone II"),
+            ("MIN",  "Campeón Midwest Zone II"),
+            ("LAFC", "Campeón West Zone II"),
+            ("LAFC", "Campeón MMJ Streamlit League IV"),
+            ("LAFC", "Campeón MMJ Emirates Cup IV"),
+            ("NHS",  "Campeón MMJ Cisco Super Cup IV"),
+        ],
+        "SEASON V": [
+            ("VAN",  "Campeón Canadian Zone III"),
+            ("PHI",  "Campeón North Zone III"),
+            ("??",   "Campeón South Zone III"),
+            ("??",   "Campeón Midwest Zone III"),
+            ("??",   "Campeón West Zone III"),
+            ("??",   "Campeón MMJ Streamlit League V"),
+            ("??",   "Campeón MMJ Emirates Cup V"),
+            ("??",   "Campeón MMJ Cisco Super Cup V"),
+        ],
+        "SEASON VI": [
+            ("??",   "Campeón Canadian Zone IV"),
+            ("??",   "Campeón North Zone IV"),
+            ("??",   "Campeón South Zone IV"),
+            ("??",   "Campeón Midwest Zone IV"),
+            ("??",   "Campeón West Zone IV"),
+            ("??",   "Campeón MMJ Papa Johns Leagues Cup I"),
+            ("??",   "Campeón MMJ Emirates Cup VI"),
+            ("??",   "Campeón MMJ Streamlit League VI"),
+            ("??",   "Campeón MMJ Cisco Super Cup VI"),
+            ("??",   "Campeón MMJ McDonald's Community Cup I"),
+        ],
+    }
+
+    # ── Conteo de títulos por equipo ──────────────────────────────────────────
+    title_count = {}
+    for season_entries in PALMARES.values():
+        for code, title in season_entries:
+            if code != "??":
+                title_count[code] = title_count.get(code, 0) + 1
+
+    top_teams = sorted(title_count.items(), key=lambda x: -x[1])
+
+    # ── Hall of Fame ──────────────────────────────────────────────────────────
+    st.markdown('<div class="section-title">🏆 HALL OF FAME</div>', unsafe_allow_html=True)
+    st.markdown("<div class='info-box'>Equipos con más títulos en la historia de la MMJ Federation</div>", unsafe_allow_html=True)
+
+    medal_colors = ["#F5C518","#C0C0C0","#CD7F32","#9B59B6","#3498DB"]
+    hof_html = '<div style="display:flex;flex-wrap:wrap;gap:14px;margin-bottom:30px">'
+    for rank, (code, count) in enumerate(top_teams):
+        mc = medal_colors[min(rank, len(medal_colors)-1)]
+        hof_html += f"""
+        <div style="background:linear-gradient(135deg,var(--card),var(--dark3));border:1px solid {mc}55;border-top:3px solid {mc};border-radius:10px;padding:16px 20px;min-width:140px;text-align:center;flex:1;max-width:180px">
+            <div style="font-size:1.6rem;margin-bottom:6px">{logo_img(code,44)}</div>
+            <div style="font-family:'Bebas Neue';font-size:1.4rem;color:{mc};letter-spacing:2px">{code}</div>
+            <div style="font-size:0.75rem;color:var(--muted);margin-bottom:6px">{get_full_name(code)}</div>
+            <div style="font-family:'Bebas Neue';font-size:2rem;color:{mc}">{count}</div>
+            <div style="font-size:0.7rem;color:var(--muted);letter-spacing:1px">TÍTULOS</div>
+        </div>"""
+    hof_html += '</div>'
+    st.markdown(hof_html, unsafe_allow_html=True)
+
+    st.markdown("---")
+
+    # ── Palmarés por temporada ────────────────────────────────────────────────
+    st.markdown('<div class="section-title">📋 PALMARÉS POR TEMPORADA</div>', unsafe_allow_html=True)
+
+    # Colores por tipo de título
+    TITLE_COLORS = {
+        "Streamlit League": "#F5C518",
+        "Emirates Cup":     "#3498DB",
+        "Cisco Super Cup":  "#2ECC71",
+        "Papa Johns":       "#E67E22",
+        "McDonald":         "#E74C3C",
+        "West Zone":        "#E67E22",
+        "Midwest Zone":     "#3498DB",
+        "South Zone":       "#2ECC71",
+        "North Zone":       "#9B59B6",
+        "Canadian Zone":    "#E74C3C",
+    }
+
+    def title_color(title):
+        for k, v in TITLE_COLORS.items():
+            if k.lower() in title.lower():
+                return v
+        return "#888888"
+
+    def title_icon(title):
+        t = title.lower()
+        if "streamlit league" in t: return "⚽"
+        if "emirates" in t:         return "✈️"
+        if "cisco" in t:            return "🥤"
+        if "papa johns" in t:       return "🏟️"
+        if "mcdonald" in t:         return "🍔"
+        if "west zone" in t:        return "🌅"
+        if "midwest zone" in t:     return "🌾"
+        if "south zone" in t:       return "🌶️"
+        if "north zone" in t:       return "🗽"
+        if "canadian zone" in t:    return "🍁"
+        return "🏆"
+
+    for season_name, entries in PALMARES.items():
+        season_num = season_name.split()[-1]
+        is_current = season_name == "SEASON V"
+        is_future  = season_name == "SEASON VI"
+        border_c   = "var(--gold)" if is_current else ("var(--border)" if is_future else "var(--border)")
+        alpha      = "0.5" if is_future else "1"
+
+        st.markdown(f"""
+        <div style="margin-bottom:10px">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+                <div style="font-family:'Bebas Neue';font-size:2rem;color:{'var(--gold)' if is_current else 'var(--muted)'};letter-spacing:3px">{season_name}</div>
+                {'<span style="background:var(--gold);color:#000;font-family:\'Barlow Condensed\';font-size:0.7rem;letter-spacing:2px;padding:3px 10px;border-radius:20px;font-weight:700">EN CURSO</span>' if is_current else ''}
+                {'<span style="background:var(--dark3);color:var(--muted);font-family:\'Barlow Condensed\';font-size:0.7rem;letter-spacing:2px;padding:3px 10px;border-radius:20px;border:1px solid var(--border)">PRÓXIMA</span>' if is_future else ''}
+            </div>
+        </div>""", unsafe_allow_html=True)
+
+        cards_html = f'<div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:24px;opacity:{alpha}">'
+        for code, title in entries:
+            pending = code == "??"
+            tc = "var(--border)" if pending else title_color(title)
+            icon = title_icon(title)
+            logo_html = '<div style="font-size:1.8rem;margin-bottom:6px">❓</div>' if pending else f'<div style="margin-bottom:6px">{logo_img(code,44)}</div>'
+            code_html = f'<div style="font-family:\'Bebas Neue\';font-size:1.2rem;color:{"var(--muted)" if pending else tc};letter-spacing:2px">{"???" if pending else code}</div>'
+            name_html = f'<div style="font-size:0.7rem;color:var(--muted);margin-bottom:6px">{"Por definir" if pending else get_full_name(code)}</div>'
+
+            cards_html += f"""
+            <div style="background:var(--card);border:1px solid {"var(--border)" if pending else tc+"44"};border-top:3px solid {tc};border-radius:10px;padding:14px 16px;text-align:center;min-width:160px;flex:1;max-width:200px;">
+                <div style="font-size:0.65rem;font-family:'Barlow Condensed';letter-spacing:2px;color:{tc};margin-bottom:8px">{icon} {title.replace("Campeón ","").upper()}</div>
+                {logo_html}
+                {code_html}
+                {name_html}
+            </div>"""
+        cards_html += '</div>'
+        st.markdown(cards_html, unsafe_allow_html=True)
+
+    # ── Estadísticas globales ─────────────────────────────────────────────────
+    st.markdown("---")
+    st.markdown('<div class="section-title">📊 ESTADÍSTICAS HISTÓRICAS</div>', unsafe_allow_html=True)
+
+    total_titles = sum(1 for s in PALMARES.values() for code, _ in s if code != "??")
+    total_seasons = len(PALMARES)
+    unique_champs = len(set(code for s in PALMARES.values() for code, _ in s if code != "??"))
+
+    sc1, sc2, sc3 = st.columns(3)
+    for col, val, lbl, icon in [
+        (sc1, total_titles,  "Títulos entregados", "🏆"),
+        (sc2, total_seasons, "Temporadas",          "📅"),
+        (sc3, unique_champs, "Campeones distintos", "⚽"),
+    ]:
+        with col:
+            col.markdown(f"""
+            <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px;text-align:center">
+                <div style="font-size:2rem">{icon}</div>
+                <div style="font-family:'Bebas Neue';font-size:2.8rem;color:var(--gold)">{val}</div>
+                <div style="font-size:0.8rem;color:var(--muted);letter-spacing:1px">{lbl.upper()}</div>
+            </div>""", unsafe_allow_html=True)
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # PAPA JOHNS LEAGUES CUP
 # ═══════════════════════════════════════════════════════════════════════════════
-if tournament == "🏟️ Papa Johns Leagues Cup":
+elif tournament == "🏟️ Papa Johns Leagues Cup":
     T = "pjlc"
     tabs = st.tabs(["🌍 PHASE ZONE", "🏆 PHASE FINAL", "📊 ESTADÍSTICAS"])
 
@@ -461,8 +652,8 @@ if tournament == "🏟️ Papa Johns Leagues Cup":
         zone_cols = st.columns(5)
         zone_info = [
             ("WEST",     "#E67E22", WZ_C, WZ_S),
-            ("MIDWEST",  "#2ECC71", MZ_C, MZ_S),
-            ("SOUTH",    "#3498DB", SZ_C, SZ_S),
+            ("MIDWEST",  "#3498DB", MZ_C, MZ_S),
+            ("SOUTH",    "#2ECC71", SZ_C, SZ_S),
             ("NORTH",    "#9B59B6", NZ_C, None),
             ("CANADIAN", "#E74C3C", CZ_C, None),
         ]
