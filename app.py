@@ -142,42 +142,69 @@ hr{border-color:var(--border)!important;}
     from { opacity:0; transform:translateY(16px); }
     to   { opacity:1; transform:translateY(0);    }
 }
-@keyframes shimmer-move {
-    0%   { background-position: -250% center; }
-    100% { background-position:  250% center; }
-}
-@keyframes pulse-glow {
-    0%, 100% { filter: brightness(1) saturate(1);    }
-    50%       { filter: brightness(1.14) saturate(1.2); }
+@keyframes shimmer-pass {
+    0%   { transform: translateX(-150%) skewX(-15deg); opacity:0; }
+    10%  { opacity:1; }
+    90%  { opacity:1; }
+    100% { transform: translateX(250%) skewX(-15deg);  opacity:0; }
 }
 .champ-card {
+    position: relative;
     border-radius:14px;
     text-align:center; padding:20px 14px 16px;
     min-width:155px; flex:1; max-width:205px;
-    animation: floatIn 0.45s ease both, pulse-glow 4s ease-in-out infinite;
-    transition: transform 0.22s ease, filter 0.22s ease;
+    animation: floatIn 0.45s ease both;
+    transition: transform 0.22s ease, box-shadow 0.22s ease;
     cursor:default;
-    background-size: 200% 200%;
+    overflow: hidden;
+}
+.champ-card::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 40%;
+    height: 100%;
+    background: linear-gradient(
+        to right,
+        rgba(255,255,255,0) 0%,
+        rgba(255,255,255,0.13) 50%,
+        rgba(255,255,255,0) 100%
+    );
+    animation: shimmer-pass 4s ease-in-out infinite;
+    animation-delay: var(--shimmer-delay, 0ms);
+    pointer-events: none;
+    border-radius:14px;
 }
 .champ-card:hover {
     transform: translateY(-7px) scale(1.04);
-    filter: brightness(1.22) saturate(1.3) !important;
-}
-/* Shimmer via pseudo-element workaround: applied as outline glow on card text */
-.champ-card img {
-    animation: pulse-glow 4s ease-in-out infinite;
+    box-shadow: 0 12px 40px rgba(255,255,255,0.08);
 }
 .hof-card {
+    position: relative;
     border-radius:16px;
     text-align:center; padding:22px 14px 16px;
     min-width:148px; flex:1; max-width:195px;
-    animation: pulse-glow 4s ease-in-out infinite;
-    transition: transform 0.22s ease, filter 0.22s ease;
+    transition: transform 0.22s ease;
     cursor:default;
+    overflow: hidden;
+}
+.hof-card::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 40%;
+    height: 100%;
+    background: linear-gradient(
+        to right,
+        rgba(255,255,255,0) 0%,
+        rgba(255,255,255,0.13) 50%,
+        rgba(255,255,255,0) 100%
+    );
+    animation: shimmer-pass 4s ease-in-out infinite;
+    pointer-events: none;
 }
 .hof-card:hover {
     transform: translateY(-9px) scale(1.04);
-    filter: brightness(1.22) saturate(1.3) !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -448,33 +475,23 @@ def make_champ_card(code, title, delay_ms=0):
     name_color   = "rgba(255,255,255,0.72)" if not pending else "#444455"
     opacity      = "1" if not pending else "0.5"
 
-    # Shimmer: gradiente con rayo de luz incluido, animado con background-position
-    if not pending:
-        gradient = (
-            f"linear-gradient(115deg, {secondary} 0%, {primary} 30%, "
-            f"rgba(255,255,255,0.18) 50%, {primary} 70%, {secondary} 100%)"
-        )
-        anim = f"shimmer-move 3s ease-in-out infinite, pulse-glow 4s ease-in-out infinite"
-        bg_size = "300% 300%"
-    else:
-        gradient = "linear-gradient(145deg, #1A1A2A, #22222F)"
-        anim = "none"
-        bg_size = "100% 100%"
-
+    gradient = (
+        f"linear-gradient(145deg, {secondary}EE 0%, {primary}FF 52%, {secondary}CC 100%)"
+        if not pending else
+        "linear-gradient(145deg, #1A1A2A, #22222F)"
+    )
     border_color = f"{primary}AA" if not pending else "#2A2A3A"
     shadow = f"0 6px 28px rgba({rgb_p}, 0.38), 0 2px 8px rgba(0,0,0,0.55)" if not pending else "0 2px 10px rgba(0,0,0,0.4)"
 
     return f"""<div class="champ-card" style="
         background:{gradient};
-        background-size:{bg_size};
         border-top:3px solid {t_color};
         border-left:1.5px solid {border_color};
         border-right:1.5px solid {border_color};
         border-bottom:1.5px solid {border_color};
         box-shadow:{shadow};
         opacity:{opacity};
-        animation:{anim};
-        animation-delay:{delay_ms}ms;
+        --shimmer-delay:{delay_ms}ms;
     ">
         <div style="font-family:'Barlow Condensed',sans-serif;font-size:0.58rem;letter-spacing:2.5px;text-transform:uppercase;margin-bottom:10px;font-weight:700;color:{t_color};">{icon} {title_short}</div>
         <div style="margin-bottom:8px;">{logo_html}</div>
