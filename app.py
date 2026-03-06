@@ -66,7 +66,7 @@ ALL_CODES = list(TEAM_COMPOSITIONS.keys())
 
 # ─── TEAM COLORS (para Palmarés) ──────────────────────────────────────────────
 TEAM_COLORS = {
-    "NHS":  {"primary": "#8B0000",  "secondary": "#1A1A1A"},
+    "NHS":  {"primary": "#e8e51d",  "secondary": "#1f1840"},
     "ATX":  {"primary": "#00B140",  "secondary": "#000000"},
     "ATL":  {"primary": "#80000A",  "secondary": "#1A1A1A"},
     "LAFC": {"primary": "#C39E6D",  "secondary": "#000000"},
