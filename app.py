@@ -361,17 +361,17 @@ if tournament == "🏅 Palmarés MMJ":
     # ── Datos históricos ──────────────────────────────────────────────────────
     # Cada entrada: (código_equipo, título, "??" = pendiente)
     PALMARES = {
-        "SEASON I": [
+        "SEASON Ⅰ": [
             ("NHS",  "Campeón MMJ Streamlit League I"),
             ("ATX",  "Campeón MMJ Emirates Cup I"),
             ("ATX",  "Campeón MMJ Cisco Super Cup I"),
         ],
-        "SEASON II": [
+        "SEASON Ⅱ": [
             ("LAFC", "Campeón MMJ Streamlit League II"),
             ("NHS",  "Campeón MMJ Emirates Cup II"),
             ("LAFC", "Campeón MMJ Cisco Super Cup II"),
         ],
-        "SEASON III": [
+        "SEASON Ⅲ": [
             ("TOR",  "Campeón Canadian Zone I"),
             ("NYC",  "Campeón North Zone I"),
             ("NHS",  "Campeón South Zone I"),
@@ -381,7 +381,7 @@ if tournament == "🏅 Palmarés MMJ":
             ("ATL",  "Campeón MMJ Emirates Cup III"),
             ("ATL",  "Campeón MMJ Cisco Super Cup III"),
         ],
-        "SEASON IV": [
+        "SEASON Ⅳ": [
             ("MTL",  "Campeón Canadian Zone II"),
             ("PHI",  "Campeón North Zone II"),
             ("MIA",  "Campeón South Zone II"),
@@ -391,7 +391,7 @@ if tournament == "🏅 Palmarés MMJ":
             ("LAFC", "Campeón MMJ Emirates Cup IV"),
             ("NHS",  "Campeón MMJ Cisco Super Cup IV"),
         ],
-        "SEASON V": [
+        "SEASON Ⅴ": [
             ("VAN",  "Campeón Canadian Zone III"),
             ("PHI",  "Campeón North Zone III"),
             ("??",   "Campeón South Zone III"),
@@ -401,7 +401,7 @@ if tournament == "🏅 Palmarés MMJ":
             ("??",   "Campeón MMJ Emirates Cup V"),
             ("??",   "Campeón MMJ Cisco Super Cup V"),
         ],
-        "SEASON VI": [
+        "SEASON Ⅵ": [
             ("??",   "Campeón Canadian Zone IV"),
             ("??",   "Campeón North Zone IV"),
             ("??",   "Campeón South Zone IV"),
