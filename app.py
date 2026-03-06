@@ -50,15 +50,15 @@ def logo_img(code, size=32):
 
 # ─── ZONES ────────────────────────────────────────────────────────────────────
 ZONES = {
-    "WEST ZONE":     {"teams": ["LAFC","LA","SJ","SDFC","POR","RSL","SEA","COL"],  "format":"groups",    "advance":2},
-    "MIDWEST ZONE":  {"teams": ["MIN","SKC","STL","CHI","CIN","CLB"],              "format":"groups",    "advance":2},
-    "SOUTH ZONE":    {"teams": ["DAL","ATX","HOU","NHS","CLT","ATL","ORL","MIA"],  "format":"groups",    "advance":2},
+    "WEST ZONE":     {"teams": ["POR","LA","SJ","SEA","LAFC","RSL","SDFC","COL"],  "format":"groups",    "advance":2},
+    "MIDWEST ZONE":  {"teams": ["MIN","SKC","CIN","CHI","STL","CLB"],              "format":"groups",    "advance":2},
+    "SOUTH ZONE":    {"teams": ["DAL","ATX","HOU","CLT","NHS","ATL","ORL","MIA"],  "format":"groups",    "advance":2},
     "NORTH ZONE":    {"teams": ["DCU","PHI","NYC","RBNY","NE"],                    "format":"roundrobin","advance":2},
     "CANADIAN ZONE": {"teams": ["MTL","TOR","VAN"],                                "format":"roundrobin","advance":1},
 }
 
 ZONE_COLORS = {
-    "WEST ZONE":"#E67E22","MIDWEST ZONE":"#3498DB","SOUTH ZONE":"#2ECC71",
+    "WEST ZONE":"#E67E22","MIDWEST ZONE":"#2ECC71","SOUTH ZONE":"#3498DB,
     "NORTH ZONE":"#9B59B6","CANADIAN ZONE":"#E74C3C",
 }
 
@@ -430,7 +430,7 @@ def title_color_palmares(title):
         "Papa Johns":       "#233dff",
         "McDonald":         "#fa0d04",
         "West Zone":        "#E67E22",
-        "Midwest Zone":     "#2ECC71",
+        "Midwest Zone":     "#007E44",
         "South Zone":       "#3498DB",
         "North Zone":       "#9B59B6",
         "Canadian Zone":    "#E74C3C",
@@ -448,7 +448,7 @@ def title_icon_palmares(title):
     if "papa johns" in t:       return "🍕"
     if "mcdonald" in t:         return "🍔"
     if "west zone" in t:        return "🌅"
-    if "midwest zone" in t:     return "🌾"
+    if "midwest zone" in t:     return "🌤️"
     if "south zone" in t:       return "🌊"
     if "north zone" in t:       return "🗽"
     if "canadian zone" in t:    return "🍁"
