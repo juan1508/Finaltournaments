@@ -531,9 +531,9 @@ def make_hof_card(rank, code, count, medal_colors):
 # SIDEBAR
 # ═══════════════════════════════════════════════════════════════════════════════
 with st.sidebar:
+    st.image("fmmj.png", use_container_width=True)
     st.markdown("""
-    <div style="text-align:center;padding:20px 0 10px">
-        <div style="font-family:'Bebas Neue';font-size:2.2rem;color:var(--gold);letter-spacing:3px">MMJ</div>
+    <div style="text-align:center;padding:4px 0 10px">
         <div style="font-family:'Barlow Condensed';font-size:0.7rem;letter-spacing:4px;color:var(--muted)">TOURNAMENT HUB</div>
     </div><hr>""", unsafe_allow_html=True)
 
@@ -558,11 +558,16 @@ TINFO = {
     "🍔 McDonald's Community Cup": ("MMJ McDONALD'S","COMMUNITY CUP", "4 TEAMS · 2 SEMIFINALES · GRAN FINAL"),
 }
 info = TINFO[tournament]
-st.markdown(f"""
-<div style="padding:30px 0 20px;border-bottom:1px solid var(--border);margin-bottom:30px">
-    <div class="hero-sub" style="margin-bottom:4px">{info[2]}</div>
-    <div class="hero-title">{info[0]}<br>{info[1]}</div>
-</div>""", unsafe_allow_html=True)
+col_logo, col_title = st.columns([1, 4])
+with col_logo:
+    st.image("fmmj.png", width=110)
+with col_title:
+    st.markdown(f"""
+    <div style="padding:18px 0 16px;">
+        <div class="hero-sub" style="margin-bottom:4px">{info[2]}</div>
+        <div class="hero-title">{info[0]}<br>{info[1]}</div>
+    </div>""", unsafe_allow_html=True)
+st.markdown("<div style='border-bottom:1px solid var(--border);margin-bottom:30px'></div>", unsafe_allow_html=True)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
