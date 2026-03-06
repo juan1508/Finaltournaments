@@ -66,7 +66,7 @@ ALL_CODES = list(TEAM_COMPOSITIONS.keys())
 
 # ─── TEAM COLORS (para Palmarés) ──────────────────────────────────────────────
 TEAM_COLORS = {
-    "NHS":  {"primary": "#E8E51D",  "secondary": "#1F1840"},
+    "NHS":  {"primary": "#8B0000",  "secondary": "#1A1A1A"},
     "ATX":  {"primary": "#00B140",  "secondary": "#000000"},
     "ATL":  {"primary": "#80000A",  "secondary": "#1A1A1A"},
     "LAFC": {"primary": "#C39E6D",  "secondary": "#000000"},
@@ -451,13 +451,14 @@ def make_champ_card(code, title, delay_ms=0):
 
     logo_url  = get_logo_url(code) if not pending else ""
     logo_html = (
-        f'<img src="{logo_url}" width="50" height="50" style="object-fit:contain;filter:drop-shadow(0 2px 10px rgba(0,0,0,0.65));" onerror="this.style.display:none">'
-        if logo_url else '<div style="font-size:1.8rem;line-height:50px">❓</div>'
+        f'<img src="{logo_url}" width="50" height="50" style="object-fit:contain;display:block;margin:0 auto;">'
+        if logo_url else '<div style="font-size:1.8rem;text-align:center;">❓</div>'
     )
     name_display = get_full_name(code) if not pending else "Por definir"
     code_display = code if not pending else "???"
     text_color   = "#FFFFFF" if not pending else "#555566"
     name_color   = "rgba(255,255,255,0.72)" if not pending else "#444455"
+    opacity      = "1" if not pending else "0.5"
 
     gradient = (
         f"linear-gradient(145deg, {secondary}EE 0%, {primary}FF 52%, {secondary}CC 100%)"
@@ -466,20 +467,25 @@ def make_champ_card(code, title, delay_ms=0):
     )
     border_color = f"{primary}AA" if not pending else "#2A2A3A"
     shadow = f"0 6px 28px rgba({rgb_p}, 0.38), 0 2px 8px rgba(0,0,0,0.55)" if not pending else "0 2px 10px rgba(0,0,0,0.4)"
-    shimmer = f'<div class="shimmer-layer" style="animation-delay:{delay_ms * 0.5}ms;"></div>' if not pending else ""
 
-    return f"""
-<div class="champ-card" style="background:{gradient};border:1.5px solid {border_color};box-shadow:{shadow};animation-delay:{delay_ms}ms;">
-    {shimmer}
-    <div style="position:absolute;top:0;left:0;right:0;height:3px;background:{t_color};z-index:3;border-radius:14px 14px 0 0;"></div>
-    <div style="position:absolute;inset:0;background:radial-gradient(circle at 50% 15%, {primary}30, transparent 65%);z-index:0;border-radius:14px;"></div>
-    <div class="inner">
-        <div class="title-lbl" style="color:{t_color};">{icon} {title_short}</div>
-        <div style="margin:0 auto 6px;width:50px;height:50px;display:flex;align-items:center;justify-content:center;">{logo_html}</div>
-        <div class="team-code" style="color:{text_color};">{code_display}</div>
-        <div class="team-nm" style="color:{name_color};">{name_display}</div>
-    </div>
-</div>"""
+    return f"""<div style="
+        background:{gradient};
+        border-top:3px solid {t_color};
+        border-left:1.5px solid {border_color};
+        border-right:1.5px solid {border_color};
+        border-bottom:1.5px solid {border_color};
+        border-radius:14px;
+        box-shadow:{shadow};
+        padding:18px 14px 14px;
+        min-width:155px; flex:1; max-width:205px;
+        text-align:center;
+        opacity:{opacity};
+    ">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:0.58rem;letter-spacing:2.5px;text-transform:uppercase;margin-bottom:10px;font-weight:700;color:{t_color};">{icon} {title_short}</div>
+        <div style="margin-bottom:8px;">{logo_html}</div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:1.55rem;letter-spacing:3px;line-height:1;margin:5px 0 2px;color:{text_color};">{code_display}</div>
+        <div style="font-size:0.63rem;color:{name_color};letter-spacing:0.4px;">{name_display}</div>
+    </div>"""
 
 def make_hof_card(rank, code, count, medal_colors):
     mc = medal_colors[min(rank, len(medal_colors)-1)]
@@ -488,19 +494,28 @@ def make_hof_card(rank, code, count, medal_colors):
     secondary = tc["secondary"]
     rgb_p     = hex_to_rgb(primary)
     logo_url  = get_logo_url(code)
-    logo_html = f'<img src="{logo_url}" width="58" height="58" style="object-fit:contain;filter:drop-shadow(0 3px 10px rgba(0,0,0,0.6));" onerror="this.style.display:none">' if logo_url else ""
+    logo_html = f'<img src="{logo_url}" width="58" height="58" style="object-fit:contain;display:block;margin:0 auto;">' if logo_url else ""
     gradient  = f"linear-gradient(155deg, {secondary}DD 0%, {primary}FF 55%, {secondary}AA 100%)"
 
-    return f"""
-<div class="hof-card" style="background:{gradient};border:2px solid {mc}88;box-shadow:0 8px 30px rgba({rgb_p},0.42), 0 0 0 1px rgba(255,255,255,0.04) inset;">
-    <div style="position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,{mc},{primary});border-radius:16px 16px 0 0;"></div>
-    <div style="position:absolute;top:9px;left:9px;font-family:'Bebas Neue';font-size:1rem;color:{mc};background:rgba(0,0,0,0.4);border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;border:1px solid {mc}55;z-index:2;">{rank+1}</div>
-    <div style="margin-bottom:7px;margin-top:4px;">{logo_html}</div>
-    <div style="font-family:'Bebas Neue';font-size:1.45rem;color:#FFF;letter-spacing:3px;text-shadow:0 1px 6px rgba(0,0,0,0.7)">{code}</div>
-    <div style="font-size:0.68rem;color:rgba(255,255,255,0.62);margin-bottom:9px;">{get_full_name(code)}</div>
-    <div class="hof-count" style="color:{mc};text-shadow:0 2px 10px rgba(0,0,0,0.5);">{count}</div>
-    <div style="font-family:'Barlow Condensed';font-size:0.67rem;letter-spacing:2px;color:rgba(255,255,255,0.45);">TÍTULOS</div>
-</div>"""
+    return f"""<div style="
+        background:{gradient};
+        border-top:4px solid {mc};
+        border-left:2px solid {mc}55;
+        border-right:2px solid {mc}55;
+        border-bottom:2px solid {mc}55;
+        border-radius:16px;
+        box-shadow:0 8px 30px rgba({rgb_p},0.42);
+        padding:20px 14px 16px;
+        min-width:148px; flex:1; max-width:195px;
+        text-align:center;
+    ">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:0.65rem;letter-spacing:2px;color:{mc};margin-bottom:4px;font-weight:700;">#{rank+1}</div>
+        <div style="margin-bottom:8px;">{logo_html}</div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:1.45rem;color:#FFF;letter-spacing:3px;">{code}</div>
+        <div style="font-size:0.68rem;color:rgba(255,255,255,0.62);margin-bottom:10px;">{get_full_name(code)}</div>
+        <div style="font-family:'Bebas Neue',sans-serif;font-size:3.2rem;line-height:1;color:{mc};">{count}</div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:0.67rem;letter-spacing:2px;color:rgba(255,255,255,0.45);">TÍTULOS</div>
+    </div>"""
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
