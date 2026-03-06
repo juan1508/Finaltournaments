@@ -76,7 +76,7 @@ TEAM_COLORS = {
     "MTL":  {"primary": "#c5c8cb",  "secondary": "#003da6"},
     "PHI":  {"primary": "#071B2C",  "secondary": "#B19C6F"},
     "MIA":  {"primary": "#231F20",  "secondary": "#F7B5CD"},
-    "MIN":  {"primary": "#e2e2de",  "secondary": "#9bcde4"},
+    "MIN":  {"primary": "#9BCDE4",  "secondary": "#e2e2de"},
     "VAN":  {"primary": "#85B2E5",  "secondary": "#00245D"},
     "SEA":  {"primary": "#007A5E",  "secondary": "#5D9741"},
     "POR":  {"primary": "#004812",  "secondary": "#EBE5D8"},
