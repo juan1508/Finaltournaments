@@ -142,6 +142,10 @@ hr{border-color:var(--border)!important;}
     from { opacity:0; transform:translateY(16px); }
     to   { opacity:1; transform:translateY(0);    }
 }
+@keyframes shimmer-move {
+    0%   { background-position: -250% center; }
+    100% { background-position:  250% center; }
+}
 @keyframes pulse-glow {
     0%, 100% { filter: brightness(1) saturate(1);    }
     50%       { filter: brightness(1.14) saturate(1.2); }
@@ -153,11 +157,15 @@ hr{border-color:var(--border)!important;}
     animation: floatIn 0.45s ease both, pulse-glow 4s ease-in-out infinite;
     transition: transform 0.22s ease, filter 0.22s ease;
     cursor:default;
+    background-size: 200% 200%;
 }
 .champ-card:hover {
     transform: translateY(-7px) scale(1.04);
     filter: brightness(1.22) saturate(1.3) !important;
-    animation-play-state: paused;
+}
+/* Shimmer via pseudo-element workaround: applied as outline glow on card text */
+.champ-card img {
+    animation: pulse-glow 4s ease-in-out infinite;
 }
 .hof-card {
     border-radius:16px;
@@ -170,7 +178,6 @@ hr{border-color:var(--border)!important;}
 .hof-card:hover {
     transform: translateY(-9px) scale(1.04);
     filter: brightness(1.22) saturate(1.3) !important;
-    animation-play-state: paused;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -441,22 +448,32 @@ def make_champ_card(code, title, delay_ms=0):
     name_color   = "rgba(255,255,255,0.72)" if not pending else "#444455"
     opacity      = "1" if not pending else "0.5"
 
-    gradient = (
-        f"linear-gradient(145deg, {secondary}EE 0%, {primary}FF 52%, {secondary}CC 100%)"
-        if not pending else
-        "linear-gradient(145deg, #1A1A2A, #22222F)"
-    )
+    # Shimmer: gradiente con rayo de luz incluido, animado con background-position
+    if not pending:
+        gradient = (
+            f"linear-gradient(115deg, {secondary} 0%, {primary} 30%, "
+            f"rgba(255,255,255,0.18) 50%, {primary} 70%, {secondary} 100%)"
+        )
+        anim = f"shimmer-move 3s ease-in-out infinite, pulse-glow 4s ease-in-out infinite"
+        bg_size = "300% 300%"
+    else:
+        gradient = "linear-gradient(145deg, #1A1A2A, #22222F)"
+        anim = "none"
+        bg_size = "100% 100%"
+
     border_color = f"{primary}AA" if not pending else "#2A2A3A"
     shadow = f"0 6px 28px rgba({rgb_p}, 0.38), 0 2px 8px rgba(0,0,0,0.55)" if not pending else "0 2px 10px rgba(0,0,0,0.4)"
 
     return f"""<div class="champ-card" style="
         background:{gradient};
+        background-size:{bg_size};
         border-top:3px solid {t_color};
         border-left:1.5px solid {border_color};
         border-right:1.5px solid {border_color};
         border-bottom:1.5px solid {border_color};
         box-shadow:{shadow};
         opacity:{opacity};
+        animation:{anim};
         animation-delay:{delay_ms}ms;
     ">
         <div style="font-family:'Barlow Condensed',sans-serif;font-size:0.58rem;letter-spacing:2.5px;text-transform:uppercase;margin-bottom:10px;font-weight:700;color:{t_color};">{icon} {title_short}</div>
@@ -627,12 +644,7 @@ if tournament == "🏅 Palmarés MMJ":
         elif is_future:
             badge_html = '<span style="background:var(--dark3);color:var(--muted);font-family:\'Barlow Condensed\',sans-serif;font-size:0.7rem;letter-spacing:2px;padding:3px 12px;border-radius:20px;border:1px solid var(--border)">PRÓXIMA</span>'
 
-        st.markdown(f"""
-        <div style="display:flex;align-items:center;gap:14px;margin-bottom:16px;padding:8px 0;">
-            <div style="font-family:'Bebas Neue';font-size:2.2rem;color:{header_color};letter-spacing:3px;line-height:1;">{season_name}</div>
-            {badge_html}
-            <div style="height:2px;flex:1;background:linear-gradient(90deg,var(--border),transparent);border-radius:2px;"></div>
-        </div>""", unsafe_allow_html=True)
+        st.markdown(f'<div style="font-family:\'Bebas Neue\';font-size:2.2rem;color:{header_color};letter-spacing:3px;margin-bottom:14px;">{season_name} {badge_html}</div>', unsafe_allow_html=True)
 
         cards_html = f'<div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:30px;opacity:{alpha};">'
         for delay_i, (code, title) in enumerate(entries):
