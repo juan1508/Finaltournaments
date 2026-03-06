@@ -68,6 +68,45 @@ MLS_TEAMS = sorted([
     "Montreal", "Toronto", "Vancouver"
 ])
 
+TEAM_LOGOS = {
+    "LAFC":         "https://upload.wikimedia.org/wikipedia/en/thumb/d/dc/Los_Angeles_FC_crest.svg/180px-Los_Angeles_FC_crest.svg.png",
+    "LA Galaxy":    "https://upload.wikimedia.org/wikipedia/en/thumb/8/8f/Los_Angeles_Galaxy_crest.svg/180px-Los_Angeles_Galaxy_crest.svg.png",
+    "San Jose":     "https://upload.wikimedia.org/wikipedia/en/thumb/7/76/San_Jose_Earthquakes_logo.svg/180px-San_Jose_Earthquakes_logo.svg.png",
+    "San Diego FC": "https://upload.wikimedia.org/wikipedia/en/thumb/6/60/San_Diego_FC_logo.svg/180px-San_Diego_FC_logo.svg.png",
+    "Portland":     "https://upload.wikimedia.org/wikipedia/en/thumb/6/67/Portland_Timbers_logo.svg/180px-Portland_Timbers_logo.svg.png",
+    "RSL":          "https://upload.wikimedia.org/wikipedia/en/thumb/0/0a/Real_Salt_Lake_crest.svg/180px-Real_Salt_Lake_crest.svg.png",
+    "Seattle":      "https://upload.wikimedia.org/wikipedia/en/thumb/1/1e/Seattle_Sounders_FC_crest.svg/180px-Seattle_Sounders_FC_crest.svg.png",
+    "Colorado":     "https://upload.wikimedia.org/wikipedia/en/thumb/1/1f/Colorado_Rapids_logo.svg/180px-Colorado_Rapids_logo.svg.png",
+    "Minnesota":    "https://upload.wikimedia.org/wikipedia/en/thumb/b/bb/Minnesota_United_FC_logo.svg/180px-Minnesota_United_FC_logo.svg.png",
+    "Sporting KC":  "https://upload.wikimedia.org/wikipedia/en/thumb/f/f8/Sporting_Kansas_City_logo.svg/180px-Sporting_Kansas_City_logo.svg.png",
+    "St. Louis":    "https://upload.wikimedia.org/wikipedia/en/thumb/a/a5/St._Louis_City_SC_crest.svg/180px-St._Louis_City_SC_crest.svg.png",
+    "Chicago":      "https://upload.wikimedia.org/wikipedia/en/thumb/4/4e/Chicago_Fire_FC_crest.svg/180px-Chicago_Fire_FC_crest.svg.png",
+    "Cincinnati":   "https://upload.wikimedia.org/wikipedia/en/thumb/b/b3/FC_Cincinnati_primary_logo_2023.svg/180px-FC_Cincinnati_primary_logo_2023.svg.png",
+    "Columbus":     "https://upload.wikimedia.org/wikipedia/en/thumb/a/a9/Columbus_Crew_SC_crest.svg/180px-Columbus_Crew_SC_crest.svg.png",
+    "Dallas":       "https://upload.wikimedia.org/wikipedia/en/thumb/f/f1/FC_Dallas_crest.svg/180px-FC_Dallas_crest.svg.png",
+    "Austin":       "https://upload.wikimedia.org/wikipedia/en/thumb/3/3f/Austin_FC_logo.svg/180px-Austin_FC_logo.svg.png",
+    "Houston":      "https://upload.wikimedia.org/wikipedia/en/thumb/f/f0/Houston_Dynamo_FC_crest.svg/180px-Houston_Dynamo_FC_crest.svg.png",
+    "Nashville":    "https://upload.wikimedia.org/wikipedia/en/thumb/3/3c/Nashville_SC_crest.svg/180px-Nashville_SC_crest.svg.png",
+    "Charlotte":    "https://upload.wikimedia.org/wikipedia/en/thumb/c/c8/Charlotte_FC_crest.svg/180px-Charlotte_FC_crest.svg.png",
+    "Atlanta":      "https://upload.wikimedia.org/wikipedia/en/thumb/f/fc/Atlanta_United_FC_crest.svg/180px-Atlanta_United_FC_crest.svg.png",
+    "Orlando":      "https://upload.wikimedia.org/wikipedia/en/thumb/e/e3/Orlando_City_SC_crest.svg/180px-Orlando_City_SC_crest.svg.png",
+    "Miami":        "https://upload.wikimedia.org/wikipedia/en/thumb/4/42/Inter_Miami_CF_crest.svg/180px-Inter_Miami_CF_crest.svg.png",
+    "DC United":    "https://upload.wikimedia.org/wikipedia/en/thumb/5/52/DC_United_crest.svg/180px-DC_United_crest.svg.png",
+    "Philadelphia": "https://upload.wikimedia.org/wikipedia/en/thumb/5/54/Philadelphia_Union_crest.svg/180px-Philadelphia_Union_crest.svg.png",
+    "NYCFC":        "https://upload.wikimedia.org/wikipedia/en/thumb/4/44/New_York_City_FC_crest.svg/180px-New_York_City_FC_crest.svg.png",
+    "NY Red Bulls": "https://upload.wikimedia.org/wikipedia/en/thumb/5/59/New_York_Red_Bulls_crest.svg/180px-New_York_Red_Bulls_crest.svg.png",
+    "New England":  "https://upload.wikimedia.org/wikipedia/en/thumb/4/4e/New_England_Revolution_crest.svg/180px-New_England_Revolution_crest.svg.png",
+    "Montreal":     "https://upload.wikimedia.org/wikipedia/en/thumb/5/5f/CF_Montreal_crest.svg/180px-CF_Montreal_crest.svg.png",
+    "Toronto":      "https://upload.wikimedia.org/wikipedia/en/thumb/7/76/Toronto_FC_crest.svg/180px-Toronto_FC_crest.svg.png",
+    "Vancouver":    "https://upload.wikimedia.org/wikipedia/en/thumb/1/1b/Vancouver_Whitecaps_FC_crest.svg/180px-Vancouver_Whitecaps_FC_crest.svg.png",
+}
+
+def logo(team, size=32):
+    url = TEAM_LOGOS.get(team, "")
+    if url:
+        return f'<img src="{url}" width="{size}" height="{size}" style="object-fit:contain;vertical-align:middle;margin-right:6px;" onerror="this.style.display=\'none\'">'
+    return ""
+
 ZONE_COLORS = {
     "WEST ZONE": "#E67E22",
     "MIDWEST ZONE": "#3498DB",
@@ -203,11 +242,15 @@ def render_match_result(t1, t2, match_key, prefix=""):
     result = d_get(match_key, {})
     st.markdown(f"""
     <div class="match-card">
-        <div style="font-family:'Barlow Condensed',sans-serif;font-size:0.72rem;letter-spacing:2px;color:var(--muted);margin-bottom:10px">{prefix}</div>
-        <div style="display:flex;align-items:center;gap:12px;justify-content:center;font-weight:700;font-size:1.1rem;">
-            <span style="flex:1;text-align:right">{t1}</span>
-            <span style="color:var(--gold);font-family:'Bebas Neue',sans-serif;font-size:1.3rem">VS</span>
-            <span style="flex:1;text-align:left">{t2}</span>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:0.72rem;letter-spacing:2px;color:var(--muted);margin-bottom:12px">{prefix}</div>
+        <div style="display:flex;align-items:center;gap:12px;justify-content:center;font-weight:700;font-size:1.05rem;">
+            <span style="flex:1;text-align:right;display:flex;align-items:center;justify-content:flex-end;gap:8px;">
+                {t1}{logo(t1, 36)}
+            </span>
+            <span style="color:var(--gold);font-family:'Bebas Neue',sans-serif;font-size:1.4rem;min-width:30px;text-align:center">VS</span>
+            <span style="flex:1;text-align:left;display:flex;align-items:center;justify-content:flex-start;gap:8px;">
+                {logo(t2, 36)}{t2}
+            </span>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -293,7 +336,7 @@ def render_standings_table(teams_sorted, table, highlight=2):
         dg_str = f"+{s['DG']}" if s["DG"] > 0 else str(s["DG"])
         html += f"""<tr>
             <td style="color:{rank_color};font-weight:700">{i+1}</td>
-            <td style="font-weight:600">{qualifier}{team}</td>
+            <td style="font-weight:600">{logo(team, 22)}{qualifier}{team}</td>
             <td>{s['PJ']}</td><td>{s['G']}</td><td>{s['E']}</td><td>{s['P']}</td>
             <td>{s['GF']}</td><td>{s['GC']}</td>
             <td style="color:{dg_color}">{dg_str}</td>
@@ -530,13 +573,13 @@ if tournament == "🏟️ Papa Johns Leagues Cup":
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;font-size:0.9rem">
                 <div>
                     <div style="font-family:'Barlow Condensed';font-size:0.75rem;letter-spacing:2px;color:var(--muted);margin-bottom:8px">LLAVE F1</div>
-                    <div style="margin:4px 0"><span style="color:var(--gold)">A1:</span> {WZ_C} <span style="color:var(--muted)">vs</span> {SZ_S}</div>
-                    <div style="margin:4px 0"><span style="color:var(--gold)">B1:</span> {NZ_C} <span style="color:var(--muted)">vs</span> {MZ_C}</div>
+                    <div style="margin:6px 0;display:flex;align-items:center;gap:6px"><span style="color:var(--gold);min-width:24px">A1:</span> {logo(WZ_C,20)}{WZ_C} <span style="color:var(--muted);margin:0 4px">vs</span> {logo(SZ_S,20)}{SZ_S}</div>
+                    <div style="margin:6px 0;display:flex;align-items:center;gap:6px"><span style="color:var(--gold);min-width:24px">B1:</span> {logo(NZ_C,20)}{NZ_C} <span style="color:var(--muted);margin:0 4px">vs</span> {logo(MZ_C,20)}{MZ_C}</div>
                 </div>
                 <div>
                     <div style="font-family:'Barlow Condensed';font-size:0.75rem;letter-spacing:2px;color:var(--muted);margin-bottom:8px">LLAVE F2</div>
-                    <div style="margin:4px 0"><span style="color:var(--gold)">C1:</span> {CZ_C} <span style="color:var(--muted)">vs</span> {WZ_S}</div>
-                    <div style="margin:4px 0"><span style="color:var(--gold)">D1:</span> {SZ_C} <span style="color:var(--muted)">vs</span> {MZ_S}</div>
+                    <div style="margin:6px 0;display:flex;align-items:center;gap:6px"><span style="color:var(--gold);min-width:24px">C1:</span> {logo(CZ_C,20)}{CZ_C} <span style="color:var(--muted);margin:0 4px">vs</span> {logo(WZ_S,20)}{WZ_S}</div>
+                    <div style="margin:6px 0;display:flex;align-items:center;gap:6px"><span style="color:var(--gold);min-width:24px">D1:</span> {logo(SZ_C,20)}{SZ_C} <span style="color:var(--muted);margin:0 4px">vs</span> {logo(MZ_S,20)}{MZ_S}</div>
                 </div>
             </div>
         </div>
@@ -592,11 +635,17 @@ if tournament == "🏟️ Papa Johns Leagues Cup":
                     border:1px solid var(--border);border-radius:12px;padding:24px;text-align:center;margin:16px 0">
             <div style="font-family:'Barlow Condensed';font-size:0.8rem;letter-spacing:4px;color:var(--muted);margin-bottom:12px">GRAN FINAL · PAPA JOHNS LEAGUES CUP</div>
             <div style="display:flex;align-items:center;justify-content:center;gap:24px">
-                <div><div style="font-size:0.7rem;color:var(--muted)">SEMIFINAL F1</div>
-                     <div style="font-family:'Bebas Neue';font-size:1.8rem;color:var(--text)">{sf1_w}</div></div>
+                <div style="text-align:center">
+                    <div style="font-size:0.7rem;color:var(--muted)">SEMIFINAL F1</div>
+                    <div style="margin:8px 0">{logo(sf1_w, 48)}</div>
+                    <div style="font-family:'Bebas Neue';font-size:1.6rem;color:var(--text)">{sf1_w}</div>
+                </div>
                 <div style="font-family:'Bebas Neue';font-size:1.4rem;color:var(--gold)">VS</div>
-                <div><div style="font-size:0.7rem;color:var(--muted)">SEMIFINAL F2</div>
-                     <div style="font-family:'Bebas Neue';font-size:1.8rem;color:var(--text)">{sf2_w}</div></div>
+                <div style="text-align:center">
+                    <div style="font-size:0.7rem;color:var(--muted)">SEMIFINAL F2</div>
+                    <div style="margin:8px 0">{logo(sf2_w, 48)}</div>
+                    <div style="font-family:'Bebas Neue';font-size:1.6rem;color:var(--text)">{sf2_w}</div>
+                </div>
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -627,7 +676,7 @@ if tournament == "🏟️ Papa Johns Leagues Cup":
             for i, s in enumerate(scorers):
                 mins = ", ".join(str(m) + "'" for m in sorted(s["minutes"]))
                 medal = "🥇" if i == 0 else ("🥈" if i == 1 else ("🥉" if i == 2 else str(i + 1)))
-                html += f"<tr><td>{medal}</td><td style='font-weight:600'>{s['player']}</td><td>{s['team']}</td><td style='color:var(--gold);font-weight:700'>{s['goals']}</td><td style='color:var(--muted);font-size:0.85rem'>{mins}</td></tr>"
+                html += f"<tr><td>{medal}</td><td style='font-weight:600'>{s['player']}</td><td>{logo(s['team'],20)}{s['team']}</td><td style='color:var(--gold);font-weight:700'>{s['goals']}</td><td style='color:var(--muted);font-size:0.85rem'>{mins}</td></tr>"
             html += "</tbody></table>"
             st.markdown(html, unsafe_allow_html=True)
         else:
@@ -644,8 +693,8 @@ if tournament == "🏟️ Papa Johns Leagues Cup":
                 st.markdown(f"""
                 <div style="background:var(--card);border-top:3px solid {color};border-radius:0 0 8px 8px;padding:14px;text-align:center">
                     <div style="font-family:'Barlow Condensed';font-size:0.7rem;letter-spacing:2px;color:{color};margin-bottom:8px">{zname}</div>
-                    <div style="font-weight:700;font-size:0.95rem;margin:4px 0">🥇 {champ}</div>
-                    <div style="font-size:0.82rem;color:var(--muted)">🥈 {sub}</div>
+                    <div style="font-weight:700;font-size:0.95rem;margin:6px 0;display:flex;align-items:center;justify-content:center;gap:6px">{logo(champ, 24)}🥇 {champ}</div>
+                    <div style="font-size:0.82rem;color:var(--muted);display:flex;align-items:center;justify-content:center;gap:6px">{logo(sub, 20)}🥈 {sub}</div>
                 </div>
                 """, unsafe_allow_html=True)
 
@@ -688,15 +737,17 @@ elif tournament == "🥤 Cisco Super Cup":
     <div style="background:linear-gradient(135deg,var(--card),var(--dark3));
                 border:1px solid var(--border);border-radius:12px;padding:30px;text-align:center;margin:16px 0">
         <div style="font-family:'Barlow Condensed';font-size:0.8rem;letter-spacing:4px;color:var(--muted);margin-bottom:16px">MMJ CISCO SUPER CUP · GRAN FINAL</div>
-        <div style="display:flex;align-items:center;justify-content:center;gap:30px">
-            <div>
-                <div style="font-size:0.7rem;color:var(--muted);letter-spacing:2px">STREAMLIT LEAGUE</div>
-                <div style="font-family:'Bebas Neue';font-size:2.2rem;letter-spacing:2px">{sl_champ}</div>
+        <div style="display:flex;align-items:center;justify-content:center;gap:40px">
+            <div style="text-align:center">
+                <div style="font-size:0.7rem;color:var(--muted);letter-spacing:2px;margin-bottom:8px">STREAMLIT LEAGUE</div>
+                <div style="margin-bottom:8px">{logo(sl_champ, 56)}</div>
+                <div style="font-family:'Bebas Neue';font-size:1.8rem;letter-spacing:2px">{sl_champ}</div>
             </div>
             <div style="font-family:'Bebas Neue';font-size:1.5rem;color:var(--gold)">VS</div>
-            <div>
-                <div style="font-size:0.7rem;color:var(--muted);letter-spacing:2px">EMIRATES CUP</div>
-                <div style="font-family:'Bebas Neue';font-size:2.2rem;letter-spacing:2px">{ec_champ}</div>
+            <div style="text-align:center">
+                <div style="font-size:0.7rem;color:var(--muted);letter-spacing:2px;margin-bottom:8px">EMIRATES CUP</div>
+                <div style="margin-bottom:8px">{logo(ec_champ, 56)}</div>
+                <div style="font-family:'Bebas Neue';font-size:1.8rem;letter-spacing:2px">{ec_champ}</div>
             </div>
         </div>
     </div>
@@ -816,12 +867,18 @@ elif tournament == "🍔 McDonald's Community Cup":
         <div style="font-family:'Barlow Condensed';font-size:0.8rem;letter-spacing:4px;color:var(--muted);margin-bottom:14px">
             MMJ McDONALD'S COMMUNITY CUP · GRAN FINAL
         </div>
-        <div style="display:flex;align-items:center;justify-content:center;gap:28px">
-            <div><div style="font-size:0.7rem;color:var(--muted);letter-spacing:2px">SEMIFINAL A</div>
-                 <div style="font-family:'Bebas Neue';font-size:2rem;letter-spacing:2px;color:var(--text)">{sfa_w}</div></div>
+        <div style="display:flex;align-items:center;justify-content:center;gap:40px">
+            <div style="text-align:center">
+                <div style="font-size:0.7rem;color:var(--muted);letter-spacing:2px;margin-bottom:8px">SEMIFINAL A</div>
+                <div style="margin-bottom:8px">{logo(sfa_w, 52)}</div>
+                <div style="font-family:'Bebas Neue';font-size:1.8rem;letter-spacing:2px;color:var(--text)">{sfa_w}</div>
+            </div>
             <div style="font-family:'Bebas Neue';font-size:1.4rem;color:var(--gold)">VS</div>
-            <div><div style="font-size:0.7rem;color:var(--muted);letter-spacing:2px">SEMIFINAL B</div>
-                 <div style="font-family:'Bebas Neue';font-size:2rem;letter-spacing:2px;color:var(--text)">{sfb_w}</div></div>
+            <div style="text-align:center">
+                <div style="font-size:0.7rem;color:var(--muted);letter-spacing:2px;margin-bottom:8px">SEMIFINAL B</div>
+                <div style="margin-bottom:8px">{logo(sfb_w, 52)}</div>
+                <div style="font-family:'Bebas Neue';font-size:1.8rem;letter-spacing:2px;color:var(--text)">{sfb_w}</div>
+            </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
