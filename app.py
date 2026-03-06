@@ -534,7 +534,7 @@ with st.sidebar:
     st.image("fmmj.png", use_container_width=True)
     st.markdown("""
     <div style="text-align:center;padding:4px 0 10px">
-        <div style="font-family:'Barlow Condensed';font-size:0.7rem;letter-spacing:4px;color:var(--muted)">TOURNAMENT HUB</div>
+        <div style="font-family:'Barlow Condensed';font-size:0.7rem;letter-spacing:4px;color:var(--muted)">FMMJ 2026®</div>
     </div><hr>""", unsafe_allow_html=True)
 
     page = st.selectbox("📋 Navegación", [
