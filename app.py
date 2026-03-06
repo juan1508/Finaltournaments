@@ -424,14 +424,14 @@ def champion_card(champ, tournament_name):
 # ─── PALMARES HELPERS ─────────────────────────────────────────────────────────
 def title_color_palmares(title):
     TITLE_COLORS = {
-        "Streamlit League": "#F5C518",
-        "Emirates Cup":     "#3498DB",
-        "Cisco Super Cup":  "#2ECC71",
-        "Papa Johns":       "#E67E22",
-        "McDonald":         "#E74C3C",
+        "Streamlit League": "#b040f0",
+        "Emirates Cup":     "#CE3035",
+        "Cisco Super Cup":  "#eb7c1e",
+        "Papa Johns":       "#233dff",
+        "McDonald":         "#fa0d04",
         "West Zone":        "#E67E22",
-        "Midwest Zone":     "#3498DB",
-        "South Zone":       "#2ECC71",
+        "Midwest Zone":     "#2ECC71",
+        "South Zone":       "#3498DB",
         "North Zone":       "#9B59B6",
         "Canadian Zone":    "#E74C3C",
     }
@@ -442,14 +442,14 @@ def title_color_palmares(title):
 
 def title_icon_palmares(title):
     t = title.lower()
-    if "streamlit league" in t: return "⚽"
-    if "emirates" in t:         return "✈️"
-    if "cisco" in t:            return "🥤"
-    if "papa johns" in t:       return "🏟️"
+    if "streamlit league" in t: return "🌟"
+    if "emirates" in t:         return "🏆"
+    if "cisco" in t:            return "🛜"
+    if "papa johns" in t:       return "🍕"
     if "mcdonald" in t:         return "🍔"
     if "west zone" in t:        return "🌅"
     if "midwest zone" in t:     return "🌾"
-    if "south zone" in t:       return "🌶️"
+    if "south zone" in t:       return "🌊"
     if "north zone" in t:       return "🗽"
     if "canadian zone" in t:    return "🍁"
     return "🏆"
