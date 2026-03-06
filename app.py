@@ -354,12 +354,328 @@ st.markdown(f"""
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# PALMARÉS MMJ
+# PALMARÉS MMJ — VERSIÓN PREMIUM CON COLORES DE EQUIPO
+# Reemplaza el bloque "if tournament == '🏅 Palmarés MMJ':" en app.py
 # ═══════════════════════════════════════════════════════════════════════════════
+
+# ── Colores primarios/secundarios por equipo ──────────────────────────────────
+# Agrega aquí cualquier equipo que necesites
+TEAM_COLORS = {
+    "NHS":  {"primary": "#8B0000", "secondary": "#C8A951", "text": "#FFFFFF"},
+    "ATX":  {"primary": "#00B140", "secondary": "#FFFFFF",  "text": "#000000"},
+    "ATL":  {"primary": "#80000A", "secondary": "#9DC2E5",  "text": "#FFFFFF"},
+    "LAFC": {"primary": "#C39E6D", "secondary": "#000000",  "text": "#000000"},
+    "TOR":  {"primary": "#AC152A", "secondary": "#313F49",  "text": "#FFFFFF"},
+    "NYC":  {"primary": "#6CACE4", "secondary": "#00285E",  "text": "#FFFFFF"},
+    "CLB":  {"primary": "#FAF200", "secondary": "#000000",  "text": "#000000"},
+    "MTL":  {"primary": "#1B2A4A", "secondary": "#009AC7",  "text": "#FFFFFF"},
+    "PHI":  {"primary": "#B19C6F", "secondary": "#071B2C",  "text": "#000000"},
+    "MIA":  {"primary": "#F7B5CD", "secondary": "#231F20",  "text": "#000000"},
+    "MIN":  {"primary": "#154734", "secondary": "#8CD2F4",  "text": "#FFFFFF"},
+    "VAN":  {"primary": "#00245D", "secondary": "#85B2E5",  "text": "#FFFFFF"},
+    "SEA":  {"primary": "#007A5E", "secondary": "#5D9741",  "text": "#FFFFFF"},
+    "POR":  {"primary": "#004812", "secondary": "#EBE5D8",  "text": "#FFFFFF"},
+    "LA":   {"primary": "#00245D", "secondary": "#FFFFFF",  "text": "#FFFFFF"},
+    "SJ":   {"primary": "#0067B1", "secondary": "#000000",  "text": "#FFFFFF"},
+    "RSL":  {"primary": "#B30838", "secondary": "#013A81",  "text": "#FFFFFF"},
+    "COL":  {"primary": "#862633", "secondary": "#8B9CA7",  "text": "#FFFFFF"},
+    "SDFC": {"primary": "#003087", "secondary": "#B1872D",  "text": "#FFFFFF"},
+    "DAL":  {"primary": "#D11F2B", "secondary": "#003087",  "text": "#FFFFFF"},
+    "HOU":  {"primary": "#F4911E", "secondary": "#101820",  "text": "#FFFFFF"},
+    "CLT":  {"primary": "#1A85C8", "secondary": "#C8A95A",  "text": "#FFFFFF"},
+    "ORL":  {"primary": "#633492", "secondary": "#FFC222",  "text": "#FFFFFF"},
+    "SKC":  {"primary": "#002F6C", "secondary": "#91B0D5",  "text": "#FFFFFF"},
+    "STL":  {"primary": "#16294E", "secondary": "#CA3138",  "text": "#FFFFFF"},
+    "CHI":  {"primary": "#CC2529", "secondary": "#636466",  "text": "#FFFFFF"},
+    "CIN":  {"primary": "#F05323", "secondary": "#263B80",  "text": "#FFFFFF"},
+    "DCU":  {"primary": "#DD1128", "secondary": "#101820",  "text": "#FFFFFF"},
+    "RBNY": {"primary": "#E31937", "secondary": "#002A5C",  "text": "#FFFFFF"},
+    "NE":   {"primary": "#C63323", "secondary": "#003087",  "text": "#FFFFFF"},
+}
+
+def get_team_colors(code):
+    """Devuelve los colores del equipo o unos neutros si no está definido"""
+    return TEAM_COLORS.get(code, {"primary": "#F5C518", "secondary": "#1A1A24", "text": "#000000"})
+
+
+# ── CSS adicional para las fichas premium ─────────────────────────────────────
+PALMARES_CSS = """
+<style>
+@keyframes shimmer {
+    0%   { background-position: -200% center; }
+    100% { background-position: 200% center; }
+}
+@keyframes floatIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes pulse-ring {
+    0%   { box-shadow: 0 0 0 0 rgba(var(--ring-color), 0.4); }
+    70%  { box-shadow: 0 0 0 12px rgba(var(--ring-color), 0); }
+    100% { box-shadow: 0 0 0 0 rgba(var(--ring-color), 0); }
+}
+.champion-card-premium {
+    position: relative;
+    border-radius: 14px;
+    overflow: hidden;
+    text-align: center;
+    padding: 22px 16px 18px;
+    min-width: 160px;
+    flex: 1;
+    max-width: 210px;
+    animation: floatIn 0.5s ease both;
+    transition: transform 0.25s ease, box-shadow 0.25s ease;
+    cursor: default;
+}
+.champion-card-premium:hover {
+    transform: translateY(-6px) scale(1.03);
+}
+.champion-card-premium .card-bg-glow {
+    position: absolute;
+    inset: 0;
+    opacity: 0.18;
+    z-index: 0;
+    border-radius: 14px;
+}
+.champion-card-premium .card-content {
+    position: relative;
+    z-index: 1;
+}
+.champion-card-premium .title-label {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 0.6rem;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    font-weight: 700;
+}
+.champion-card-premium .team-code {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.5rem;
+    letter-spacing: 3px;
+    line-height: 1;
+    margin: 6px 0 2px;
+}
+.champion-card-premium .team-name {
+    font-size: 0.65rem;
+    letter-spacing: 0.5px;
+    opacity: 0.75;
+    margin-bottom: 0;
+}
+.champion-card-premium .logo-wrap {
+    margin: 8px auto;
+    width: 52px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.champion-card-premium .logo-wrap img {
+    width: 52px;
+    height: 52px;
+    object-fit: contain;
+    filter: drop-shadow(0 2px 8px rgba(0,0,0,0.5));
+}
+.hof-card-premium {
+    position: relative;
+    border-radius: 16px;
+    overflow: hidden;
+    text-align: center;
+    padding: 24px 18px;
+    min-width: 150px;
+    flex: 1;
+    max-width: 200px;
+    transition: transform 0.25s, box-shadow 0.25s;
+}
+.hof-card-premium:hover {
+    transform: translateY(-8px);
+}
+.hof-count {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 3.2rem;
+    line-height: 1;
+    margin: 4px 0 0;
+}
+.season-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 18px;
+    padding: 10px 0;
+}
+.season-divider {
+    height: 2px;
+    flex: 1;
+    border-radius: 2px;
+}
+</style>
+"""
+
+
+# ── Helpers de renderizado ─────────────────────────────────────────────────────
+
+def title_color(title):
+    TITLE_COLORS = {
+        "Streamlit League": "#F5C518",
+        "Emirates Cup":     "#3498DB",
+        "Cisco Super Cup":  "#2ECC71",
+        "Papa Johns":       "#E67E22",
+        "McDonald":         "#E74C3C",
+        "West Zone":        "#E67E22",
+        "Midwest Zone":     "#3498DB",
+        "South Zone":       "#2ECC71",
+        "North Zone":       "#9B59B6",
+        "Canadian Zone":    "#E74C3C",
+    }
+    for k, v in TITLE_COLORS.items():
+        if k.lower() in title.lower():
+            return v
+    return "#888888"
+
+
+def title_icon(title):
+    t = title.lower()
+    if "streamlit league" in t: return "⚽"
+    if "emirates" in t:         return "✈️"
+    if "cisco" in t:            return "🥤"
+    if "papa johns" in t:       return "🏟️"
+    if "mcdonald" in t:         return "🍔"
+    if "west zone" in t:        return "🌅"
+    if "midwest zone" in t:     return "🌾"
+    if "south zone" in t:       return "🌶️"
+    if "north zone" in t:       return "🗽"
+    if "canadian zone" in t:    return "🍁"
+    return "🏆"
+
+
+def hex_to_rgb(hex_color):
+    """Convierte #RRGGBB a 'R, G, B'"""
+    h = hex_color.lstrip("#")
+    if len(h) == 3:
+        h = "".join(c*2 for c in h)
+    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    return f"{r}, {g}, {b}"
+
+
+def premium_champion_card(code, title, delay_ms=0, size_factor=1.0):
+    """
+    Genera HTML de una ficha premium de campeón con los colores del equipo.
+    """
+    pending = (code == "??")
+    tc = get_team_colors(code) if not pending else {"primary":"#333344","secondary":"#22222F","text":"#888"}
+    primary   = tc["primary"]
+    secondary = tc["secondary"]
+    text_c    = tc["text"]
+    rgb_p     = hex_to_rgb(primary)
+    t_color   = title_color(title)
+    icon      = title_icon(title)
+    title_short = title.replace("Campeón ", "").upper()
+
+    logo_url = get_logo_url(code) if not pending else ""
+    logo_html = (
+        f'<img src="{logo_url}" width="52" height="52" style="object-fit:contain;filter:drop-shadow(0 2px 12px rgba(0,0,0,0.6));" onerror="this.style.display=\'none\'">'
+        if logo_url else '<div style="font-size:2rem;line-height:52px">❓</div>'
+    )
+
+    name_display = get_full_name(code) if not pending else "Por definir"
+    code_display = code if not pending else "???"
+
+    # Gradiente diagonal con el color del equipo
+    gradient = (
+        f"linear-gradient(145deg, {secondary}EE 0%, {primary}FF 50%, {secondary}CC 100%)"
+        if not pending else
+        "linear-gradient(145deg, #1A1A2A, #22222F)"
+    )
+
+    # Brillo superior
+    shimmer_style = f"""
+        background: linear-gradient(90deg,
+            transparent 0%,
+            rgba(255,255,255,0.12) 40%,
+            rgba(255,255,255,0.22) 50%,
+            rgba(255,255,255,0.12) 60%,
+            transparent 100%);
+        background-size: 200% 100%;
+        animation: shimmer 3s infinite linear;
+        animation-delay: {delay_ms * 0.5}ms;
+    """ if not pending else ""
+
+    return f"""
+    <div class="champion-card-premium" style="
+        background: {gradient};
+        border: 1.5px solid {primary}99;
+        box-shadow: 0 6px 30px rgba({rgb_p}, 0.35), 0 2px 8px rgba(0,0,0,0.5);
+        animation-delay: {delay_ms}ms;
+    ">
+        <!-- Glow overlay -->
+        <div class="card-bg-glow" style="background: radial-gradient(circle at 50% 20%, {primary}, transparent 70%);"></div>
+        <!-- Shimmer -->
+        <div style="position:absolute;inset:0;z-index:1;border-radius:14px;{shimmer_style}"></div>
+        <!-- Barra superior de color de título -->
+        <div style="position:absolute;top:0;left:0;right:0;height:3px;background:{t_color};z-index:2;border-radius:14px 14px 0 0;"></div>
+
+        <div class="card-content">
+            <!-- Etiqueta del título -->
+            <div class="title-label" style="color:{t_color};">{icon} {title_short}</div>
+            <!-- Logo -->
+            <div class="logo-wrap" style="margin:0 auto 6px;">
+                {logo_html}
+            </div>
+            <!-- Código -->
+            <div class="team-code" style="color:{'#FFFFFF' if not pending else '#555'}; text-shadow: 0 1px 6px rgba(0,0,0,0.7);">
+                {code_display}
+            </div>
+            <!-- Nombre completo -->
+            <div class="team-name" style="color:{'rgba(255,255,255,0.8)' if not pending else '#444'};">
+                {name_display}
+            </div>
+        </div>
+    </div>"""
+
+
+def premium_hof_card(rank, code, count, medal_colors):
+    """Ficha de Hall of Fame con color de equipo"""
+    mc = medal_colors[min(rank, len(medal_colors)-1)]
+    tc = get_team_colors(code)
+    primary   = tc["primary"]
+    secondary = tc["secondary"]
+    rgb_p     = hex_to_rgb(primary)
+    logo_url  = get_logo_url(code)
+    logo_html = f'<img src="{logo_url}" width="56" height="56" style="object-fit:contain;filter:drop-shadow(0 3px 12px rgba(0,0,0,0.6));" onerror="this.style.display=\'none\'">' if logo_url else ""
+
+    gradient = f"linear-gradient(160deg, {secondary}DD 0%, {primary}FF 55%, {secondary}AA 100%)"
+
+    return f"""
+    <div class="hof-card-premium" style="
+        background: {gradient};
+        border: 2px solid {mc}88;
+        box-shadow: 0 8px 32px rgba({rgb_p},0.4), 0 0 0 1px rgba(255,255,255,0.05) inset;
+    ">
+        <!-- Rank badge -->
+        <div style="position:absolute;top:10px;left:10px;font-family:'Bebas Neue';font-size:1rem;color:{mc};background:rgba(0,0,0,0.45);border-radius:50%;width:26px;height:26px;display:flex;align-items:center;justify-content:center;border:1px solid {mc}55;">
+            {rank+1}
+        </div>
+        <!-- Top border color -->
+        <div style="position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,{mc},{primary});border-radius:16px 16px 0 0;"></div>
+
+        <div style="margin-bottom:8px;margin-top:4px">{logo_html}</div>
+        <div style="font-family:'Bebas Neue';font-size:1.5rem;color:#FFF;letter-spacing:3px;text-shadow:0 1px 6px rgba(0,0,0,0.7)">{code}</div>
+        <div style="font-size:0.7rem;color:rgba(255,255,255,0.65);margin-bottom:10px;letter-spacing:0.5px">{get_full_name(code)}</div>
+        <div class="hof-count" style="color:{mc};text-shadow:0 2px 10px rgba(0,0,0,0.5)">{count}</div>
+        <div style="font-family:'Barlow Condensed';font-size:0.68rem;letter-spacing:2px;color:rgba(255,255,255,0.5)">TÍTULOS</div>
+    </div>"""
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# BLOQUE PRINCIPAL — pega esto dentro del if tournament == "🏅 Palmarés MMJ":
+# ═══════════════════════════════════════════════════════════════════════════════
+
+PALMARES_BLOCK = '''
 if tournament == "🏅 Palmarés MMJ":
 
-    # ── Datos históricos ──────────────────────────────────────────────────────
-    # Cada entrada: (código_equipo, título, "??" = pendiente)
+    # Inyectar CSS premium
+    st.markdown(PALMARES_CSS, unsafe_allow_html=True)
+
     PALMARES = {
         "SEASON Ⅰ": [
             ("NHS",  "Campeón MMJ Streamlit League I"),
@@ -402,7 +718,6 @@ if tournament == "🏅 Palmarés MMJ":
             ("??",   "Campeón MMJ Cisco Super Cup V"),
         ],
         "SEASON Ⅵ": [
-            ("??",   "Campeón MMJ McDonald's Community Cup I"),
             ("??",   "Campeón Canadian Zone IV"),
             ("??",   "Campeón North Zone IV"),
             ("??",   "Campeón South Zone IV"),
@@ -412,10 +727,10 @@ if tournament == "🏅 Palmarés MMJ":
             ("??",   "Campeón MMJ Emirates Cup VI"),
             ("??",   "Campeón MMJ Streamlit League VI"),
             ("??",   "Campeón MMJ Cisco Super Cup VI"),
+            ("??",   "Campeón MMJ McDonald\'s Community Cup I"),
         ],
     }
 
-    # ── Conteo de títulos por equipo ──────────────────────────────────────────
     title_count = {}
     for season_entries in PALMARES.values():
         for code, title in season_entries:
@@ -423,105 +738,55 @@ if tournament == "🏅 Palmarés MMJ":
                 title_count[code] = title_count.get(code, 0) + 1
 
     top_teams = sorted(title_count.items(), key=lambda x: -x[1])
+    medal_colors = ["#F5C518","#C0C0C0","#CD7F32","#9B59B6","#3498DB"]
 
     # ── Hall of Fame ──────────────────────────────────────────────────────────
-    st.markdown('<div class="section-title">🏆 HALL OF FAME</div>', unsafe_allow_html=True)
-    st.markdown("<div class='info-box'>Equipos con más títulos en la historia de la MMJ Federation</div>", unsafe_allow_html=True)
+    st.markdown(\'<div class="section-title">🏆 HALL OF FAME</div>\', unsafe_allow_html=True)
+    st.markdown("<div class=\'info-box\'>Equipos con más títulos en la historia de la MMJ Federation</div>", unsafe_allow_html=True)
 
-    medal_colors = ["#F5C518","#C0C0C0","#CD7F32","#9B59B6","#3498DB"]
-    hof_html = '<div style="display:flex;flex-wrap:wrap;gap:14px;margin-bottom:30px">'
+    hof_html = \'<div style="display:flex;flex-wrap:wrap;gap:16px;margin-bottom:36px">\' 
     for rank, (code, count) in enumerate(top_teams):
-        mc = medal_colors[min(rank, len(medal_colors)-1)]
-        hof_html += f"""
-        <div style="background:linear-gradient(135deg,var(--card),var(--dark3));border:1px solid {mc}55;border-top:3px solid {mc};border-radius:10px;padding:16px 20px;min-width:140px;text-align:center;flex:1;max-width:180px">
-            <div style="font-size:1.6rem;margin-bottom:6px">{logo_img(code,44)}</div>
-            <div style="font-family:'Bebas Neue';font-size:1.4rem;color:{mc};letter-spacing:2px">{code}</div>
-            <div style="font-size:0.75rem;color:var(--muted);margin-bottom:6px">{get_full_name(code)}</div>
-            <div style="font-family:'Bebas Neue';font-size:2rem;color:{mc}">{count}</div>
-            <div style="font-size:0.7rem;color:var(--muted);letter-spacing:1px">TÍTULOS</div>
-        </div>"""
-    hof_html += '</div>'
+        hof_html += premium_hof_card(rank, code, count, medal_colors)
+    hof_html += \'</div>\'
     st.markdown(hof_html, unsafe_allow_html=True)
 
     st.markdown("---")
 
     # ── Palmarés por temporada ────────────────────────────────────────────────
-    st.markdown('<div class="section-title">📋 PALMARÉS POR TEMPORADA</div>', unsafe_allow_html=True)
-
-    # Colores por tipo de título
-    TITLE_COLORS = {
-        "Streamlit League": "#F5C518",
-        "Emirates Cup":     "#3498DB",
-        "Cisco Super Cup":  "#2ECC71",
-        "Papa Johns":       "#E67E22",
-        "McDonald":         "#E74C3C",
-        "West Zone":        "#E67E22",
-        "Midwest Zone":     "#3498DB",
-        "South Zone":       "#2ECC71",
-        "North Zone":       "#9B59B6",
-        "Canadian Zone":    "#E74C3C",
-    }
-
-    def title_color(title):
-        for k, v in TITLE_COLORS.items():
-            if k.lower() in title.lower():
-                return v
-        return "#888888"
-
-    def title_icon(title):
-        t = title.lower()
-        if "streamlit league" in t: return "⚽"
-        if "emirates" in t:         return "✈️"
-        if "cisco" in t:            return "🥤"
-        if "papa johns" in t:       return "🏟️"
-        if "mcdonald" in t:         return "🍔"
-        if "west zone" in t:        return "🌅"
-        if "midwest zone" in t:     return "🌾"
-        if "south zone" in t:       return "🌶️"
-        if "north zone" in t:       return "🗽"
-        if "canadian zone" in t:    return "🍁"
-        return "🏆"
+    st.markdown(\'<div class="section-title">📋 PALMARÉS POR TEMPORADA</div>\', unsafe_allow_html=True)
 
     for season_name, entries in PALMARES.items():
-        season_num = season_name.split()[-1]
         is_current = season_name == "SEASON V"
         is_future  = season_name == "SEASON VI"
-        border_c   = "var(--gold)" if is_current else ("var(--border)" if is_future else "var(--border)")
-        alpha      = "0.5" if is_future else "1"
+        alpha      = "0.45" if is_future else "1"
+        header_color = "var(--gold)" if is_current else ("var(--muted)" if is_future else "var(--text)")
+
+        # Encabezado de temporada con línea de color
+        badge_html = ""
+        if is_current:
+            badge_html = \'<span style="background:var(--gold);color:#000;font-family:\'Barlow Condensed\',sans-serif;font-size:0.7rem;letter-spacing:2px;padding:3px 12px;border-radius:20px;font-weight:700">EN CURSO</span>\'
+        elif is_future:
+            badge_html = \'<span style="background:var(--dark3);color:var(--muted);font-family:\'Barlow Condensed\',sans-serif;font-size:0.7rem;letter-spacing:2px;padding:3px 12px;border-radius:20px;border:1px solid var(--border)">PRÓXIMA</span>\'
 
         st.markdown(f"""
-        <div style="margin-bottom:10px">
-            <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
-                <div style="font-family:'Bebas Neue';font-size:2rem;color:{'var(--gold)' if is_current else 'var(--muted)'};letter-spacing:3px">{season_name}</div>
-                {'<span style="background:var(--gold);color:#000;font-family:\'Barlow Condensed\';font-size:0.7rem;letter-spacing:2px;padding:3px 10px;border-radius:20px;font-weight:700">EN CURSO</span>' if is_current else ''}
-                {'<span style="background:var(--dark3);color:var(--muted);font-family:\'Barlow Condensed\';font-size:0.7rem;letter-spacing:2px;padding:3px 10px;border-radius:20px;border:1px solid var(--border)">PRÓXIMA</span>' if is_future else ''}
-            </div>
+        <div class="season-header">
+            <div style="font-family:\'Bebas Neue\';font-size:2.2rem;color:{header_color};letter-spacing:3px;line-height:1">{season_name}</div>
+            {badge_html}
+            <div class="season-divider" style="background:linear-gradient(90deg,var(--border),transparent);"></div>
         </div>""", unsafe_allow_html=True)
 
-        cards_html = f'<div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:24px;opacity:{alpha}">'
-        for code, title in entries:
-            pending = code == "??"
-            tc = "var(--border)" if pending else title_color(title)
-            icon = title_icon(title)
-            logo_html = '<div style="font-size:1.8rem;margin-bottom:6px">❓</div>' if pending else f'<div style="margin-bottom:6px">{logo_img(code,44)}</div>'
-            code_html = f'<div style="font-family:\'Bebas Neue\';font-size:1.2rem;color:{"var(--muted)" if pending else tc};letter-spacing:2px">{"???" if pending else code}</div>'
-            name_html = f'<div style="font-size:0.7rem;color:var(--muted);margin-bottom:6px">{"Por definir" if pending else get_full_name(code)}</div>'
-
-            cards_html += f"""
-            <div style="background:var(--card);border:1px solid {"var(--border)" if pending else tc+"44"};border-top:3px solid {tc};border-radius:10px;padding:14px 16px;text-align:center;min-width:160px;flex:1;max-width:200px;">
-                <div style="font-size:0.65rem;font-family:'Barlow Condensed';letter-spacing:2px;color:{tc};margin-bottom:8px">{icon} {title.replace("Campeón ","").upper()}</div>
-                {logo_html}
-                {code_html}
-                {name_html}
-            </div>"""
-        cards_html += '</div>'
+        # Fichas de campeones
+        cards_html = f\'<div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:30px;opacity:{alpha}">\' 
+        for delay_i, (code, title) in enumerate(entries):
+            cards_html += premium_champion_card(code, title, delay_ms=delay_i * 80)
+        cards_html += \'</div>\'
         st.markdown(cards_html, unsafe_allow_html=True)
 
     # ── Estadísticas globales ─────────────────────────────────────────────────
     st.markdown("---")
-    st.markdown('<div class="section-title">📊 ESTADÍSTICAS HISTÓRICAS</div>', unsafe_allow_html=True)
+    st.markdown(\'<div class="section-title">📊 ESTADÍSTICAS HISTÓRICAS</div>\', unsafe_allow_html=True)
 
-    total_titles = sum(1 for s in PALMARES.values() for code, _ in s if code != "??")
+    total_titles  = sum(1 for s in PALMARES.values() for code, _ in s if code != "??")
     total_seasons = len(PALMARES)
     unique_champs = len(set(code for s in PALMARES.values() for code, _ in s if code != "??"))
 
@@ -535,9 +800,11 @@ if tournament == "🏅 Palmarés MMJ":
             col.markdown(f"""
             <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px;text-align:center">
                 <div style="font-size:2rem">{icon}</div>
-                <div style="font-family:'Bebas Neue';font-size:2.8rem;color:var(--gold)">{val}</div>
+                <div style="font-family:\'Bebas Neue\';font-size:2.8rem;color:var(--gold)">{val}</div>
                 <div style="font-size:0.8rem;color:var(--muted);letter-spacing:1px">{lbl.upper()}</div>
             </div>""", unsafe_allow_html=True)
+'''
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # PAPA JOHNS LEAGUES CUP
