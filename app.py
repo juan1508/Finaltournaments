@@ -56,7 +56,7 @@ def logo_img(code, size=32):
 # Las zonas con "format":"groups" dividen el listado en 2: primera mitad = Grupo A, segunda = Grupo B
 ZONES = {
     "WEST ZONE":     {"teams": ["LAFC","LA","SJ","SDFC","POR","RSL","SEA","COL"],  "format":"groups",    "advance":2},
-    "MIDWEST ZONE":  {"teams": ["MIN","SKC","CIN","CHI","STL","CLB"],              "format":"groups",    "advance":2},
+    "MIDWEST ZONE":  {"teams": ["MIN","SKC","STL","CHI","CIN","CLB"],              "format":"groups",    "advance":2},
     "SOUTH ZONE":    {"teams": ["DAL","ATX","HOU","NHS","CLT","ATL","ORL","MIA"],  "format":"groups",    "advance":2},
     "NORTH ZONE":    {"teams": ["DCU","PHI","NYC","RBNY","NE"],                    "format":"roundrobin","advance":2},
     "CANADIAN ZONE": {"teams": ["MTL","TOR","VAN"],                                "format":"roundrobin","advance":1},
@@ -393,18 +393,12 @@ if tournament == "🏟️ Papa Johns Leagues Cup":
 
                     st.markdown("---")
                     st.markdown(f"### 🏅 ZONA FINAL — {zone_name}")
-                    st.markdown("<div class='info-box'>Ganador Grupo A vs Ganador Grupo B → Campeón y Sub-Campeón avanzan a Phase Final</div>", unsafe_allow_html=True)
+                    st.markdown("<div class='info-box'>1° Grupo A vs 1° Grupo B → automático según resultados</div>", unsafe_allow_html=True)
 
                     sa, _ = compute_standings(groups[0], gk(T, zone_name, "G0"))
                     sb, _ = compute_standings(groups[1], gk(T, zone_name, "G1"))
-                    def_a  = sa[0] if sa else groups[0][0]
-                    def_b  = sb[0] if sb else groups[1][0]
-
-                    ca, cb = st.columns(2)
-                    with ca:
-                        za = st.selectbox("Rep. Grupo A", groups[0], index=groups[0].index(def_a) if def_a in groups[0] else 0, key=f"{zone_name}_za")
-                    with cb:
-                        zb = st.selectbox("Rep. Grupo B", groups[1], index=groups[1].index(def_b) if def_b in groups[1] else 0, key=f"{zone_name}_zb")
+                    za = sa[0] if sa else groups[0][0]
+                    zb = sb[0] if sb else groups[1][0]
 
                     zf_key = gk(T, zone_name, "ZF")
                     st.markdown(big_match_card(za, zb, f"ZONA FINAL · {zone_name}"), unsafe_allow_html=True)
@@ -420,7 +414,7 @@ if tournament == "🏟️ Papa Johns Leagues Cup":
                 else:  # roundrobin
                     pfx = gk(T, zone_name, "RR")
                     ts, tbl = compute_standings(teams, pfx)
-                    render_standings(ts, tbl, highlight=zone_data["advance"])
+                    render_standings(ts, tbl, highlight=2)
 
                     with st.expander("📋 Todos los partidos"):
                         for i, t1 in enumerate(teams):
@@ -432,14 +426,10 @@ if tournament == "🏟️ Papa Johns Leagues Cup":
 
                     st.markdown("---")
                     st.markdown(f"### 🏅 ZONA FINAL — {zone_name}")
-                    adv = zone_data["advance"]
-                    top = ts[:adv] if len(ts) >= adv else teams[:adv]
+                    st.markdown("<div class='info-box'>1° vs 2° del Round Robin → automático según resultados</div>", unsafe_allow_html=True)
 
-                    cf1, cf2 = st.columns(2)
-                    with cf1:
-                        f1 = st.selectbox("Finalista 1", teams, index=teams.index(top[0]) if top[0] in teams else 0, key=f"{zone_name}_f1")
-                    with cf2:
-                        f2 = st.selectbox("Finalista 2", teams, index=teams.index(top[1]) if len(top)>1 and top[1] in teams else min(1,len(teams)-1), key=f"{zone_name}_f2")
+                    f1 = ts[0] if len(ts) > 0 else teams[0]
+                    f2 = ts[1] if len(ts) > 1 else teams[1]
 
                     zf_key = gk(T, zone_name, "ZF")
                     st.markdown(big_match_card(f1, f2, f"ZONA FINAL · {zone_name}"), unsafe_allow_html=True)
@@ -450,40 +440,47 @@ if tournament == "🏟️ Papa Johns Leagues Cup":
                         zs = f2 if zc == f1 else f1
                         d_set(gk(T, zone_name, "champion"), zc)
                         d_set(gk(T, zone_name, "runner_up"), zs)
-                        label_txt = f"🥇 Campeón CZ: **{zc}** → Avanza a Phase Final" if zone_name=="CANADIAN ZONE" else f"🥇 Campeón: **{zc}** | 🥈 Sub-Campeón: **{zs}**"
+                        label_txt = f"🥇 Campeón CZ: **{zc}** → Avanza a Phase Final | 🥈 Sub-Campeón: **{zs}**" if zone_name=="CANADIAN ZONE" else f"🥇 Campeón: **{zc}** | 🥈 Sub-Campeón: **{zs}**"
                         st.success(label_txt)
 
     with tabs[1]:
         st.markdown('<div class="section-title">🏆 PHASE FINAL</div>', unsafe_allow_html=True)
 
-        WZ_C = d_get(gk(T,"WEST ZONE","champion"),    "LAFC")
-        WZ_S = d_get(gk(T,"WEST ZONE","runner_up"),   "LA Galaxy")
-        MZ_C = d_get(gk(T,"MIDWEST ZONE","champion"), "Minnesota")
-        MZ_S = d_get(gk(T,"MIDWEST ZONE","runner_up"),"Sporting KC")
-        SZ_C = d_get(gk(T,"SOUTH ZONE","champion"),   "Dallas")
-        SZ_S = d_get(gk(T,"SOUTH ZONE","runner_up"),  "Austin")
-        NZ_C = d_get(gk(T,"NORTH ZONE","champion"),   "DC United")
-        CZ_C = d_get(gk(T,"CANADIAN ZONE","champion"),"Montreal")
+        # ── Leer clasificados automáticamente desde zona finals ──────────────
+        WZ_C = d_get(gk(T,"WEST ZONE","champion"),    "TBD")
+        WZ_S = d_get(gk(T,"WEST ZONE","runner_up"),   "TBD")
+        MZ_C = d_get(gk(T,"MIDWEST ZONE","champion"), "TBD")
+        MZ_S = d_get(gk(T,"MIDWEST ZONE","runner_up"),"TBD")
+        SZ_C = d_get(gk(T,"SOUTH ZONE","champion"),   "TBD")
+        SZ_S = d_get(gk(T,"SOUTH ZONE","runner_up"),  "TBD")
+        NZ_C = d_get(gk(T,"NORTH ZONE","champion"),   "TBD")
+        CZ_C = d_get(gk(T,"CANADIAN ZONE","champion"),"TBD")
 
-        st.markdown("#### Clasificados — Selección Manual")
-        st.markdown("<div class='info-box'>Los clasificados se actualizan automáticamente con los resultados de zona. Puedes ajustarlos manualmente aquí.</div>", unsafe_allow_html=True)
-
-        c1,c2,c3,c4 = st.columns(4)
-        ff = lambda c: f"{c} — {get_full_name(c)}"
-        with c1:
-            WZ_C = st.selectbox("WZ Campeón",  ALL_CODES, index=ALL_CODES.index(WZ_C) if WZ_C in ALL_CODES else 0, format_func=ff, key="pf_wzc")
-            WZ_S = st.selectbox("WZ Sub-Cam.", ALL_CODES, index=ALL_CODES.index(WZ_S) if WZ_S in ALL_CODES else 1, format_func=ff, key="pf_wzs")
-        with c2:
-            MZ_C = st.selectbox("MZ Campeón",  ALL_CODES, index=ALL_CODES.index(MZ_C) if MZ_C in ALL_CODES else 0, format_func=ff, key="pf_mzc")
-            MZ_S = st.selectbox("MZ Sub-Cam.", ALL_CODES, index=ALL_CODES.index(MZ_S) if MZ_S in ALL_CODES else 1, format_func=ff, key="pf_mzs")
-        with c3:
-            SZ_C = st.selectbox("SZ Campeón",  ALL_CODES, index=ALL_CODES.index(SZ_C) if SZ_C in ALL_CODES else 0, format_func=ff, key="pf_szc")
-            SZ_S = st.selectbox("SZ Sub-Cam.", ALL_CODES, index=ALL_CODES.index(SZ_S) if SZ_S in ALL_CODES else 1, format_func=ff, key="pf_szs")
-        with c4:
-            NZ_C = st.selectbox("NZ Campeón",  ALL_CODES, index=ALL_CODES.index(NZ_C) if NZ_C in ALL_CODES else 0, format_func=ff, key="pf_nzc")
-            CZ_C = st.selectbox("CZ Campeón",  ALL_CODES, index=ALL_CODES.index(CZ_C) if CZ_C in ALL_CODES else 0, format_func=ff, key="pf_czc")
+        # ── Resumen de clasificados ──────────────────────────────────────────
+        st.markdown("#### Clasificados por Zona")
+        zone_cols = st.columns(5)
+        zone_info = [
+            ("WEST",     "#E67E22", WZ_C, WZ_S),
+            ("MIDWEST",  "#3498DB", MZ_C, MZ_S),
+            ("SOUTH",    "#2ECC71", SZ_C, SZ_S),
+            ("NORTH",    "#9B59B6", NZ_C, None),
+            ("CANADIAN", "#E74C3C", CZ_C, None),
+        ]
+        for col, (zshort, zcolor, champ, sub) in zip(zone_cols, zone_info):
+            with col:
+                champ_logo = logo_img(champ, 36) if champ != "TBD" else "❓"
+                sub_line = f"<div style='margin-top:6px'>{logo_img(sub,24)} <span style='font-size:0.82rem;color:var(--muted)'>🥈 {sub}</span></div>" if sub else ""
+                st.markdown(f"""
+                <div style="background:var(--card);border-top:3px solid {zcolor};border-radius:0 0 8px 8px;padding:12px;text-align:center">
+                    <div style="font-family:'Barlow Condensed';font-size:0.7rem;letter-spacing:2px;color:{zcolor};margin-bottom:8px">{zshort}</div>
+                    <div>{champ_logo}</div>
+                    <div style="font-weight:700;font-size:0.9rem;margin-top:4px">🥇 {champ}</div>
+                    {sub_line}
+                </div>""", unsafe_allow_html=True)
 
         st.markdown("---")
+
+        # ── Bracket visual ───────────────────────────────────────────────────
         st.markdown(f"""
         <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:20px;margin-bottom:20px">
             <div style="font-family:'Bebas Neue';font-size:1.3rem;letter-spacing:3px;color:var(--gold);margin-bottom:14px">BRACKET</div>
