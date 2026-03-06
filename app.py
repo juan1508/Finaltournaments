@@ -7,8 +7,8 @@ from data import (
 )
 
 st.set_page_config(
-    page_title="MMJ Federation",
-    page_icon="🏢",
+    page_title="MMJ Tournament Hub",
+    page_icon="⚽",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -50,15 +50,15 @@ def logo_img(code, size=32):
 
 # ─── ZONES ────────────────────────────────────────────────────────────────────
 ZONES = {
-    "WEST ZONE":     {"teams": ["POR","LA","SJ","SEA","LAFC","RSL","SDFC","COL"],  "format":"groups",    "advance":2},
-    "MIDWEST ZONE":  {"teams": ["MIN","SKC","CIN","CHI","STL","CLB"],              "format":"groups",    "advance":2},
-    "SOUTH ZONE":    {"teams": ["DAL","ATX","HOU","CLT","NHS","ATL","ORL","MIA"],  "format":"groups",    "advance":2},
+    "WEST ZONE":     {"teams": ["LAFC","LA","SJ","SDFC","POR","RSL","SEA","COL"],  "format":"groups",    "advance":2},
+    "MIDWEST ZONE":  {"teams": ["MIN","SKC","STL","CHI","CIN","CLB"],              "format":"groups",    "advance":2},
+    "SOUTH ZONE":    {"teams": ["DAL","ATX","HOU","NHS","CLT","ATL","ORL","MIA"],  "format":"groups",    "advance":2},
     "NORTH ZONE":    {"teams": ["DCU","PHI","NYC","RBNY","NE"],                    "format":"roundrobin","advance":2},
     "CANADIAN ZONE": {"teams": ["MTL","TOR","VAN"],                                "format":"roundrobin","advance":1},
 }
 
 ZONE_COLORS = {
-    "WEST ZONE":"#E67E22","MIDWEST ZONE":"#2ECC71","SOUTH ZONE":"#3498DB",
+    "WEST ZONE":"#E67E22","MIDWEST ZONE":"#3498DB","SOUTH ZONE":"#2ECC71",
     "NORTH ZONE":"#9B59B6","CANADIAN ZONE":"#E74C3C",
 }
 
@@ -66,18 +66,18 @@ ALL_CODES = list(TEAM_COMPOSITIONS.keys())
 
 # ─── TEAM COLORS (para Palmarés) ──────────────────────────────────────────────
 TEAM_COLORS = {
-    "NHS":  {"primary": "#1f183f",  "secondary": "#e8e51d"},
-    "ATX":  {"primary": "#000000",  "secondary": "#00B140"},
-    "ATL":  {"primary": "#1A1A1A",  "secondary": "#80000A"},
-    "LAFC": {"primary": "#000000",  "secondary": "#C39E6D"},
-    "TOR":  {"primary": "#313F49",  "secondary": "#AC152A"},
-    "NYC":  {"primary": "#00285E",  "secondary": "#6CACE4"},
-    "CLB":  {"primary": "#000000",  "secondary": "#FAF200"},
-    "MTL":  {"primary": "#c5c8cb",  "secondary": "#003da6"},
-    "PHI":  {"primary": "#071B2C",  "secondary": "#B19C6F"},
-    "MIA":  {"primary": "#231F20",  "secondary": "#F7B5CD"},
-    "MIN":  {"primary": "#9BCDE4",  "secondary": "#e2e2de"},
-    "VAN":  {"primary": "#85B2E5",  "secondary": "#00245D"},
+    "NHS":  {"primary": "#8B0000",  "secondary": "#1A1A1A"},
+    "ATX":  {"primary": "#00B140",  "secondary": "#000000"},
+    "ATL":  {"primary": "#80000A",  "secondary": "#1A1A1A"},
+    "LAFC": {"primary": "#C39E6D",  "secondary": "#000000"},
+    "TOR":  {"primary": "#AC152A",  "secondary": "#313F49"},
+    "NYC":  {"primary": "#6CACE4",  "secondary": "#00285E"},
+    "CLB":  {"primary": "#FAF200",  "secondary": "#000000"},
+    "MTL":  {"primary": "#009AC7",  "secondary": "#1B2A4A"},
+    "PHI":  {"primary": "#B19C6F",  "secondary": "#071B2C"},
+    "MIA":  {"primary": "#F7B5CD",  "secondary": "#231F20"},
+    "MIN":  {"primary": "#154734",  "secondary": "#8CD2F4"},
+    "VAN":  {"primary": "#00245D",  "secondary": "#85B2E5"},
     "SEA":  {"primary": "#007A5E",  "secondary": "#5D9741"},
     "POR":  {"primary": "#004812",  "secondary": "#EBE5D8"},
     "LA":   {"primary": "#00245D",  "secondary": "#FFD700"},
@@ -423,33 +423,34 @@ def champion_card(champ, tournament_name):
 
 # ─── PALMARES HELPERS ─────────────────────────────────────────────────────────
 def title_color_palmares(title):
-    TITLE_COLORS = {
-        "Streamlit League": "#b040f0",
-        "Emirates Cup":     "#CE3035",
-        "Cisco Super Cup":  "#eb7c1e",
-        "Papa Johns":       "#233dff",
-        "McDonald":         "#fa0d04",
-        "West Zone":        "#E67E22",
-        "Midwest Zone":     "#007E44",
-        "South Zone":       "#3498DB",
-        "North Zone":       "#9B59B6",
-        "Canadian Zone":    "#E74C3C",
-    }
-    for k, v in TITLE_COLORS.items():
-        if k.lower() in title.lower():
+    # Lista ordenada: más específicas primero (Midwest antes que West)
+    TITLE_COLORS = [
+        ("Canadian Zone",    "#E74C3C"),
+        ("Midwest Zone",     "#2ECC71"),
+        ("North Zone",       "#9B59B6"),
+        ("South Zone",       "#3498DB"),
+        ("West Zone",        "#E67E22"),
+        ("Streamlit League", "#b040f0"),
+        ("Emirates Cup",     "#CE3035"),
+        ("Cisco Super Cup",  "#eb7c1e"),
+        ("Papa Johns",       "#233dff"),
+        ("McDonald",         "#fa0d04"),
+    ]
+    t = title.lower()
+    for k, v in TITLE_COLORS:
+        if k.lower() in t:
             return v
     return "#888888"
-
 def title_icon_palmares(title):
     t = title.lower()
-    if "streamlit league" in t: return "🌟"
-    if "emirates" in t:         return "🏆"
-    if "cisco" in t:            return "🛜"
-    if "papa johns" in t:       return "🍕"
+    if "streamlit league" in t: return "⚽"
+    if "emirates" in t:         return "✈️"
+    if "cisco" in t:            return "🥤"
+    if "papa johns" in t:       return "🏟️"
     if "mcdonald" in t:         return "🍔"
     if "west zone" in t:        return "🌅"
-    if "midwest zone" in t:     return "🌤️"
-    if "south zone" in t:       return "🌊"
+    if "midwest zone" in t:     return "🌾"
+    if "south zone" in t:       return "🌶️"
     if "north zone" in t:       return "🗽"
     if "canadian zone" in t:    return "🍁"
     return "🏆"
@@ -803,8 +804,8 @@ elif tournament == "🏟️ Papa Johns Leagues Cup":
         zone_cols = st.columns(5)
         zone_info = [
             ("WEST",     "#E67E22", WZ_C, WZ_S),
-            ("MIDWEST",  "#2ECC71", MZ_C, MZ_S),
-            ("SOUTH",    "#3498DB", SZ_C, SZ_S),
+            ("MIDWEST",  "#3498DB", MZ_C, MZ_S),
+            ("SOUTH",    "#2ECC71", SZ_C, SZ_S),
             ("NORTH",    "#9B59B6", NZ_C, None),
             ("CANADIAN", "#E74C3C", CZ_C, None),
         ]
