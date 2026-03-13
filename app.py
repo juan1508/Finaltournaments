@@ -343,6 +343,30 @@ def standings_df(standings, highlight=0, repechaje_pos=None):
     return pd.DataFrame(rows)
 
 
+def html_table(df, col_widths=None):
+    """Renderiza un DataFrame como tabla HTML con soporte de imágenes."""
+    cols = list(df.columns)
+    header = "".join(
+        f'<th style="padding:6px 10px;text-align:left;border-bottom:2px solid var(--g);'
+        f'font-family:Barlow Condensed,sans-serif;font-size:13px;letter-spacing:1px;'
+        f'color:var(--g);white-space:nowrap;">{c}</th>' for c in cols
+    )
+    rows_html = ""
+    for i, row in df.iterrows():
+        bg = "rgba(255,255,255,0.03)" if i % 2 == 0 else "transparent"
+        cells = ""
+        for c in cols:
+            val = str(row[c]) if row[c] is not None else ""
+            cells += (f'<td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.06);'
+                      f'font-size:13px;white-space:nowrap;vertical-align:middle;">{val}</td>')
+        rows_html += f'<tr style="background:{bg};">{cells}</tr>'
+    table = (f'<div style="overflow-x:auto;border-radius:8px;border:1px solid rgba(255,255,255,0.08);">'
+             f'<table style="width:100%;border-collapse:collapse;">'
+             f'<thead><tr>{header}</tr></thead>'
+             f'<tbody>{rows_html}</tbody></table></div>')
+    st.markdown(table, unsafe_allow_html=True)
+
+
 def render_standings(standings, title="", highlight=0, repechaje_pos=None):
     if title:
         st.markdown(f"#### {title}")
@@ -350,7 +374,7 @@ def render_standings(standings, title="", highlight=0, repechaje_pos=None):
         st.info("Sin datos aún.")
         return
     df = standings_df(standings, highlight, repechaje_pos)
-    st.dataframe(df, hide_index=True, use_container_width=True)
+    html_table(df)
 
 
 def render_match_result(t1, t2, res):
@@ -681,6 +705,9 @@ elif page == "🏆 Eurocopa":
                     st.markdown(f"**Grupo {gl}**")
                     default_g = [t for t in st.session_state.euro_groups.get(gl, selected[i*4:(i+1)*4]) if t in selected]
                     chosen = st.multiselect(f"Grupo {gl}", selected, default=default_g, max_selections=4, key=f"euro_grp_{gl}")
+                    if chosen:
+                        flags_html = " ".join(f'{fl(t,20)}<span style="font-size:11px;color:var(--muted);">{t}</span>' for t in chosen)
+                        st.markdown(f'<div style="margin-top:4px;line-height:2;">{flags_html}</div>', unsafe_allow_html=True)
                     new_groups[gl] = chosen
             if st.button("💾 Guardar grupos"):
                 all_a = sum(new_groups.values(), [])
@@ -904,6 +931,8 @@ elif page == "🔢 Playoffs UEFA":
                     st.markdown(f"**Grupo {gl}**")
                     default_g = st.session_state.euro_playoff_groups.get(gl, pool[i*4:(i+1)*4])
                     chosen = st.multiselect(f"Grupo {gl}", pool, default=default_g, max_selections=4, key=f"ep_grp_{gl}")
+                    if chosen:
+                        st.markdown(" ".join(f'{fl(t,18)}<span style="font-size:10px;color:var(--muted);">{t}</span>' for t in chosen), unsafe_allow_html=True)
                     new_groups[gl] = chosen
             if st.button("💾 Guardar grupos playoff"):
                 all_a = sum(new_groups.values(),[])
@@ -982,6 +1011,8 @@ elif page == "🏆 Copa América":
                     st.markdown(f"**Grupo {gl}**")
                     default_g = st.session_state.ca_groups.get(gl, all_ca[i*4:(i+1)*4])
                     chosen = st.multiselect(f"Grupo {gl}", all_ca, default=default_g, max_selections=4, key=f"ca_grp_{gl}")
+                    if chosen:
+                        st.markdown(" ".join(f'{fl(t,18)}<span style="font-size:10px;color:var(--muted);">{t}</span>' for t in chosen), unsafe_allow_html=True)
                     new_groups[gl] = chosen
             if st.button("💾 Guardar grupos Copa América"):
                 all_a = sum(new_groups.values(),[])
@@ -1179,9 +1210,13 @@ elif page == "🏆 Copa África":
             with col1:
                 st.markdown("**Grupo A**")
                 gA = st.multiselect("Grupo A", selected, default=st.session_state.af_groups.get("A",selected[:5]), max_selections=5, key="af_gA")
+                if gA:
+                    st.markdown(" ".join(f'{fl(t,16)}<span style="font-size:10px;color:var(--muted);">{t}</span>' for t in gA), unsafe_allow_html=True)
             with col2:
                 st.markdown("**Grupo B**")
                 gB = st.multiselect("Grupo B", selected, default=st.session_state.af_groups.get("B",selected[5:]), max_selections=5, key="af_gB")
+                if gB:
+                    st.markdown(" ".join(f'{fl(t,16)}<span style="font-size:10px;color:var(--muted);">{t}</span>' for t in gB), unsafe_allow_html=True)
             if st.button("💾 Guardar grupos África"):
                 if len(gA)!=5 or len(gB)!=5: st.error("5 equipos por grupo.")
                 elif len(set(gA+gB))!=10: st.error("Duplicados.")
@@ -1326,9 +1361,13 @@ elif page == "🏆 Copa Oro":
             with col1:
                 st.markdown("**Grupo A**")
                 gA = st.multiselect("Grupo A", selected, default=st.session_state.co_groups.get("A",selected[:3]), max_selections=3, key="co_gA")
+                if gA:
+                    st.markdown(" ".join(f'{fl(t,16)}<span style="font-size:10px;color:var(--muted);">{t}</span>' for t in gA), unsafe_allow_html=True)
             with col2:
                 st.markdown("**Grupo B**")
                 gB = st.multiselect("Grupo B", selected, default=st.session_state.co_groups.get("B",selected[3:]), max_selections=3, key="co_gB")
+                if gB:
+                    st.markdown(" ".join(f'{fl(t,16)}<span style="font-size:10px;color:var(--muted);">{t}</span>' for t in gB), unsafe_allow_html=True)
             if st.button("💾 Guardar grupos Copa Oro"):
                 if len(gA)!=3 or len(gB)!=3 or len(set(gA+gB))!=6: st.error("3 por grupo sin duplicados.")
                 else:
@@ -1478,9 +1517,13 @@ elif page == "🏆 Copa Asia":
             with col1:
                 st.markdown("**Grupo A**")
                 gA = st.multiselect("Grupo A", selected, default=st.session_state.as_groups.get("A",selected[:3]), max_selections=3, key="as_gA")
+                if gA:
+                    st.markdown(" ".join(f'{fl(t,16)}<span style="font-size:10px;color:var(--muted);">{t}</span>' for t in gA), unsafe_allow_html=True)
             with col2:
                 st.markdown("**Grupo B**")
                 gB = st.multiselect("Grupo B", selected, default=st.session_state.as_groups.get("B",selected[3:]), max_selections=3, key="as_gB")
+                if gB:
+                    st.markdown(" ".join(f'{fl(t,16)}<span style="font-size:10px;color:var(--muted);">{t}</span>' for t in gB), unsafe_allow_html=True)
             if st.button("💾 Guardar grupos Copa Asia"):
                 if len(gA)!=3 or len(gB)!=3 or len(set(gA+gB))!=6: st.error("3 por grupo sin duplicados.")
                 else:
@@ -1706,6 +1749,8 @@ elif page == "🏆 Mundial":
                 st.markdown(f"**Grupo {gl}**")
                 default_g = st.session_state.wc_groups.get(gl, pool32[i*4:(i+1)*4])
                 chosen = st.multiselect(f"Grupo {gl}", pool32, default=default_g, max_selections=4, key=f"wc_grp_{gl}")
+                if chosen:
+                    st.markdown(" ".join(f'{fl(t,16)}<span style="font-size:10px;color:var(--muted);">{t}</span>' for t in chosen), unsafe_allow_html=True)
                 new_groups[gl] = chosen
         if st.button("💾 Guardar grupos del Mundial"):
             all_a = sum(new_groups.values(),[])
@@ -1897,7 +1942,7 @@ elif page == "📊 Ranking FIFA":
             if t in tl: conf=c; break
         flag_html = fl(t, 16)
         rows.append({"Pos":pos,"Equipo":f"{flag_html}{t}","Conf":conf,"Puntos":pts})
-    st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+    html_table(pd.DataFrame(rows))
     if st.button("🔄 Resetear ranking inicial"):
         st.session_state.fifa_ranking = dict(INITIAL_FIFA_RANKING); st.success("✅ Reseteado."); st.rerun()
 
@@ -1930,7 +1975,7 @@ elif page == "⚽ Goleadores":
         if rows:
             df = pd.DataFrame(rows)
             df.insert(0,"Pos",range(1,len(df)+1))
-            st.dataframe(df, hide_index=True, use_container_width=True)
+            html_table(df)
 
 # ══════════════════════════════════════════════
 # PLANTILLAS
