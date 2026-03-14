@@ -1095,7 +1095,7 @@ elif page == "🏆 Copa América":
             for i,gl in enumerate(["A","B","C","D"]):
                 with cols[i]:
                     st.markdown(f"**Grupo {gl}**")
-                    default_g = st.session_state.ca_groups.get(gl, all_ca[i*4:(i+1)*4])
+                    default_g = [t for t in st.session_state.ca_groups.get(gl, all_ca[i*4:(i+1)*4]) if t in all_ca]
                     chosen = st.multiselect(f"Grupo {gl}", all_ca, default=default_g, max_selections=4, key=f"ca_grp_{gl}")
                     if chosen:
                         st.markdown(" ".join(f'{fl(t,18)}<span style="font-size:10px;color:var(--muted);">{t}</span>' for t in chosen), unsafe_allow_html=True)
@@ -1292,17 +1292,20 @@ elif page == "🏆 Copa África":
                 "10 equipos · 2 grupos de 5 · 2 primeros → Semis", conf_key="CAF")
     tab_setup,tab_groups,tab_ko,tab_result = st.tabs(["⚙️ Config","📊 Grupos","⚔️ Eliminatorias","🏆 Resultado"])
     with tab_setup:
-        selected = st.multiselect("Elige 10 equipos CAF", CAF_TEAMS, default=st.session_state.af_teams or CAF_TEAMS, max_selections=10)
+        _af_def = [t for t in (st.session_state.af_teams or CAF_TEAMS) if t in CAF_TEAMS]
+        selected = st.multiselect("Elige 10 equipos CAF", CAF_TEAMS, default=_af_def, max_selections=10)
         if len(selected)==10:
             col1,col2 = st.columns(2)
             with col1:
                 st.markdown("**Grupo A**")
-                gA = st.multiselect("Grupo A", selected, default=st.session_state.af_groups.get("A",selected[:5]), max_selections=5, key="af_gA")
+                _gA_def = [t for t in st.session_state.af_groups.get("A", selected[:5]) if t in selected]
+                gA = st.multiselect("Grupo A", selected, default=_gA_def, max_selections=5, key="af_gA")
                 if gA:
                     st.markdown(" ".join(f'{fl(t,16)}<span style="font-size:10px;color:var(--muted);">{t}</span>' for t in gA), unsafe_allow_html=True)
             with col2:
                 st.markdown("**Grupo B**")
-                gB = st.multiselect("Grupo B", selected, default=st.session_state.af_groups.get("B",selected[5:]), max_selections=5, key="af_gB")
+                _gB_def = [t for t in st.session_state.af_groups.get("B", selected[5:]) if t in selected]
+                gB = st.multiselect("Grupo B", selected, default=_gB_def, max_selections=5, key="af_gB")
                 if gB:
                     st.markdown(" ".join(f'{fl(t,16)}<span style="font-size:10px;color:var(--muted);">{t}</span>' for t in gB), unsafe_allow_html=True)
             if st.button("💾 Guardar grupos África"):
@@ -1445,17 +1448,20 @@ elif page == "🏆 Copa Oro":
                 "6 equipos · 2 grupos de 3 · A1vB2 y B1vA2 → Final", conf_key="CONCACAF")
     tab_setup,tab_groups,tab_ko,tab_result = st.tabs(["⚙️ Config","📊 Grupos","⚔️ Eliminatorias","🏆 Resultado"])
     with tab_setup:
-        selected = st.multiselect("Elige 6 equipos CONCACAF", CONCACAF_TEAMS, default=st.session_state.co_teams or CONCACAF_TEAMS, max_selections=6)
+        _co_def = [t for t in (st.session_state.co_teams or CONCACAF_TEAMS) if t in CONCACAF_TEAMS]
+        selected = st.multiselect("Elige 6 equipos CONCACAF", CONCACAF_TEAMS, default=_co_def, max_selections=6)
         if len(selected)==6:
             col1,col2 = st.columns(2)
             with col1:
                 st.markdown("**Grupo A**")
-                gA = st.multiselect("Grupo A", selected, default=st.session_state.co_groups.get("A",selected[:3]), max_selections=3, key="co_gA")
+                _gA_def = [t for t in st.session_state.co_groups.get("A", selected[:3]) if t in selected]
+                gA = st.multiselect("Grupo A", selected, default=_gA_def, max_selections=3, key="co_gA")
                 if gA:
                     st.markdown(" ".join(f'{fl(t,16)}<span style="font-size:10px;color:var(--muted);">{t}</span>' for t in gA), unsafe_allow_html=True)
             with col2:
                 st.markdown("**Grupo B**")
-                gB = st.multiselect("Grupo B", selected, default=st.session_state.co_groups.get("B",selected[3:]), max_selections=3, key="co_gB")
+                _gB_def = [t for t in st.session_state.co_groups.get("B", selected[3:]) if t in selected]
+                gB = st.multiselect("Grupo B", selected, default=_gB_def, max_selections=3, key="co_gB")
                 if gB:
                     st.markdown(" ".join(f'{fl(t,16)}<span style="font-size:10px;color:var(--muted);">{t}</span>' for t in gB), unsafe_allow_html=True)
             if st.button("💾 Guardar grupos Copa Oro"):
@@ -1603,17 +1609,20 @@ elif page == "🏆 Copa Asia":
                 "6 equipos · 2 grupos de 3 · A1vB2 y B1vA2 → Final", conf_key="AFC")
     tab_setup,tab_groups,tab_ko,tab_result = st.tabs(["⚙️ Config","📊 Grupos","⚔️ Eliminatorias","🏆 Resultado"])
     with tab_setup:
-        selected = st.multiselect("Elige 6 equipos AFC", AFC_TEAMS, default=st.session_state.as_teams or AFC_TEAMS, max_selections=6)
+        _as_def = [t for t in (st.session_state.as_teams or AFC_TEAMS) if t in AFC_TEAMS]
+        selected = st.multiselect("Elige 6 equipos AFC", AFC_TEAMS, default=_as_def, max_selections=6)
         if len(selected)==6:
             col1,col2 = st.columns(2)
             with col1:
                 st.markdown("**Grupo A**")
-                gA = st.multiselect("Grupo A", selected, default=st.session_state.as_groups.get("A",selected[:3]), max_selections=3, key="as_gA")
+                _gA_def = [t for t in st.session_state.as_groups.get("A", selected[:3]) if t in selected]
+                gA = st.multiselect("Grupo A", selected, default=_gA_def, max_selections=3, key="as_gA")
                 if gA:
                     st.markdown(" ".join(f'{fl(t,16)}<span style="font-size:10px;color:var(--muted);">{t}</span>' for t in gA), unsafe_allow_html=True)
             with col2:
                 st.markdown("**Grupo B**")
-                gB = st.multiselect("Grupo B", selected, default=st.session_state.as_groups.get("B",selected[3:]), max_selections=3, key="as_gB")
+                _gB_def = [t for t in st.session_state.as_groups.get("B", selected[3:]) if t in selected]
+                gB = st.multiselect("Grupo B", selected, default=_gB_def, max_selections=3, key="as_gB")
                 if gB:
                     st.markdown(" ".join(f'{fl(t,16)}<span style="font-size:10px;color:var(--muted);">{t}</span>' for t in gB), unsafe_allow_html=True)
             if st.button("💾 Guardar grupos Copa Asia"):
