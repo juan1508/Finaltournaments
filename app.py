@@ -33,11 +33,21 @@ LOGO_FILES = {
 
 @st.cache_data
 def load_logo_b64(path: str) -> str:
-    if not path or not os.path.exists(path):
+    """Carga logo como base64 buscando en varias ubicaciones posibles."""
+    if not path:
         return ""
-    with open(path, "rb") as f:
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    candidates = [
+        path,
+        os.path.join(script_dir, path),
+        os.path.join(os.getcwd(), path),
+    ]
+    found = next((p for p in candidates if os.path.exists(p)), None)
+    if not found:
+        return ""
+    with open(found, "rb") as f:
         data = base64.b64encode(f.read()).decode()
-    ext = path.rsplit(".", 1)[-1].lower()
+    ext = found.rsplit(".", 1)[-1].lower()
     mime = "image/png" if ext == "png" else f"image/{ext}"
     return f"data:{mime};base64,{data}"
 
@@ -331,16 +341,16 @@ POS_COLOR = {"GK":"#F0A500","DF":"#2196F3","MF":"#4CAF50","FW":"#F44336"}
 # ══════════════════════════════════════════════
 
 def standings_df(standings, highlight=0, repechaje_pos=None):
+    """Devuelve lista de dicts con HTML ya armado — NO DataFrame para evitar escape."""
     rows = []
     for s in standings:
         pos  = s["pos"]
         team = s["team"]
         code = FLAG_MAP.get(team, "")
-        if code:
-            h = int(16 * 0.75)
-            flag_html = f'<img src="https://flagcdn.com/20x15/{code}.png" style="vertical-align:middle;border-radius:2px;margin-right:6px;">'
-        else:
-            flag_html = ""
+        flag_html = (
+            f'<img src="https://flagcdn.com/20x15/{code}.png" '
+            f'style="vertical-align:middle;border-radius:2px;margin-right:6px;">' if code else ""
+        )
         if pos <= highlight:
             estado = "✅ Clasifica"
         elif repechaje_pos and pos == repechaje_pos:
@@ -360,35 +370,45 @@ def standings_df(standings, highlight=0, repechaje_pos=None):
             "GD":     s["gd"],
             "Estado": estado,
         })
-    return pd.DataFrame(rows)
+    return rows  # lista de dicts, NO DataFrame
 
 
-def html_table(df, col_widths=None):
-    """Renderiza un DataFrame como tabla HTML con soporte REAL de imágenes HTML."""
-    cols = list(df.columns)
+def html_table(rows_data, col_widths=None):
+    """
+    Recibe lista de dicts o DataFrame y renderiza tabla HTML con imágenes reales.
+    NUNCA pasa por pandas.to_html() para evitar el escape de tags HTML.
+    """
+    # Aceptar tanto lista de dicts como DataFrame
+    if hasattr(rows_data, "to_dict"):
+        rows_list = rows_data.to_dict("records")
+        cols = list(rows_data.columns)
+    else:
+        rows_list = rows_data
+        cols = list(rows_list[0].keys()) if rows_list else []
+
+    if not cols or not rows_list:
+        st.info("Sin datos.")
+        return
+
     header = "".join(
         f'<th style="padding:6px 10px;text-align:left;border-bottom:2px solid var(--g);'
         f'font-family:Barlow Condensed,sans-serif;font-size:13px;letter-spacing:1px;'
         f'color:var(--g);white-space:nowrap;">{c}</th>' for c in cols
     )
     rows_html = ""
-    for i, row in df.iterrows():
+    for i, row in enumerate(rows_list):
         bg = "rgba(255,255,255,0.03)" if i % 2 == 0 else "transparent"
         cells = ""
         for c in cols:
-            val = row[c]
-            # ✅ Preservar HTML — no escapar con str() si ya es string con tags
-            if val is None:
-                val_str = ""
-            elif isinstance(val, str):
-                val_str = val          # ya viene con <img> si tiene bandera
-            else:
-                val_str = str(val)
+            val = row.get(c, "")
+            # Preservar HTML tal cual — no escapar
+            val_str = "" if val is None else (val if isinstance(val, str) else str(val))
             cells += (
                 f'<td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.06);'
                 f'font-size:13px;white-space:nowrap;vertical-align:middle;">{val_str}</td>'
             )
         rows_html += f'<tr style="background:{bg};">{cells}</tr>'
+
     table = (
         f'<div style="overflow-x:auto;border-radius:8px;border:1px solid rgba(255,255,255,0.08);">'
         f'<table style="width:100%;border-collapse:collapse;">'
@@ -404,8 +424,8 @@ def render_standings(standings, title="", highlight=0, repechaje_pos=None):
     if not standings:
         st.info("Sin datos aún.")
         return
-    df = standings_df(standings, highlight, repechaje_pos)
-    html_table(df)
+    rows = standings_df(standings, highlight, repechaje_pos)
+    html_table(rows)
 
 
 def render_match_result(t1, t2, res):
@@ -1987,12 +2007,15 @@ elif page == "📊 Ranking FIFA":
     for pos,(t,pts) in enumerate(sorted_r,1):
         if filt!="Todas" and t not in conf_teams.get(filt,[]): continue
         conf = "—"
-        for c,tl in conf_teams.items():
-            if t in tl: conf=c; break
+        for c_,tl in conf_teams.items():
+            if t in tl: conf=c_; break
         code = FLAG_MAP.get(t, "")
-        flag_html = f'<img src="https://flagcdn.com/20x15/{code}.png" style="vertical-align:middle;border-radius:2px;margin-right:6px;">' if code else ""
-        rows.append({"Pos":pos,"Equipo":f"{flag_html}{t}","Conf":conf,"Puntos":pts})
-    html_table(pd.DataFrame(rows))
+        flag_html = (
+            f'<img src="https://flagcdn.com/20x15/{code}.png" '
+            f'style="vertical-align:middle;border-radius:2px;margin-right:6px;">' if code else ""
+        )
+        rows.append({"Pos": pos, "Equipo": f"{flag_html}{t}", "Conf": conf, "Puntos": pts})
+    html_table(rows)  # lista de dicts, sin pasar por DataFrame
 
     if st.button("🔄 Resetear ranking inicial"):
         st.session_state.fifa_ranking = dict(INITIAL_FIFA_RANKING); st.success("✅ Reseteado."); st.rerun()
@@ -2025,9 +2048,12 @@ elif page == "⚽ Goleadores":
             flag_html = f'<img src="https://flagcdn.com/20x15/{code}.png" style="vertical-align:middle;border-radius:2px;margin-right:6px;">' if code else ""
             rows.append({"⚽":goals,"Jugador":player,"Selección":f"{flag_html}{team}","Torneo":tour})
         if rows:
-            df = pd.DataFrame(rows)
-            df.insert(0,"Pos",range(1,len(df)+1))
-            html_table(df)
+            for i, r in enumerate(rows):
+                r["Pos"] = i + 1
+            # reordenar columnas para que Pos sea primera
+            rows = [{"Pos": r["Pos"], "⚽": r["⚽"], "Jugador": r["Jugador"],
+                     "Selección": r["Selección"], "Torneo": r["Torneo"]} for r in rows]
+            html_table(rows)
 
 # ══════════════════════════════════════════════
 # PLANTILLAS
