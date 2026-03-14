@@ -19,6 +19,18 @@ from state import (
     update_ranking_from_standings
 )
 
+# ══════════════════════════════════════════════
+# CARGA DE LOGOS — rutas directas en el repo
+# ══════════════════════════════════════════════
+LOGO_FILES = {
+    "FIFA":     "fmmj.png",
+    "UEFA":     "uefa.png",
+    "CONMEBOL": "conmebol.png",
+    "CAF":      "caf.png",
+    "CONCACAF": "concacaf.png",
+    "AFC":      "afc.png",
+}
+
 @st.cache_data
 def load_logo_b64(path: str) -> str:
     if not path or not os.path.exists(path):
@@ -29,7 +41,7 @@ def load_logo_b64(path: str) -> str:
     mime = "image/png" if ext == "png" else f"image/{ext}"
     return f"data:{mime};base64,{data}"
 
-LOGOS_B64 = {k: load_logo_b64(v) for k, v in CONF_LOGOS.items()}
+LOGOS_B64 = {k: load_logo_b64(v) for k, v in LOGO_FILES.items()}
 
 st.set_page_config(
     page_title="FMMJ Nations",
@@ -231,7 +243,6 @@ thead tr th {
   text-transform: uppercase;
 }
 
-/* Conf logo en sidebar */
 .sb-conf-row {
   display: flex;
   align-items: center;
@@ -282,7 +293,6 @@ hr { border-color: var(--border) !important; }
   background: var(--card); border:1px solid var(--border); border-radius:10px; padding:14px;
 }
 
-/* Conf logo badge grande en cabecera */
 .conf-logo-badge {
   width: 48px;
   height: 48px;
@@ -323,9 +333,14 @@ POS_COLOR = {"GK":"#F0A500","DF":"#2196F3","MF":"#4CAF50","FW":"#F44336"}
 def standings_df(standings, highlight=0, repechaje_pos=None):
     rows = []
     for s in standings:
-        pos = s["pos"]
+        pos  = s["pos"]
         team = s["team"]
-        flag_html = fl(team, 16)
+        code = FLAG_MAP.get(team, "")
+        if code:
+            h = int(16 * 0.75)
+            flag_html = f'<img src="https://flagcdn.com/20x15/{code}.png" style="vertical-align:middle;border-radius:2px;margin-right:6px;">'
+        else:
+            flag_html = ""
         if pos <= highlight:
             estado = "✅ Clasifica"
         elif repechaje_pos and pos == repechaje_pos:
@@ -333,18 +348,23 @@ def standings_df(standings, highlight=0, repechaje_pos=None):
         else:
             estado = "❌"
         rows.append({
-            "Pos": pos,
+            "Pos":    pos,
             "Equipo": f"{flag_html}{team}",
-            "Pts": s["pts"], "PJ": s["played"],
-            "G": s["w"], "E": s["d"], "P": s["l"],
-            "GF": s["gf"], "GC": s["ga"], "GD": s["gd"],
+            "Pts":    s["pts"],
+            "PJ":     s["played"],
+            "G":      s["w"],
+            "E":      s["d"],
+            "P":      s["l"],
+            "GF":     s["gf"],
+            "GC":     s["ga"],
+            "GD":     s["gd"],
             "Estado": estado,
         })
     return pd.DataFrame(rows)
 
 
 def html_table(df, col_widths=None):
-    """Renderiza un DataFrame como tabla HTML con soporte de imágenes."""
+    """Renderiza un DataFrame como tabla HTML con soporte REAL de imágenes HTML."""
     cols = list(df.columns)
     header = "".join(
         f'<th style="padding:6px 10px;text-align:left;border-bottom:2px solid var(--g);'
@@ -356,14 +376,25 @@ def html_table(df, col_widths=None):
         bg = "rgba(255,255,255,0.03)" if i % 2 == 0 else "transparent"
         cells = ""
         for c in cols:
-            val = str(row[c]) if row[c] is not None else ""
-            cells += (f'<td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.06);'
-                      f'font-size:13px;white-space:nowrap;vertical-align:middle;">{val}</td>')
+            val = row[c]
+            # ✅ Preservar HTML — no escapar con str() si ya es string con tags
+            if val is None:
+                val_str = ""
+            elif isinstance(val, str):
+                val_str = val          # ya viene con <img> si tiene bandera
+            else:
+                val_str = str(val)
+            cells += (
+                f'<td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.06);'
+                f'font-size:13px;white-space:nowrap;vertical-align:middle;">{val_str}</td>'
+            )
         rows_html += f'<tr style="background:{bg};">{cells}</tr>'
-    table = (f'<div style="overflow-x:auto;border-radius:8px;border:1px solid rgba(255,255,255,0.08);">'
-             f'<table style="width:100%;border-collapse:collapse;">'
-             f'<thead><tr>{header}</tr></thead>'
-             f'<tbody>{rows_html}</tbody></table></div>')
+    table = (
+        f'<div style="overflow-x:auto;border-radius:8px;border:1px solid rgba(255,255,255,0.08);">'
+        f'<table style="width:100%;border-collapse:collapse;">'
+        f'<thead><tr>{header}</tr></thead>'
+        f'<tbody>{rows_html}</tbody></table></div>'
+    )
     st.markdown(table, unsafe_allow_html=True)
 
 
@@ -480,10 +511,10 @@ def champ_banner(team, title="CAMPEÓN"):
 
 
 def conf_header(color, emoji, name, info="", conf_key=None):
-    """Cabecera de confederación con logo opcional"""
+    """Cabecera de confederación con logo desde archivo local"""
     logo_html = ""
-    if conf_key and conf_key in LOGOS_B64:
-        logo_html = f'<img src="{LOGOS_B64.get(conf_key, "")}" class="conf-logo-badge" onerror="this.style.display=\'none\'">'
+    if conf_key and LOGOS_B64.get(conf_key):
+        logo_html = f'<img src="{LOGOS_B64[conf_key]}" class="conf-logo-badge" onerror="this.style.display=\'none\'">'
     else:
         logo_html = f'<div style="font-size:36px;line-height:1;">{emoji}</div>'
 
@@ -498,22 +529,30 @@ def conf_header(color, emoji, name, info="", conf_key=None):
 
 
 def team_chip(team, color="var(--g)"):
-    img = fl(team, 16)
+    code = FLAG_MAP.get(team, "")
+    if code:
+        img = f'<img src="https://flagcdn.com/20x15/{code}.png" style="vertical-align:middle;border-radius:2px;margin-right:5px;">'
+    else:
+        img = ""
     return (f'<span style="display:inline-flex;align-items:center;background:rgba(0,0,0,.3);'
             f'border:1px solid {color}40;border-radius:20px;padding:3px 10px;font-size:12px;margin:2px;">'
             f'{img}{team}</span>')
 
 
 # ══════════════════════════════════════════════
-# SIDEBAR CON LOGOS DE CONFEDERACIONES
+# SIDEBAR
 # ══════════════════════════════════════════════
 with st.sidebar:
-    # Logo FMMJ + logo FIFA
-    fifa_logo = LOGOS_B64.get("FIFA","")
+    fifa_logo = LOGOS_B64.get("FIFA", "")
+    if fifa_logo:
+        logo_tag = f'<img src="{fifa_logo}" style="width:54px;height:54px;object-fit:contain;margin-bottom:6px;">'
+    else:
+        logo_tag = '<div style="font-size:36px;">⚽</div>'
+
     st.markdown(f"""
     <div style='text-align:center;padding:18px 0 12px;'>
-      {'<img src="'+fifa_logo+'" style="width:44px;height:44px;object-fit:contain;filter:brightness(0) invert(1);opacity:.6;margin-bottom:6px;">' if fifa_logo else ''}
-      <div style='font-family:Bebas Neue;font-size:30px;letter-spacing:6px;color:#00E5A0;'>⚽ FMMJ</div>
+      {logo_tag}
+      <div style='font-family:Bebas Neue;font-size:30px;letter-spacing:6px;color:#00E5A0;'>FMMJ</div>
       <div style='font-size:9px;letter-spacing:4px;color:#5A7090;'>NATIONS · COMPETENCIAS</div>
     </div>""", unsafe_allow_html=True)
 
@@ -529,65 +568,60 @@ with st.sidebar:
         st.session_state.active_page = "👥 Plantillas"; st.rerun()
 
     # ─── UEFA ───
-    uefa_logo = LOGOS_B64.get("UEFA","")
-    logo_tag = f'<img src="{uefa_logo}" class="sb-conf-logo" onerror="this.style.display=\'none\'">' if uefa_logo else "🌍"
+    uefa_logo = LOGOS_B64.get("UEFA", "")
+    logo_tag_uefa = f'<img src="{uefa_logo}" class="sb-conf-logo" onerror="this.style.display=\'none\'">' if uefa_logo else "🌍"
     st.markdown(
         f"<div class='sb-section' style='color:#4A90D9;'>"
-        f"<div class='sb-conf-row'>{logo_tag} <span>UEFA</span></div></div>",
-        unsafe_allow_html=True
-    )
+        f"<div class='sb-conf-row'>{logo_tag_uefa} <span>UEFA</span></div></div>",
+        unsafe_allow_html=True)
     if st.button("🏆  Eurocopa", key="nav_euro", use_container_width=True):
         st.session_state.active_page = "🏆 Eurocopa"; st.rerun()
     if st.button("🔢  Playoffs UEFA", key="nav_europ", use_container_width=True):
         st.session_state.active_page = "🔢 Playoffs UEFA"; st.rerun()
 
     # ─── CONMEBOL ───
-    conmebol_logo = LOGOS_B64.get("CONMEBOL","")
-    logo_tag = f'<img src="{conmebol_logo}" class="sb-conf-logo" onerror="this.style.display=\'none\'">' if conmebol_logo else "🌎"
+    conmebol_logo = LOGOS_B64.get("CONMEBOL", "")
+    logo_tag_conmebol = f'<img src="{conmebol_logo}" class="sb-conf-logo" onerror="this.style.display=\'none\'">' if conmebol_logo else "🌎"
     st.markdown(
         f"<div class='sb-section' style='color:#27AE60;'>"
-        f"<div class='sb-conf-row'>{logo_tag} <span>CONMEBOL</span></div></div>",
-        unsafe_allow_html=True
-    )
+        f"<div class='sb-conf-row'>{logo_tag_conmebol} <span>CONMEBOL</span></div></div>",
+        unsafe_allow_html=True)
     if st.button("🏆  Copa América", key="nav_ca", use_container_width=True):
         st.session_state.active_page = "🏆 Copa América"; st.rerun()
     if st.button("🔢  Playoffs CONMEBOL", key="nav_cmp", use_container_width=True):
         st.session_state.active_page = "🔢 Playoffs CONMEBOL"; st.rerun()
 
     # ─── CAF ───
-    caf_logo = LOGOS_B64.get("CAF","")
-    logo_tag = f'<img src="{caf_logo}" class="sb-conf-logo" onerror="this.style.display=\'none\'">' if caf_logo else "🌍"
+    caf_logo = LOGOS_B64.get("CAF", "")
+    logo_tag_caf = f'<img src="{caf_logo}" class="sb-conf-logo" onerror="this.style.display=\'none\'">' if caf_logo else "🌍"
     st.markdown(
         f"<div class='sb-section' style='color:#F39C12;'>"
-        f"<div class='sb-conf-row'>{logo_tag} <span>CAF</span></div></div>",
-        unsafe_allow_html=True
-    )
+        f"<div class='sb-conf-row'>{logo_tag_caf} <span>CAF</span></div></div>",
+        unsafe_allow_html=True)
     if st.button("🏆  Copa África", key="nav_af", use_container_width=True):
         st.session_state.active_page = "🏆 Copa África"; st.rerun()
     if st.button("🔢  Playoffs CAF", key="nav_cafp", use_container_width=True):
         st.session_state.active_page = "🔢 Playoffs CAF"; st.rerun()
 
     # ─── CONCACAF ───
-    concacaf_logo = LOGOS_B64.get("CONCACAF","")
-    logo_tag = f'<img src="{concacaf_logo}" class="sb-conf-logo" onerror="this.style.display=\'none\'">' if concacaf_logo else "🌎"
+    concacaf_logo = LOGOS_B64.get("CONCACAF", "")
+    logo_tag_concacaf = f'<img src="{concacaf_logo}" class="sb-conf-logo" onerror="this.style.display=\'none\'">' if concacaf_logo else "🌎"
     st.markdown(
         f"<div class='sb-section' style='color:#E74C3C;'>"
-        f"<div class='sb-conf-row'>{logo_tag} <span>CONCACAF</span></div></div>",
-        unsafe_allow_html=True
-    )
+        f"<div class='sb-conf-row'>{logo_tag_concacaf} <span>CONCACAF</span></div></div>",
+        unsafe_allow_html=True)
     if st.button("🏆  Copa Oro", key="nav_co", use_container_width=True):
         st.session_state.active_page = "🏆 Copa Oro"; st.rerun()
     if st.button("🔢  Playoffs CONCACAF", key="nav_ccp", use_container_width=True):
         st.session_state.active_page = "🔢 Playoffs CONCACAF"; st.rerun()
 
     # ─── AFC ───
-    afc_logo = LOGOS_B64.get("AFC","")
-    logo_tag = f'<img src="{afc_logo}" class="sb-conf-logo" onerror="this.style.display=\'none\'">' if afc_logo else "🌏"
+    afc_logo = LOGOS_B64.get("AFC", "")
+    logo_tag_afc = f'<img src="{afc_logo}" class="sb-conf-logo" onerror="this.style.display=\'none\'">' if afc_logo else "🌏"
     st.markdown(
         f"<div class='sb-section' style='color:#9B59B6;'>"
-        f"<div class='sb-conf-row'>{logo_tag} <span>AFC</span></div></div>",
-        unsafe_allow_html=True
-    )
+        f"<div class='sb-conf-row'>{logo_tag_afc} <span>AFC</span></div></div>",
+        unsafe_allow_html=True)
     if st.button("🏆  Copa Asia", key="nav_as", use_container_width=True):
         st.session_state.active_page = "🏆 Copa Asia"; st.rerun()
     if st.button("🔢  Playoffs AFC", key="nav_afcp", use_container_width=True):
@@ -657,8 +691,9 @@ if page == "🏠 Inicio":
         teams = st.session_state.wc_qualified
         html = "<div style='display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;'>"
         for t in teams:
-            img = fl(t, 24)
-            html += f'<div class="card" style="padding:8px 12px;display:inline-flex;align-items:center;gap:4px;">{img}<span style="font-size:13px;font-weight:600;">{t}</span></div>'
+            code = FLAG_MAP.get(t, "")
+            img_tag = f'<img src="https://flagcdn.com/24x18/{code}.png" style="vertical-align:middle;border-radius:2px;margin-right:5px;">' if code else ""
+            html += f'<div class="card" style="padding:8px 12px;display:inline-flex;align-items:center;gap:4px;">{img_tag}<span style="font-size:13px;font-weight:600;">{t}</span></div>'
         html += "</div>"
         st.markdown(html, unsafe_allow_html=True)
 
@@ -706,7 +741,9 @@ elif page == "🏆 Eurocopa":
                     default_g = [t for t in st.session_state.euro_groups.get(gl, selected[i*4:(i+1)*4]) if t in selected]
                     chosen = st.multiselect(f"Grupo {gl}", selected, default=default_g, max_selections=4, key=f"euro_grp_{gl}")
                     if chosen:
-                        flags_html = " ".join(f'{fl(t,20)}<span style="font-size:11px;color:var(--muted);">{t}</span>' for t in chosen)
+                        flags_html = " ".join(
+                            f'{fl(t,20)}<span style="font-size:11px;color:var(--muted);">{t}</span>'
+                            for t in chosen)
                         st.markdown(f'<div style="margin-top:4px;line-height:2;">{flags_html}</div>', unsafe_allow_html=True)
                     new_groups[gl] = chosen
             if st.button("💾 Guardar grupos"):
@@ -752,7 +789,8 @@ elif page == "🏆 Eurocopa":
                                     st.rerun()
                     with col_t:
                         st.markdown("**Posiciones**")
-                        gm = {k:v for k,v in st.session_state.euro_matches.items() if k[0] in teams and k[1] in teams and v is not None}
+                        gm = {k:v for k,v in st.session_state.euro_matches.items()
+                              if k[0] in teams and k[1] in teams and v is not None}
                         standings = compute_standings(teams, gm)
                         st.session_state.euro_standings[gl] = standings
                         render_standings(standings, highlight=2)
@@ -775,10 +813,11 @@ elif page == "🏆 Eurocopa":
                 all_r16 = qualifiers_r16 + best_thirds
                 html = "<div style='display:flex;flex-wrap:wrap;gap:6px;'>"
                 for lbl, t in all_r16:
-                    img = fl(t, 20)
+                    code = FLAG_MAP.get(t, "")
+                    img_tag = f'<img src="https://flagcdn.com/20x15/{code}.png" style="vertical-align:middle;border-radius:2px;margin:4px 0;">' if code else ""
                     html += (f'<div class="card" style="padding:8px 12px;text-align:center;min-width:120px;">'
                              f'<div style="font-size:10px;color:var(--muted);">{lbl}</div>'
-                             f'<div style="margin:4px 0;">{img}</div>'
+                             f'<div style="margin:4px 0;">{img_tag}</div>'
                              f'<div style="font-size:12px;font-weight:600;">{t}</div></div>')
                 html += "</div>"
                 st.markdown(html, unsafe_allow_html=True)
@@ -1674,12 +1713,13 @@ elif page == "🔄 Repechaje":
         (c2,"AFC 4to",afc4,"#9B59B6"),
         (c3,"CONMEBOL 4to",cm4,"#27AE60")
     ]:
-        img = fl_big(val, 32) if val else ""
+        code = FLAG_MAP.get(val, "") if val else ""
+        img_tag = f'<img src="https://flagcdn.com/32x24/{code}.png" style="vertical-align:middle;border-radius:2px;margin-bottom:6px;">' if code else ""
         with col:
             st.markdown(f"""
             <div class='card card-acc' style='text-align:center;padding:14px;border-left-color:{color};'>
               <div style='font-size:10px;color:{color};letter-spacing:2px;'>{label}</div>
-              {('<div>'+img+'</div><div style="font-weight:700;font-size:13px;">'+val+'</div>') if val else '<div style="color:var(--muted);font-size:12px;margin-top:8px;">⏳ Pendiente</div>'}
+              {('<div style="margin:6px 0;">'+img_tag+'</div><div style="font-weight:700;font-size:13px;">'+val+'</div>') if val else '<div style="color:var(--muted);font-size:12px;margin-top:8px;">⏳ Pendiente</div>'}
             </div>""", unsafe_allow_html=True)
     st.markdown("---")
     st.markdown("#### ✏️ Configuración Manual")
@@ -1693,8 +1733,9 @@ elif page == "🔄 Repechaje":
     res1 = st.session_state.int_playoff_match1
     if res1:
         render_match_result(m1t1,m1t2,res1)
-        img = fl(res1['winner'], 20)
-        st.markdown(f"**Clasificado:** {img} **{res1['winner']}**", unsafe_allow_html=True)
+        code = FLAG_MAP.get(res1['winner'], "")
+        img_tag = f'<img src="https://flagcdn.com/20x15/{code}.png" style="vertical-align:middle;border-radius:2px;margin-right:5px;">' if code else ""
+        st.markdown(f"**Clasificado:** {img_tag} **{res1['winner']}**", unsafe_allow_html=True)
     else:
         r = knockout_input("int1",m1t1,m1t2,PLAYERS.get(m1t1,[]),PLAYERS.get(m1t2,[]))
         if r: st.session_state.int_playoff_match1 = r; st.rerun()
@@ -1702,8 +1743,9 @@ elif page == "🔄 Repechaje":
     res2 = st.session_state.int_playoff_match2
     if res2:
         render_match_result(m2t1,"New Zealand",res2)
-        img = fl(res2['winner'], 20)
-        st.markdown(f"**Clasificado:** {img} **{res2['winner']}**", unsafe_allow_html=True)
+        code = FLAG_MAP.get(res2['winner'], "")
+        img_tag = f'<img src="https://flagcdn.com/20x15/{code}.png" style="vertical-align:middle;border-radius:2px;margin-right:5px;">' if code else ""
+        st.markdown(f"**Clasificado:** {img_tag} **{res2['winner']}**", unsafe_allow_html=True)
     else:
         r = knockout_input("int2",m2t1,"New Zealand",PLAYERS.get(m2t1,[]),PLAYERS.get("New Zealand",[]))
         if r: st.session_state.int_playoff_match2 = r; st.rerun()
@@ -1809,8 +1851,10 @@ elif page == "🏆 Mundial":
                 st.markdown("#### Bracket R16 (Modelo FIFA)")
                 cols = st.columns(4)
                 for i,(t1,t2) in enumerate(wc_r16):
+                    code1 = FLAG_MAP.get(t1,""); code2 = FLAG_MAP.get(t2,"")
+                    img1 = f'<img src="https://flagcdn.com/20x15/{code1}.png" style="vertical-align:middle;border-radius:2px;margin-right:4px;">' if code1 else ""
+                    img2 = f'<img src="https://flagcdn.com/20x15/{code2}.png" style="vertical-align:middle;border-radius:2px;margin-right:4px;">' if code2 else ""
                     with cols[i%4]:
-                        img1 = fl(t1, 20); img2 = fl(t2, 20)
                         st.markdown(
                             f"<div class='card' style='text-align:center;padding:10px;font-size:12px;'>"
                             f"{img1} {t1}<br><span style='color:var(--muted);'>vs</span><br>"
@@ -1878,8 +1922,9 @@ elif page == "🏆 Mundial":
                             res3 = st.session_state.wc_third_result
                             if res3:
                                 render_match_result(t3a,t3b,res3)
-                                img = fl(res3['winner'], 20)
-                                st.markdown(f"🥉 **{img} {res3['winner']}**", unsafe_allow_html=True)
+                                code = FLAG_MAP.get(res3['winner'],"")
+                                img_tag = f'<img src="https://flagcdn.com/20x15/{code}.png" style="vertical-align:middle;border-radius:2px;margin-right:5px;">' if code else ""
+                                st.markdown(f"🥉 **{img_tag} {res3['winner']}**", unsafe_allow_html=True)
                             else:
                                 r = knockout_input("wc_3rd",t3a,t3b,PLAYERS.get(t3a,[]),PLAYERS.get(t3b,[]))
                                 if r:
@@ -1920,17 +1965,21 @@ elif page == "📊 Ranking FIFA":
                 conf_key="FIFA")
     ranking = st.session_state.fifa_ranking
     sorted_r = sorted(ranking.items(), key=lambda x:x[1], reverse=True)
+
+    # Podio Top 3
     c1,c2,c3 = st.columns(3)
     for col,(team,pts),medal in zip([c1,c2,c3],sorted_r[:3],["🥇","🥈","🥉"]):
-        img = fl_big(team, 40)
+        code = FLAG_MAP.get(team, "")
+        img_tag = f'<img src="https://flagcdn.com/40x30/{code}.png" style="border-radius:3px;margin:8px 0;">' if code else ""
         with col:
             st.markdown(f"""
             <div class='card card-gold' style='text-align:center;padding:20px;'>
               <div style='font-size:28px;'>{medal}</div>
-              <div style='margin:8px 0;'>{img}</div>
+              <div style='margin:8px 0;'>{img_tag}</div>
               <div style='font-family:Bebas Neue;font-size:20px;letter-spacing:2px;'>{team}</div>
               <div style='color:var(--g);font-size:22px;font-weight:700;'>{pts}</div>
             </div>""", unsafe_allow_html=True)
+
     st.markdown("<br>", unsafe_allow_html=True)
     conf_teams = {"UEFA":UEFA_TEAMS,"CONMEBOL":CONMEBOL_TEAMS,"CAF":CAF_TEAMS,"CONCACAF":CONCACAF_TEAMS,"AFC":AFC_TEAMS}
     filt = st.selectbox("Filtrar por confederación", ["Todas","UEFA","CONMEBOL","CAF","CONCACAF","AFC"])
@@ -1940,9 +1989,11 @@ elif page == "📊 Ranking FIFA":
         conf = "—"
         for c,tl in conf_teams.items():
             if t in tl: conf=c; break
-        flag_html = fl(t, 16)
+        code = FLAG_MAP.get(t, "")
+        flag_html = f'<img src="https://flagcdn.com/20x15/{code}.png" style="vertical-align:middle;border-radius:2px;margin-right:6px;">' if code else ""
         rows.append({"Pos":pos,"Equipo":f"{flag_html}{t}","Conf":conf,"Puntos":pts})
     html_table(pd.DataFrame(rows))
+
     if st.button("🔄 Resetear ranking inicial"):
         st.session_state.fifa_ranking = dict(INITIAL_FIFA_RANKING); st.success("✅ Reseteado."); st.rerun()
 
@@ -1970,7 +2021,8 @@ elif page == "⚽ Goleadores":
             for pref,name in TOUR_PREFIX.items():
                 if raw_key.startswith(pref): tour=name; player=raw_key[len(pref):]; break
             if filt_tour!="Todos" and tour!=filt_tour: continue
-            flag_html = fl(team, 16)
+            code = FLAG_MAP.get(team, "")
+            flag_html = f'<img src="https://flagcdn.com/20x15/{code}.png" style="vertical-align:middle;border-radius:2px;margin-right:6px;">' if code else ""
             rows.append({"⚽":goals,"Jugador":player,"Selección":f"{flag_html}{team}","Torneo":tour})
         if rows:
             df = pd.DataFrame(rows)
@@ -1998,7 +2050,8 @@ elif page == "👥 Plantillas":
     pos_counts = {}
     for p in players: pos_counts[p["pos"]] = pos_counts.get(p["pos"],0)+1
     ranking_pts = st.session_state.fifa_ranking.get(team_sel,"—")
-    big_flag = fl_big(team_sel, 80)
+    code = FLAG_MAP.get(team_sel, "")
+    big_flag = f'<img src="https://flagcdn.com/80x60/{code}.png" style="border-radius:4px;">' if code else ""
     POS_ICON = {"GK":"🧤","DF":"🛡️","MF":"⚡","FW":"🔥"}
     ps_html = ""
     for pos_key in ["GK","DF","MF","FW"]:
