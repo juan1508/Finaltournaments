@@ -54,10 +54,10 @@ def load_logo_b64(path: str) -> str:
 LOGOS_B64 = {k: load_logo_b64(v) for k, v in LOGO_FILES.items()}
 
 st.set_page_config(
-    page_title="MMJ Streamlit League",
-    page_icon="fmmj.png",   # ← cambia esto
+    page_title="FMMJ Nations",
+    page_icon="⚽",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="expanded",
 )
 
 # ══════════════════════════════════════════════
@@ -341,16 +341,19 @@ POS_COLOR = {"GK":"#F0A500","DF":"#2196F3","MF":"#4CAF50","FW":"#F44336"}
 # ══════════════════════════════════════════════
 
 def standings_df(standings, highlight=0, repechaje_pos=None):
-    """Devuelve lista de dicts con HTML ya armado — NO DataFrame para evitar escape."""
+    """Devuelve lista de dicts con HTML ya armado — SIN pandas para evitar escape de tags."""
     rows = []
     for s in standings:
         pos  = s["pos"]
         team = s["team"]
         code = FLAG_MAP.get(team, "")
-        flag_html = (
-            f'<img src="https://flagcdn.com/20x15/{code}.png" '
-            f'style="vertical-align:middle;border-radius:2px;margin-right:6px;">' if code else ""
-        )
+        if code:
+            flag_html = (
+                f'<img src="https://flagcdn.com/20x15/{code}.png" ' +
+                'style="vertical-align:middle;border-radius:2px;margin-right:6px;">' 
+            )
+        else:
+            flag_html = ""
         if pos <= highlight:
             estado = "✅ Clasifica"
         elif repechaje_pos and pos == repechaje_pos:
@@ -358,64 +361,69 @@ def standings_df(standings, highlight=0, repechaje_pos=None):
         else:
             estado = "❌"
         rows.append({
-            "Pos":    pos,
-            "Equipo": f"{flag_html}{team}",
-            "Pts":    s["pts"],
-            "PJ":     s["played"],
-            "G":      s["w"],
-            "E":      s["d"],
-            "P":      s["l"],
-            "GF":     s["gf"],
-            "GC":     s["ga"],
-            "GD":     s["gd"],
+            "Pos":    str(pos),
+            "Equipo": flag_html + team,
+            "Pts":    str(s["pts"]),
+            "PJ":     str(s["played"]),
+            "G":      str(s["w"]),
+            "E":      str(s["d"]),
+            "P":      str(s["l"]),
+            "GF":     str(s["gf"]),
+            "GC":     str(s["ga"]),
+            "GD":     str(s["gd"]),
             "Estado": estado,
         })
-    return rows  # lista de dicts, NO DataFrame
+    return rows
 
 
-def html_table(rows_data, col_widths=None):
+def html_table(rows_list, col_widths=None):
     """
-    Recibe lista de dicts o DataFrame y renderiza tabla HTML con imágenes reales.
-    NUNCA pasa por pandas.to_html() para evitar el escape de tags HTML.
+    Recibe lista de dicts y construye tabla HTML pura.
+    NUNCA usa pandas para evitar que escapen los tags <img>.
+    Los valores deben ser strings ya construidos (con HTML si hace falta).
     """
-    # Aceptar tanto lista de dicts como DataFrame
-    if hasattr(rows_data, "to_dict"):
-        rows_list = rows_data.to_dict("records")
-        cols = list(rows_data.columns)
-    else:
-        rows_list = rows_data
-        cols = list(rows_list[0].keys()) if rows_list else []
-
-    if not cols or not rows_list:
+    if not rows_list:
         st.info("Sin datos.")
         return
 
-    header = "".join(
-        f'<th style="padding:6px 10px;text-align:left;border-bottom:2px solid var(--g);'
-        f'font-family:Barlow Condensed,sans-serif;font-size:13px;letter-spacing:1px;'
-        f'color:var(--g);white-space:nowrap;">{c}</th>' for c in cols
-    )
-    rows_html = ""
+    cols = list(rows_list[0].keys())
+
+    # Cabecera
+    th = ""
+    for c in cols:
+        th += (
+            '<th style="padding:6px 10px;text-align:left;' +
+            'border-bottom:2px solid var(--g);' +
+            'font-family:Barlow Condensed,sans-serif;font-size:13px;' +
+            'letter-spacing:1px;color:var(--g);white-space:nowrap;">' +
+            str(c) + '</th>'
+        )
+
+    # Filas
+    tbody = ""
     for i, row in enumerate(rows_list):
         bg = "rgba(255,255,255,0.03)" if i % 2 == 0 else "transparent"
-        cells = ""
+        tds = ""
         for c in cols:
             val = row.get(c, "")
-            # Preservar HTML tal cual — no escapar
-            val_str = "" if val is None else (val if isinstance(val, str) else str(val))
-            cells += (
-                f'<td style="padding:5px 10px;border-bottom:1px solid rgba(255,255,255,0.06);'
-                f'font-size:13px;white-space:nowrap;vertical-align:middle;">{val_str}</td>'
+            v = val if isinstance(val, str) else str(val) if val is not None else ""
+            tds += (
+                '<td style="padding:5px 10px;' +
+                'border-bottom:1px solid rgba(255,255,255,0.06);' +
+                'font-size:13px;white-space:nowrap;vertical-align:middle;">' +
+                v + '</td>'
             )
-        rows_html += f'<tr style="background:{bg};">{cells}</tr>'
+        tbody += f'<tr style="background:{bg};">' + tds + '</tr>'
 
-    table = (
-        f'<div style="overflow-x:auto;border-radius:8px;border:1px solid rgba(255,255,255,0.08);">'
-        f'<table style="width:100%;border-collapse:collapse;">'
-        f'<thead><tr>{header}</tr></thead>'
-        f'<tbody>{rows_html}</tbody></table></div>'
+    html = (
+        '<div style="overflow-x:auto;border-radius:8px;' +
+        'border:1px solid rgba(255,255,255,0.08);">' +
+        '<table style="width:100%;border-collapse:collapse;">' +
+        '<thead><tr>' + th + '</tr></thead>' +
+        '<tbody>' + tbody + '</tbody>' +
+        '</table></div>'
     )
-    st.markdown(table, unsafe_allow_html=True)
+    st.markdown(html, unsafe_allow_html=True)
 
 
 def render_standings(standings, title="", highlight=0, repechaje_pos=None):
@@ -2014,8 +2022,13 @@ elif page == "📊 Ranking FIFA":
             f'<img src="https://flagcdn.com/20x15/{code}.png" '
             f'style="vertical-align:middle;border-radius:2px;margin-right:6px;">' if code else ""
         )
-        rows.append({"Pos": pos, "Equipo": f"{flag_html}{t}", "Conf": conf, "Puntos": pts})
-    html_table(rows)  # lista de dicts, sin pasar por DataFrame
+        rows.append({
+            "Pos":    str(pos),
+            "Equipo": flag_html + t,
+            "Conf":   conf,
+            "Puntos": str(pts),
+        })
+    html_table(rows)
 
     if st.button("🔄 Resetear ranking inicial"):
         st.session_state.fifa_ranking = dict(INITIAL_FIFA_RANKING); st.success("✅ Reseteado."); st.rerun()
@@ -2048,12 +2061,16 @@ elif page == "⚽ Goleadores":
             flag_html = f'<img src="https://flagcdn.com/20x15/{code}.png" style="vertical-align:middle;border-radius:2px;margin-right:6px;">' if code else ""
             rows.append({"⚽":goals,"Jugador":player,"Selección":f"{flag_html}{team}","Torneo":tour})
         if rows:
+            rows_final = []
             for i, r in enumerate(rows):
-                r["Pos"] = i + 1
-            # reordenar columnas para que Pos sea primera
-            rows = [{"Pos": r["Pos"], "⚽": r["⚽"], "Jugador": r["Jugador"],
-                     "Selección": r["Selección"], "Torneo": r["Torneo"]} for r in rows]
-            html_table(rows)
+                rows_final.append({
+                    "Pos":      str(i + 1),
+                    "⚽":       str(r["⚽"]),
+                    "Jugador":  r["Jugador"],
+                    "Selección": r["Selección"],
+                    "Torneo":   r["Torneo"],
+                })
+            html_table(rows_final)
 
 # ══════════════════════════════════════════════
 # PLANTILLAS
