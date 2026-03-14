@@ -11,7 +11,7 @@ UEFA_TEAMS = [
     "Sweden", "Serbia", "Wales", "Scotland", "Belgium",
     "Ukraine", "Czech Republic", "Iceland", "Greece", "Turkey",
     "Norway", "Netherlands", "France", "Spain", "Portugal",
-    "Italy", "England", "Germany", "Hungary", "Israel"
+    "Italy", "England", "Germany", "Hungary"
 ]
 
 CONMEBOL_TEAMS = [
@@ -25,7 +25,7 @@ CAF_TEAMS = [
 ]
 
 CONCACAF_TEAMS = ["Mexico", "Panama", "Costa Rica", "USA", "Canada", "Jamaica"]
-AFC_TEAMS = ["Korea", "Saudi Arabia", "Japan", "Australia", "Iran", "Qatar"]
+AFC_TEAMS = ["Korea", "Saudi Arabia", "Japan", "Australia", "Israel", "Qatar"]
 PLAYOFF_TEAMS = ["New Zealand"]
 
 ALL_TEAMS = UEFA_TEAMS + CONMEBOL_TEAMS + CAF_TEAMS + CONCACAF_TEAMS + AFC_TEAMS + PLAYOFF_TEAMS
@@ -96,7 +96,6 @@ FLAG_MAP = {
     "Saudi Arabia":   "sa",
     "Japan":          "jp",
     "Australia":      "au",
-    "Iran":           "ir",
     "Qatar":          "qa",
     # Playoff
     "New Zealand":    "nz",
@@ -817,18 +816,6 @@ PLAYERS = {
         {"name": "F. Chaïbi",    "pos": "MF"},
         {"name": "B. Bouanani",  "pos": "FW"},
     ],
-    "Iran": [
-        {"name": "A. Beiranvand", "pos": "GK"},
-        {"name": "M. Taremi",     "pos": "FW"},
-        {"name": "S. Azmoun",     "pos": "FW"},
-        {"name": "A. Jahanbakhsh","pos": "FW"},
-        {"name": "S. Hosseini",   "pos": "DF"},
-        {"name": "M. Karimi",     "pos": "MF"},
-        {"name": "A. Nourollahi", "pos": "MF"},
-        {"name": "M. Mohammadi",  "pos": "DF"},
-        {"name": "S. Aghaei",     "pos": "MF"},
-        {"name": "R. Rezaeian",   "pos": "DF"},
-    ],
 }
 
 # ---------------------------------------------------------------------------
@@ -851,6 +838,5 @@ INITIAL_FIFA_RANKING = {
     "Mexico": 1550, "USA": 1530, "Canada": 1490, "Costa Rica": 1380,
     "Panama": 1360, "Jamaica": 1280,
     "Japan": 1560, "Korea": 1530, "Australia": 1470, "Saudi Arabia": 1420,
-    "Iran": 1440, "Qatar": 1370,
-    "New Zealand": 1100,
+    "Qatar": 1370,"New Zealand": 1100,
 }
