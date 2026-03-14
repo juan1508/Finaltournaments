@@ -54,10 +54,10 @@ def load_logo_b64(path: str) -> str:
 LOGOS_B64 = {k: load_logo_b64(v) for k, v in LOGO_FILES.items()}
 
 st.set_page_config(
-    page_title="FMMJ Nations",
-    page_icon="⚽",
+    page_title="MMJ Streamlit League",
+    page_icon="fmmj.png",   # ← cambia esto
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="expanded"
 )
 
 # ══════════════════════════════════════════════
