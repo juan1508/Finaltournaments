@@ -16,7 +16,7 @@ from data import (
 from state import (
     init_state, flag, flag_img, flag_url, compute_standings,
     generate_group_matches, get_match_result, update_scorer,
-    update_ranking_from_standings
+    update_ranking_from_standings, save_state
 )
 
 # ══════════════════════════════════════════════
@@ -479,20 +479,43 @@ def build_rounds(teams):
     return rounds
 
 
-def render_matches_by_round(teams, matches_dict, prefix, matches_state_key,
-                             players_dict, scorer_prefix):
+def render_group_section(teams, matches_dict, prefix, matches_state_key,
+                          players_dict, scorer_prefix, standings,
+                          highlight=2, repechaje_pos=None):
     """
-    Renderiza partidos organizados por jornada (Fecha 1, Fecha 2…).
-    matches_dict  : dict {(t1,t2): res_or_None}
-    matches_state_key : nombre del key en st.session_state
+    Layout de grupo: tabla de posiciones arriba, partidos por fecha abajo.
     """
+    # ── TABLA DE POSICIONES
+    st.markdown(
+        "<div style='font-family:Bebas Neue;font-size:13px;letter-spacing:3px;"
+        "color:var(--g);margin:8px 0 6px;'>\U0001f4ca POSICIONES</div>",
+        unsafe_allow_html=True
+    )
+    render_standings(standings, highlight=highlight, repechaje_pos=repechaje_pos)
+    st.markdown("<div style='margin-top:14px;'></div>", unsafe_allow_html=True)
+
+    # ── PARTIDOS POR FECHA
+    st.markdown(
+        "<div style='font-family:Bebas Neue;font-size:13px;letter-spacing:3px;"
+        "color:var(--g);margin:0 0 6px;'>\u26bd PARTIDOS</div>",
+        unsafe_allow_html=True
+    )
     rounds = build_rounds(teams)
     for ri, pairs in enumerate(rounds):
-        # cabecera de jornada
+        played_in_round = sum(
+            1 for t1, t2 in pairs
+            if matches_dict.get((t1,t2)) is not None or matches_dict.get((t2,t1)) is not None
+        )
+        total_in_round = len(pairs)
+        badge = (
+            f"<span style=\'background:rgba(0,229,160,.15);color:var(--g);"
+            f"border-radius:10px;padding:1px 8px;font-size:11px;margin-left:6px;\'>"
+            f"{played_in_round}/{total_in_round}</span>"
+        )
         st.markdown(
-            f"<div style='font-family:Bebas Neue;font-size:14px;letter-spacing:3px;"
-            f"color:var(--g);margin:10px 0 4px;border-left:3px solid var(--g);"
-            f"padding-left:8px;'>FECHA {ri + 1}</div>",
+            f"<div style=\'font-family:Bebas Neue;font-size:13px;letter-spacing:2px;"
+            f"color:var(--muted);margin:8px 0 4px;border-left:3px solid var(--g);"
+            f"padding-left:8px;\'>FECHA {ri + 1} {badge}</div>",
             unsafe_allow_html=True
         )
         for t1, t2 in pairs:
@@ -500,20 +523,47 @@ def render_matches_by_round(teams, matches_dict, prefix, matches_state_key,
             res = matches_dict.get(key)
             render_match_result(t1, t2, res)
             if res is None:
-                r = match_input_form(
-                    prefix, t1, t2,
-                    players_dict.get(t1, []),
-                    players_dict.get(t2, []),
-                    f"{prefix}_r{ri}"
-                )
+                r = match_input_form(prefix, t1, t2,
+                    players_dict.get(t1, []), players_dict.get(t2, []),
+                    f"{prefix}_r{ri}")
                 if r:
                     hg, ag, sh, sa = r
                     st.session_state[matches_state_key][key] = {
-                        "hg": hg, "ag": ag,
-                        "scorers_h": sh, "scorers_a": sa
+                        "hg": hg, "ag": ag, "scorers_h": sh, "scorers_a": sa
                     }
                     for s in sh: update_scorer(s, t1, 1, scorer_prefix)
                     for s in sa: update_scorer(s, t2, 1, scorer_prefix)
+                    save_state()
+                    st.rerun()
+
+
+def render_matches_by_round(teams, matches_dict, prefix, matches_state_key,
+                             players_dict, scorer_prefix):
+    """Partidos por fecha sin tabla — para playoffs sin grupos."""
+    rounds = build_rounds(teams)
+    for ri, pairs in enumerate(rounds):
+        st.markdown(
+            f"<div style=\'font-family:Bebas Neue;font-size:14px;letter-spacing:3px;"
+            f"color:var(--g);margin:10px 0 4px;border-left:3px solid var(--g);"
+            f"padding-left:8px;\'>FECHA {ri + 1}</div>",
+            unsafe_allow_html=True
+        )
+        for t1, t2 in pairs:
+            key = (t1, t2) if (t1, t2) in matches_dict else (t2, t1)
+            res = matches_dict.get(key)
+            render_match_result(t1, t2, res)
+            if res is None:
+                r = match_input_form(prefix, t1, t2,
+                    players_dict.get(t1, []), players_dict.get(t2, []),
+                    f"{prefix}_r{ri}")
+                if r:
+                    hg, ag, sh, sa = r
+                    st.session_state[matches_state_key][key] = {
+                        "hg": hg, "ag": ag, "scorers_h": sh, "scorers_a": sa
+                    }
+                    for s in sh: update_scorer(s, t1, 1, scorer_prefix)
+                    for s in sa: update_scorer(s, t2, 1, scorer_prefix)
+                    save_state()
                     st.rerun()
 
 
@@ -667,12 +717,16 @@ with st.sidebar:
     st.divider()
 
     if st.button("🏠  Inicio", key="nav_home", use_container_width=True):
+        save_state()
         st.session_state.active_page = "🏠 Inicio"; st.rerun()
     if st.button("📊  Ranking FIFA", key="nav_rank", use_container_width=True):
+        save_state()
         st.session_state.active_page = "📊 Ranking FIFA"; st.rerun()
     if st.button("⚽  Goleadores", key="nav_score", use_container_width=True):
+        save_state()
         st.session_state.active_page = "⚽ Goleadores"; st.rerun()
     if st.button("👥  Plantillas", key="nav_squad", use_container_width=True):
+        save_state()
         st.session_state.active_page = "👥 Plantillas"; st.rerun()
 
     # ─── UEFA ───
@@ -683,8 +737,10 @@ with st.sidebar:
         f"<div class='sb-conf-row'>{logo_tag_uefa} <span>UEFA</span></div></div>",
         unsafe_allow_html=True)
     if st.button("🏆  Eurocopa", key="nav_euro", use_container_width=True):
+        save_state()
         st.session_state.active_page = "🏆 Eurocopa"; st.rerun()
     if st.button("🔢  Playoffs UEFA", key="nav_europ", use_container_width=True):
+        save_state()
         st.session_state.active_page = "🔢 Playoffs UEFA"; st.rerun()
 
     # ─── CONMEBOL ───
@@ -695,8 +751,10 @@ with st.sidebar:
         f"<div class='sb-conf-row'>{logo_tag_conmebol} <span>CONMEBOL</span></div></div>",
         unsafe_allow_html=True)
     if st.button("🏆  Copa América", key="nav_ca", use_container_width=True):
+        save_state()
         st.session_state.active_page = "🏆 Copa América"; st.rerun()
     if st.button("🔢  Playoffs CONMEBOL", key="nav_cmp", use_container_width=True):
+        save_state()
         st.session_state.active_page = "🔢 Playoffs CONMEBOL"; st.rerun()
 
     # ─── CAF ───
@@ -707,8 +765,10 @@ with st.sidebar:
         f"<div class='sb-conf-row'>{logo_tag_caf} <span>CAF</span></div></div>",
         unsafe_allow_html=True)
     if st.button("🏆  Copa África", key="nav_af", use_container_width=True):
+        save_state()
         st.session_state.active_page = "🏆 Copa África"; st.rerun()
     if st.button("🔢  Playoffs CAF", key="nav_cafp", use_container_width=True):
+        save_state()
         st.session_state.active_page = "🔢 Playoffs CAF"; st.rerun()
 
     # ─── CONCACAF ───
@@ -719,8 +779,10 @@ with st.sidebar:
         f"<div class='sb-conf-row'>{logo_tag_concacaf} <span>CONCACAF</span></div></div>",
         unsafe_allow_html=True)
     if st.button("🏆  Copa Oro", key="nav_co", use_container_width=True):
+        save_state()
         st.session_state.active_page = "🏆 Copa Oro"; st.rerun()
     if st.button("🔢  Playoffs CONCACAF", key="nav_ccp", use_container_width=True):
+        save_state()
         st.session_state.active_page = "🔢 Playoffs CONCACAF"; st.rerun()
 
     # ─── AFC ───
@@ -731,15 +793,19 @@ with st.sidebar:
         f"<div class='sb-conf-row'>{logo_tag_afc} <span>AFC</span></div></div>",
         unsafe_allow_html=True)
     if st.button("🏆  Copa Asia", key="nav_as", use_container_width=True):
+        save_state()
         st.session_state.active_page = "🏆 Copa Asia"; st.rerun()
     if st.button("🔢  Playoffs AFC", key="nav_afcp", use_container_width=True):
+        save_state()
         st.session_state.active_page = "🔢 Playoffs AFC"; st.rerun()
 
     # ─── MUNDIAL ───
     st.markdown("<div class='sb-section' style='color:#FFD700;'>🌐 MUNDIAL</div>", unsafe_allow_html=True)
     if st.button("🔄  Repechaje Internacional", key="nav_rep", use_container_width=True):
+        save_state()
         st.session_state.active_page = "🔄 Repechaje"; st.rerun()
     if st.button("🏆  Copa del Mundo", key="nav_wc", use_container_width=True):
+        save_state()
         st.session_state.active_page = "🏆 Mundial"; st.rerun()
 
     st.divider()
@@ -820,6 +886,7 @@ if page == "🏠 Inicio":
             for k in keys_reset:
                 del st.session_state[k]
             init_state()
+            save_state()
             st.rerun()
 
 # ══════════════════════════════════════════════
@@ -867,6 +934,7 @@ elif page == "🏆 Eurocopa":
                         all_m.update(generate_group_matches(teams))
                     st.session_state.euro_matches = all_m
                     st.success("✅ Grupos guardados.")
+                    save_state()
                     st.rerun()
         else:
             st.info(f"Selecciona exactamente 24 equipos. Tienes {len(selected)}.")
@@ -880,20 +948,15 @@ elif page == "🏆 Eurocopa":
                 if not teams: continue
                 with st.expander(f"Grupo {gl}", expanded=True):
                     group_teams_header(teams)
-                    col_m, col_t = st.columns([3,2])
-                    with col_m:
-                        st.markdown("**Partidos**")
-                        render_matches_by_round(
-                            teams, st.session_state.euro_matches,
-                            "euro", "euro_matches", PLAYERS, "euro_"
-                        )
-                    with col_t:
-                        st.markdown("**Posiciones**")
-                        gm = {k:v for k,v in st.session_state.euro_matches.items()
-                              if k[0] in teams and k[1] in teams and v is not None}
-                        standings = compute_standings(teams, gm)
-                        st.session_state.euro_standings[gl] = standings
-                        render_standings(standings, highlight=2, max_height="320px")
+                    gm = {k:v for k,v in st.session_state.euro_matches.items()
+                          if k[0] in teams and k[1] in teams and v is not None}
+                    standings = compute_standings(teams, gm)
+                    st.session_state.euro_standings[gl] = standings
+                    render_group_section(
+                        teams, st.session_state.euro_matches,
+                        "euro", "euro_matches", PLAYERS, "euro_",
+                        standings, highlight=2
+                    )
 
             st.divider()
             st.markdown("#### 📋 Clasificados al R16")
@@ -936,6 +999,7 @@ elif page == "🏆 Eurocopa":
                     st.session_state.euro_r16 = r16_pairs
                     st.session_state.euro_r16_results = {}
                     st.success("✅ R16 generado. Ve a Eliminatorias.")
+                    save_state()
                     st.rerun()
 
     with tab_ko:
@@ -954,6 +1018,7 @@ elif page == "🏆 Eurocopa":
                         st.session_state.euro_r16_results[i] = r
                         for s in r.get("scorers_h",[]): update_scorer(s,t1,1,"euro_")
                         for s in r.get("scorers_a",[]): update_scorer(s,t2,1,"euro_")
+                        save_state()
                         st.rerun()
                     r16_winners.append(None)
             if all(r16_winners) and len(r16_winners) == 8:
@@ -972,6 +1037,7 @@ elif page == "🏆 Eurocopa":
                             st.session_state.euro_qf_results[i] = r
                             for s in r.get("scorers_h",[]): update_scorer(s,t1,1,"euro_")
                             for s in r.get("scorers_a",[]): update_scorer(s,t2,1,"euro_")
+                            save_state()
                             st.rerun()
                         qf_winners.append(None)
                 if all(qf_winners) and len(qf_winners) == 4:
@@ -992,6 +1058,7 @@ elif page == "🏆 Eurocopa":
                                 st.session_state.euro_sf_results[i] = r
                                 for s in r.get("scorers_h",[]): update_scorer(s,t1,1,"euro_")
                                 for s in r.get("scorers_a",[]): update_scorer(s,t2,1,"euro_")
+                                save_state()
                                 st.rerun()
                             sf_winners.append(None)
                     if all(sf_winners) and len(sf_winners) == 2:
@@ -1034,6 +1101,7 @@ elif page == "🏆 Eurocopa":
                                 update_ranking_from_standings(fs, 80, 4)
                                 if champion not in st.session_state.wc_qualified:
                                     st.session_state.wc_qualified.append(champion)
+                                save_state()
                                 st.rerun()
 
     with tab_result:
@@ -1082,7 +1150,7 @@ elif page == "🔢 Playoffs UEFA":
                     all_m = {}
                     for gl,teams in new_groups.items(): all_m.update(generate_group_matches(teams))
                     st.session_state.euro_playoff_matches = all_m
-                    st.success("✅ Grupos guardados."); st.rerun()
+                    st.success("✅ Grupos guardados."); save_state(); st.rerun()
         with tab2:
             if not st.session_state.euro_playoff_groups:
                 st.info("Arma los grupos primero.")
@@ -1094,16 +1162,14 @@ elif page == "🔢 Playoffs UEFA":
                     with st.expander(f"Grupo {gl}", expanded=True):
                         group_teams_header(teams)
                         col_m, col_t = st.columns([3,2])
-                        with col_m:
-                            render_matches_by_round(
-                                teams, st.session_state.euro_playoff_matches,
-                                "ep", "euro_playoff_matches", PLAYERS, "euro_"
-                            )
-                        with col_t:
-                            gm = {k:v for k,v in st.session_state.euro_playoff_matches.items() if k[0] in teams and k[1] in teams and v is not None}
-                            s = compute_standings(teams,gm)
-                            st.session_state.euro_playoff_standings[gl] = s
-                            render_standings(s, highlight=2, max_height="320px")
+                        gm = {k:v for k,v in st.session_state.euro_playoff_matches.items() if k[0] in teams and k[1] in teams and v is not None}
+                        s = compute_standings(teams,gm)
+                        st.session_state.euro_playoff_standings[gl] = s
+                        render_group_section(
+                            teams, st.session_state.euro_playoff_matches,
+                            "ep", "euro_playoff_matches", PLAYERS, "euro_",
+                            s, highlight=2
+                        )
                 st.divider()
                 qualified = []
                 for gl in ["A","B","C","D"]:
@@ -1159,7 +1225,7 @@ elif page == "🏆 Copa América":
                     all_m = {}
                     for gl,teams in new_groups.items(): all_m.update(generate_group_matches(teams))
                     st.session_state.ca_matches = all_m
-                    st.success("✅ Grupos guardados."); st.rerun()
+                    st.success("✅ Grupos guardados."); save_state(); st.rerun()
     with tab_groups:
         if not st.session_state.ca_groups:
             st.info("Configura los grupos primero.")
@@ -1170,17 +1236,14 @@ elif page == "🏆 Copa América":
                 # ✅ FIX
                 with st.expander(f"Grupo {gl}", expanded=True):
                     group_teams_header(teams)
-                    col_m, col_t = st.columns([3,2])
-                    with col_m:
-                        render_matches_by_round(
-                            teams, st.session_state.ca_matches,
-                            "ca", "ca_matches", PLAYERS, "ca_"
-                        )
-                    with col_t:
-                        gm = {k:v for k,v in st.session_state.ca_matches.items() if k[0] in teams and k[1] in teams and v is not None}
-                        s = compute_standings(teams,gm)
-                        st.session_state.ca_standings[gl] = s
-                        render_standings(s, highlight=2, max_height="320px")
+                    gm = {k:v for k,v in st.session_state.ca_matches.items() if k[0] in teams and k[1] in teams and v is not None}
+                    s = compute_standings(teams,gm)
+                    st.session_state.ca_standings[gl] = s
+                    render_group_section(
+                        teams, st.session_state.ca_matches,
+                        "ca", "ca_matches", PLAYERS, "ca_",
+                        s, highlight=2
+                    )
             st.divider()
             by_slot = {}
             for gl in ["A","B","C","D"]:
@@ -1201,7 +1264,7 @@ elif page == "🏆 Copa América":
                 if st.button("➡️ Generar Bracket QF/SF/Final"):
                     st.session_state.ca_r16 = ca_r16
                     st.session_state.ca_r16_results = {}
-                    st.success("✅ Bracket generado."); st.rerun()
+                    st.success("✅ Bracket generado."); save_state(); st.rerun()
     with tab_ko:
         if not st.session_state.ca_r16:
             st.info("Completa grupos y genera bracket primero.")
@@ -1218,6 +1281,7 @@ elif page == "🏆 Copa América":
                         st.session_state.ca_r16_results[i] = r
                         for s in r.get("scorers_h",[]): update_scorer(s,t1,1,"ca_")
                         for s in r.get("scorers_a",[]): update_scorer(s,t2,1,"ca_")
+                        save_state()
                         st.rerun()
                     r16_winners.append(None)
             if all(r16_winners) and len(r16_winners)==4:
@@ -1235,6 +1299,7 @@ elif page == "🏆 Copa América":
                             st.session_state.ca_sf_results[i] = r
                             for s in r.get("scorers_h",[]): update_scorer(s,t1,1,"ca_")
                             for s in r.get("scorers_a",[]): update_scorer(s,t2,1,"ca_")
+                            save_state()
                             st.rerun()
                         sf_winners.append(None)
                 if all(sf_winners) and len(sf_winners)==2:
@@ -1269,6 +1334,7 @@ elif page == "🏆 Copa América":
                             update_ranking_from_standings(fs,80,5)
                             if champ not in st.session_state.wc_qualified:
                                 st.session_state.wc_qualified.append(champ)
+                            save_state()
                             st.rerun()
     with tab_result:
         if st.session_state.ca_champion:
@@ -1296,6 +1362,7 @@ elif page == "🔢 Playoffs CONMEBOL":
             if st.button("▶️ Iniciar eliminatoria CONMEBOL"):
                 st.session_state.conmebol_playoff_teams = pool
                 st.session_state.conmebol_playoff_matches = generate_group_matches(pool)
+                save_state()
                 st.rerun()
         else:
             teams = st.session_state.conmebol_playoff_teams
@@ -1308,6 +1375,7 @@ elif page == "🔢 Playoffs CONMEBOL":
                     if r:
                         hg,ag,sh,sa = r
                         st.session_state.conmebol_playoff_matches[key] = {"hg":hg,"ag":ag,"scorers_h":sh,"scorers_a":sa}
+                        save_state()
                         st.rerun()
             st.divider()
             played = {k:v for k,v in st.session_state.conmebol_playoff_matches.items() if v is not None}
@@ -1356,7 +1424,7 @@ elif page == "🏆 Copa África":
                     st.session_state.af_teams = selected
                     st.session_state.af_groups = {"A":gA,"B":gB}
                     st.session_state.af_matches = {**generate_group_matches(gA),**generate_group_matches(gB)}
-                    st.success("✅ Guardados."); st.rerun()
+                    st.success("✅ Guardados."); save_state(); st.rerun()
     with tab_groups:
         if not st.session_state.af_groups: st.info("Configura primero.")
         else:
@@ -1365,17 +1433,14 @@ elif page == "🏆 Copa África":
                 # ✅ FIX
                 with st.expander(f"Grupo {gl}", expanded=True):
                     group_teams_header(teams)
-                    col_m,col_t = st.columns([3,2])
-                    with col_m:
-                        render_matches_by_round(
-                            teams, st.session_state.af_matches,
-                            "af", "af_matches", PLAYERS, "af_"
-                        )
-                    with col_t:
-                        gm = {k:v for k,v in st.session_state.af_matches.items() if k[0] in teams and k[1] in teams and v is not None}
-                        s = compute_standings(teams,gm)
-                        st.session_state.af_standings[gl] = s
-                        render_standings(s, highlight=2, max_height="400px")
+                    gm = {k:v for k,v in st.session_state.af_matches.items() if k[0] in teams and k[1] in teams and v is not None}
+                    s = compute_standings(teams,gm)
+                    st.session_state.af_standings[gl] = s
+                    render_group_section(
+                        teams, st.session_state.af_matches,
+                        "af", "af_matches", PLAYERS, "af_",
+                        s, highlight=2
+                    )
             sA = st.session_state.af_standings.get("A",[])
             sB = st.session_state.af_standings.get("B",[])
             if len(sA)>=2 and len(sB)>=2:
@@ -1383,7 +1448,7 @@ elif page == "🏆 Copa África":
                 render_match_result(sf1[0],sf1[1],None); render_match_result(sf2[0],sf2[1],None)
                 if st.button("➡️ Generar Semis"):
                     st.session_state.af_sf = [sf1,sf2]; st.session_state.af_sf_results = {}
-                    st.success("✅ Semis generadas."); st.rerun()
+                    st.success("✅ Semis generadas."); save_state(); st.rerun()
     with tab_ko:
         if not st.session_state.af_sf: st.info("Completa grupos primero.")
         else:
@@ -1398,6 +1463,7 @@ elif page == "🏆 Copa África":
                         st.session_state.af_sf_results[i] = r
                         for s in r.get("scorers_h",[]): update_scorer(s,t1,1,"af_")
                         for s in r.get("scorers_a",[]): update_scorer(s,t2,1,"af_")
+                        save_state()
                         st.rerun()
                     sf_winners.append(None)
             if all(sf_winners) and len(sf_winners)==2:
@@ -1425,6 +1491,7 @@ elif page == "🏆 Copa África":
                         update_ranking_from_standings(fs,70,5)
                         for t in [champ,runner]:
                             if t not in st.session_state.wc_qualified: st.session_state.wc_qualified.append(t)
+                        save_state()
                         st.rerun()
     with tab_result:
         if st.session_state.af_champion:
@@ -1448,6 +1515,7 @@ elif page == "🔢 Playoffs CAF":
             if st.button("▶️ Iniciar playoff CAF"):
                 st.session_state.caf_playoff_teams = pool
                 st.session_state.caf_playoff_matches = generate_group_matches(pool)
+                save_state()
                 st.rerun()
         else:
             teams = st.session_state.caf_playoff_teams
@@ -1460,6 +1528,7 @@ elif page == "🔢 Playoffs CAF":
                     if r:
                         hg,ag,sh,sa = r
                         st.session_state.caf_playoff_matches[key] = {"hg":hg,"ag":ag,"scorers_h":sh,"scorers_a":sa}
+                        save_state()
                         st.rerun()
             st.divider()
             played = {k:v for k,v in st.session_state.caf_playoff_matches.items() if v is not None}
@@ -1503,7 +1572,7 @@ elif page == "🏆 Copa Oro":
                     st.session_state.co_teams = selected
                     st.session_state.co_groups = {"A":gA,"B":gB}
                     st.session_state.co_matches = {**generate_group_matches(gA),**generate_group_matches(gB)}
-                    st.success("✅ Guardados."); st.rerun()
+                    st.success("✅ Guardados."); save_state(); st.rerun()
     with tab_groups:
         if not st.session_state.co_groups: st.info("Configura primero.")
         else:
@@ -1512,23 +1581,21 @@ elif page == "🏆 Copa Oro":
                 # ✅ FIX
                 with st.expander(f"Grupo {gl}", expanded=True):
                     group_teams_header(teams)
-                    col_m,col_t = st.columns([3,2])
-                    with col_m:
-                        render_matches_by_round(
-                            teams, st.session_state.co_matches,
-                            "co", "co_matches", PLAYERS, "co_"
-                        )
-                    with col_t:
-                        gm = {k:v for k,v in st.session_state.co_matches.items() if k[0] in teams and k[1] in teams and v is not None}
-                        s = compute_standings(teams,gm)
-                        st.session_state.co_standings[gl] = s
-                        render_standings(s, highlight=2, max_height="260px")
+                    gm = {k:v for k,v in st.session_state.co_matches.items() if k[0] in teams and k[1] in teams and v is not None}
+                    s = compute_standings(teams,gm)
+                    st.session_state.co_standings[gl] = s
+                    render_group_section(
+                        teams, st.session_state.co_matches,
+                        "co", "co_matches", PLAYERS, "co_",
+                        s, highlight=2
+                    )
             sA = st.session_state.co_standings.get("A",[])
             sB = st.session_state.co_standings.get("B",[])
             if len(sA)>=2 and len(sB)>=2:
                 sf1 = (sA[0]["team"],sB[1]["team"]); sf2 = (sB[0]["team"],sA[1]["team"])
                 render_match_result(sf1[0],sf1[1],None); render_match_result(sf2[0],sf2[1],None)
                 if st.button("➡️ Generar Semis Copa Oro"):
+                    save_state()
                     st.session_state.co_sf = [sf1,sf2]; st.session_state.co_sf_results = {}; st.rerun()
     with tab_ko:
         if not st.session_state.co_sf: st.info("Completa grupos primero.")
@@ -1544,6 +1611,7 @@ elif page == "🏆 Copa Oro":
                         st.session_state.co_sf_results[i] = r
                         for s in r.get("scorers_h",[]): update_scorer(s,t1,1,"co_")
                         for s in r.get("scorers_a",[]): update_scorer(s,t2,1,"co_")
+                        save_state()
                         st.rerun()
                     sf_winners.append(None)
             if all(sf_winners) and len(sf_winners)==2:
@@ -1574,6 +1642,7 @@ elif page == "🏆 Copa Oro":
                         st.session_state.co_final_standings = fs
                         update_ranking_from_standings(fs,60,6)
                         if champ not in st.session_state.wc_qualified: st.session_state.wc_qualified.append(champ)
+                        save_state()
                         st.rerun()
     with tab_result:
         if st.session_state.co_champion:
@@ -1598,6 +1667,7 @@ elif page == "🔢 Playoffs CONCACAF":
             if st.button("▶️ Iniciar playoff CONCACAF"):
                 st.session_state.concacaf_playoff_teams = pool
                 st.session_state.concacaf_playoff_matches = generate_group_matches(pool)
+                save_state()
                 st.rerun()
         else:
             teams = st.session_state.concacaf_playoff_teams
@@ -1610,6 +1680,7 @@ elif page == "🔢 Playoffs CONCACAF":
                     if r:
                         hg,ag,sh,sa = r
                         st.session_state.concacaf_playoff_matches[key] = {"hg":hg,"ag":ag,"scorers_h":sh,"scorers_a":sa}
+                        save_state()
                         st.rerun()
             st.divider()
             played = {k:v for k,v in st.session_state.concacaf_playoff_matches.items() if v is not None}
@@ -1656,7 +1727,7 @@ elif page == "🏆 Copa Asia":
                     st.session_state.as_teams = selected
                     st.session_state.as_groups = {"A":gA,"B":gB}
                     st.session_state.as_matches = {**generate_group_matches(gA),**generate_group_matches(gB)}
-                    st.success("✅ Guardados."); st.rerun()
+                    st.success("✅ Guardados."); save_state(); st.rerun()
     with tab_groups:
         if not st.session_state.as_groups: st.info("Configura primero.")
         else:
@@ -1665,23 +1736,21 @@ elif page == "🏆 Copa Asia":
                 # ✅ FIX
                 with st.expander(f"Grupo {gl}", expanded=True):
                     group_teams_header(teams)
-                    col_m,col_t = st.columns([3,2])
-                    with col_m:
-                        render_matches_by_round(
-                            teams, st.session_state.as_matches,
-                            "as", "as_matches", PLAYERS, "as_"
-                        )
-                    with col_t:
-                        gm = {k:v for k,v in st.session_state.as_matches.items() if k[0] in teams and k[1] in teams and v is not None}
-                        s = compute_standings(teams,gm)
-                        st.session_state.as_standings[gl] = s
-                        render_standings(s, highlight=2, max_height="260px")
+                    gm = {k:v for k,v in st.session_state.as_matches.items() if k[0] in teams and k[1] in teams and v is not None}
+                    s = compute_standings(teams,gm)
+                    st.session_state.as_standings[gl] = s
+                    render_group_section(
+                        teams, st.session_state.as_matches,
+                        "as", "as_matches", PLAYERS, "as_",
+                        s, highlight=2
+                    )
             sA = st.session_state.as_standings.get("A",[])
             sB = st.session_state.as_standings.get("B",[])
             if len(sA)>=2 and len(sB)>=2:
                 sf1 = (sA[0]["team"],sB[1]["team"]); sf2 = (sB[0]["team"],sA[1]["team"])
                 render_match_result(sf1[0],sf1[1],None); render_match_result(sf2[0],sf2[1],None)
                 if st.button("➡️ Generar Semis Copa Asia"):
+                    save_state()
                     st.session_state.as_sf = [sf1,sf2]; st.session_state.as_sf_results = {}; st.rerun()
     with tab_ko:
         if not st.session_state.as_sf: st.info("Completa grupos primero.")
@@ -1697,6 +1766,7 @@ elif page == "🏆 Copa Asia":
                         st.session_state.as_sf_results[i] = r
                         for s in r.get("scorers_h",[]): update_scorer(s,t1,1,"as_")
                         for s in r.get("scorers_a",[]): update_scorer(s,t2,1,"as_")
+                        save_state()
                         st.rerun()
                     sf_winners.append(None)
             if all(sf_winners) and len(sf_winners)==2:
@@ -1727,6 +1797,7 @@ elif page == "🏆 Copa Asia":
                         st.session_state.as_final_standings = fs
                         update_ranking_from_standings(fs,60,6)
                         if champ not in st.session_state.wc_qualified: st.session_state.wc_qualified.append(champ)
+                        save_state()
                         st.rerun()
     with tab_result:
         if st.session_state.as_champion:
@@ -1751,6 +1822,7 @@ elif page == "🔢 Playoffs AFC":
             if st.button("▶️ Iniciar playoff AFC"):
                 st.session_state.afc_playoff_teams = pool
                 st.session_state.afc_playoff_matches = generate_group_matches(pool)
+                save_state()
                 st.rerun()
         else:
             teams = st.session_state.afc_playoff_teams
@@ -1763,6 +1835,7 @@ elif page == "🔢 Playoffs AFC":
                     if r:
                         hg,ag,sh,sa = r
                         st.session_state.afc_playoff_matches[key] = {"hg":hg,"ag":ag,"scorers_h":sh,"scorers_a":sa}
+                        save_state()
                         st.rerun()
             st.divider()
             played = {k:v for k,v in st.session_state.afc_playoff_matches.items() if v is not None}
@@ -1819,6 +1892,7 @@ elif page == "🔄 Repechaje":
         st.markdown(f"**Clasificado:** {img_tag} **{res1['winner']}**", unsafe_allow_html=True)
     else:
         r = knockout_input("int1",m1t1,m1t2,PLAYERS.get(m1t1,[]),PLAYERS.get(m1t2,[]))
+        save_state()
         if r: st.session_state.int_playoff_match1 = r; st.rerun()
     st.markdown("### ⚽ Partido 2: CONMEBOL 4to vs Nueva Zelanda 🇳🇿")
     res2 = st.session_state.int_playoff_match2
@@ -1829,6 +1903,7 @@ elif page == "🔄 Repechaje":
         st.markdown(f"**Clasificado:** {img_tag} **{res2['winner']}**", unsafe_allow_html=True)
     else:
         r = knockout_input("int2",m2t1,"New Zealand",PLAYERS.get(m2t1,[]),PLAYERS.get("New Zealand",[]))
+        save_state()
         if r: st.session_state.int_playoff_match2 = r; st.rerun()
     if res1 and res2:
         st.divider()
@@ -1885,6 +1960,7 @@ elif page == "🏆 Mundial":
                 all_m = {}
                 for gl,teams in new_groups.items(): all_m.update(generate_group_matches(teams))
                 st.session_state.wc_matches = all_m
+                save_state()
                 st.success("✅ Grupos del Mundial guardados."); st.rerun()
     with tab_groups:
         if not st.session_state.wc_groups: st.info("Configura los grupos primero.")
@@ -1895,17 +1971,14 @@ elif page == "🏆 Mundial":
                 # ✅ FIX
                 with st.expander(f"Grupo {gl}", expanded=False):
                     group_teams_header(teams)
-                    col_m,col_t = st.columns([3,2])
-                    with col_m:
-                        render_matches_by_round(
-                            teams, st.session_state.wc_matches,
-                            "wc", "wc_matches", PLAYERS, "wc_"
-                        )
-                    with col_t:
-                        gm = {k:v for k,v in st.session_state.wc_matches.items() if k[0] in teams and k[1] in teams and v is not None}
-                        s = compute_standings(teams,gm)
-                        st.session_state.wc_standings[gl] = s
-                        render_standings(s, highlight=2, max_height="320px")
+                    gm = {k:v for k,v in st.session_state.wc_matches.items() if k[0] in teams and k[1] in teams and v is not None}
+                    s = compute_standings(teams,gm)
+                    st.session_state.wc_standings[gl] = s
+                    render_group_section(
+                        teams, st.session_state.wc_matches,
+                        "wc", "wc_matches", PLAYERS, "wc_",
+                        s, highlight=2
+                    )
             st.divider()
             by_slot = {}
             for gl in ["A","B","C","D","E","F","G","H"]:
@@ -1936,7 +2009,7 @@ elif page == "🏆 Mundial":
                             f"{img2} {t2}</div>", unsafe_allow_html=True)
                 if st.button("➡️ Generar R16 del Mundial"):
                     st.session_state.wc_r16 = wc_r16; st.session_state.wc_r16_results = {}
-                    st.success("✅ R16 generado."); st.rerun()
+                    st.success("✅ R16 generado."); save_state(); st.rerun()
     with tab_ko:
         if not st.session_state.wc_r16: st.info("Completa los grupos y genera el R16 primero.")
         else:
@@ -1951,6 +2024,7 @@ elif page == "🏆 Mundial":
                         st.session_state.wc_r16_results[i] = r
                         for s in r.get("scorers_h",[]): update_scorer(s,t1,1,"wc_")
                         for s in r.get("scorers_a",[]): update_scorer(s,t2,1,"wc_")
+                        save_state()
                         st.rerun()
                     r16w.append(None)
             if all(r16w) and len(r16w)==8:
@@ -1970,6 +2044,7 @@ elif page == "🏆 Mundial":
                             st.session_state.wc_qf_results[i] = r
                             for s in r.get("scorers_h",[]): update_scorer(s,t1,1,"wc_")
                             for s in r.get("scorers_a",[]): update_scorer(s,t2,1,"wc_")
+                            save_state()
                             st.rerun()
                         qfw.append(None)
                 if all(qfw) and len(qfw)==4:
@@ -1988,6 +2063,7 @@ elif page == "🏆 Mundial":
                                 st.session_state.wc_sf_results[i] = r
                                 for s in r.get("scorers_h",[]): update_scorer(s,t1,1,"wc_")
                                 for s in r.get("scorers_a",[]): update_scorer(s,t2,1,"wc_")
+                                save_state()
                                 st.rerun()
                             sfw.append(None)
                     if all(sfw) and len(sfw)==2:
@@ -2004,6 +2080,7 @@ elif page == "🏆 Mundial":
                                 r = knockout_input("wc_3rd",t3a,t3b,PLAYERS.get(t3a,[]),PLAYERS.get(t3b,[]))
                                 if r:
                                     st.session_state.wc_third = (t3a,t3b)
+                                    save_state()
                                     st.session_state.wc_third_result = r; st.rerun()
                         st.markdown("### 🏆 FINAL MUNDIAL")
                         if st.session_state.wc_final is None:
@@ -2022,6 +2099,7 @@ elif page == "🏆 Mundial":
                                 for s in r.get("scorers_a",[]): update_scorer(s,t2,1,"wc_")
                                 runner = t2 if champ==t1 else t1
                                 update_ranking_from_standings([{"pos":1,"team":champ},{"pos":2,"team":runner}],200,10)
+                                save_state()
                                 st.rerun()
     with tab_result:
         if st.session_state.wc_champion:
@@ -2077,6 +2155,7 @@ elif page == "📊 Ranking FIFA":
     html_table(rows)
 
     if st.button("🔄 Resetear ranking inicial"):
+        save_state()
         st.session_state.fifa_ranking = dict(INITIAL_FIFA_RANKING); st.success("✅ Reseteado."); st.rerun()
 
 # ══════════════════════════════════════════════
