@@ -400,7 +400,7 @@ def standings_df(standings, highlight=0, repechaje_pos=None):
     return rows
 
 
-def html_table(rows_list, col_widths=None):
+def html_table(rows_list, col_widths=None, max_height=None):
     if not rows_list:
         st.info("Sin datos.")
         return
@@ -432,8 +432,10 @@ def html_table(rows_list, col_widths=None):
             )
         tbody += f'<tr style="background:{bg};">' + tds + '</tr>'
 
+    # max_height limita la tabla para que no sobresalga de la col de partidos
+    overflow_style = f"max-height:{max_height};overflow-y:auto;" if max_height else ""
     html = (
-        '<div style="overflow-x:auto;border-radius:8px;' +
+        f'<div style="overflow-x:auto;border-radius:8px;{overflow_style}'
         'border:1px solid rgba(255,255,255,0.08);">' +
         '<table style="width:100%;border-collapse:collapse;">' +
         '<thead><tr>' + th + '</tr></thead>' +
@@ -443,14 +445,76 @@ def html_table(rows_list, col_widths=None):
     st.markdown(html, unsafe_allow_html=True)
 
 
-def render_standings(standings, title="", highlight=0, repechaje_pos=None):
+def render_standings(standings, title="", highlight=0, repechaje_pos=None, max_height=None):
     if title:
         st.markdown(f"#### {title}")
     if not standings:
         st.info("Sin datos aún.")
         return
     rows = standings_df(standings, highlight, repechaje_pos)
-    html_table(rows)
+    html_table(rows, max_height=max_height)
+
+
+def build_rounds(teams):
+    """
+    Algoritmo round-robin que genera las jornadas para N equipos.
+    Si N es impar agrega un 'BYE' ficticio y lo filtra al final.
+    Devuelve lista de jornadas; cada jornada es lista de tuplas (t1, t2).
+    """
+    t = list(teams)
+    if len(t) % 2 == 1:
+        t.append("__BYE__")
+    n = len(t)
+    rounds = []
+    for r in range(n - 1):
+        pairs = []
+        for i in range(n // 2):
+            a = t[i]
+            b = t[n - 1 - i]
+            if a != "__BYE__" and b != "__BYE__":
+                pairs.append((a, b))
+        rounds.append(pairs)
+        # rotación: fija el primero, rota el resto
+        t = [t[0]] + [t[-1]] + t[1:-1]
+    return rounds
+
+
+def render_matches_by_round(teams, matches_dict, prefix, matches_state_key,
+                             players_dict, scorer_prefix):
+    """
+    Renderiza partidos organizados por jornada (Fecha 1, Fecha 2…).
+    matches_dict  : dict {(t1,t2): res_or_None}
+    matches_state_key : nombre del key en st.session_state
+    """
+    rounds = build_rounds(teams)
+    for ri, pairs in enumerate(rounds):
+        # cabecera de jornada
+        st.markdown(
+            f"<div style='font-family:Bebas Neue;font-size:14px;letter-spacing:3px;"
+            f"color:var(--g);margin:10px 0 4px;border-left:3px solid var(--g);"
+            f"padding-left:8px;'>FECHA {ri + 1}</div>",
+            unsafe_allow_html=True
+        )
+        for t1, t2 in pairs:
+            key = (t1, t2) if (t1, t2) in matches_dict else (t2, t1)
+            res = matches_dict.get(key)
+            render_match_result(t1, t2, res)
+            if res is None:
+                r = match_input_form(
+                    prefix, t1, t2,
+                    players_dict.get(t1, []),
+                    players_dict.get(t2, []),
+                    f"{prefix}_r{ri}"
+                )
+                if r:
+                    hg, ag, sh, sa = r
+                    st.session_state[matches_state_key][key] = {
+                        "hg": hg, "ag": ag,
+                        "scorers_h": sh, "scorers_a": sa
+                    }
+                    for s in sh: update_scorer(s, t1, 1, scorer_prefix)
+                    for s in sa: update_scorer(s, t2, 1, scorer_prefix)
+                    st.rerun()
 
 
 def render_match_result(t1, t2, res):
@@ -814,31 +878,22 @@ elif page == "🏆 Eurocopa":
             for gl in ["A","B","C","D","E","F"]:
                 teams = st.session_state.euro_groups.get(gl, [])
                 if not teams: continue
-                # ✅ FIX: título del expander solo texto, banderas van DENTRO
                 with st.expander(f"Grupo {gl}", expanded=True):
                     group_teams_header(teams)
                     col_m, col_t = st.columns([3,2])
                     with col_m:
                         st.markdown("**Partidos**")
-                        for t1, t2 in combinations(teams, 2):
-                            key = (t1,t2) if (t1,t2) in st.session_state.euro_matches else (t2,t1)
-                            res = st.session_state.euro_matches.get(key)
-                            render_match_result(t1, t2, res)
-                            if res is None:
-                                r = match_input_form("euro", t1, t2, PLAYERS.get(t1,[]), PLAYERS.get(t2,[]), gl)
-                                if r:
-                                    hg,ag,sh,sa = r
-                                    st.session_state.euro_matches[key] = {"hg":hg,"ag":ag,"scorers_h":sh,"scorers_a":sa}
-                                    for s in sh: update_scorer(s,t1,1,"euro_")
-                                    for s in sa: update_scorer(s,t2,1,"euro_")
-                                    st.rerun()
+                        render_matches_by_round(
+                            teams, st.session_state.euro_matches,
+                            "euro", "euro_matches", PLAYERS, "euro_"
+                        )
                     with col_t:
                         st.markdown("**Posiciones**")
                         gm = {k:v for k,v in st.session_state.euro_matches.items()
                               if k[0] in teams and k[1] in teams and v is not None}
                         standings = compute_standings(teams, gm)
                         st.session_state.euro_standings[gl] = standings
-                        render_standings(standings, highlight=2)
+                        render_standings(standings, highlight=2, max_height="320px")
 
             st.divider()
             st.markdown("#### 📋 Clasificados al R16")
@@ -1040,21 +1095,15 @@ elif page == "🔢 Playoffs UEFA":
                         group_teams_header(teams)
                         col_m, col_t = st.columns([3,2])
                         with col_m:
-                            for t1,t2 in combinations(teams,2):
-                                key = (t1,t2) if (t1,t2) in st.session_state.euro_playoff_matches else (t2,t1)
-                                res = st.session_state.euro_playoff_matches.get(key)
-                                render_match_result(t1,t2,res)
-                                if res is None:
-                                    r = match_input_form("ep",t1,t2,PLAYERS.get(t1,[]),PLAYERS.get(t2,[]),gl)
-                                    if r:
-                                        hg,ag,sh,sa = r
-                                        st.session_state.euro_playoff_matches[key] = {"hg":hg,"ag":ag,"scorers_h":sh,"scorers_a":sa}
-                                        st.rerun()
+                            render_matches_by_round(
+                                teams, st.session_state.euro_playoff_matches,
+                                "ep", "euro_playoff_matches", PLAYERS, "euro_"
+                            )
                         with col_t:
                             gm = {k:v for k,v in st.session_state.euro_playoff_matches.items() if k[0] in teams and k[1] in teams and v is not None}
                             s = compute_standings(teams,gm)
                             st.session_state.euro_playoff_standings[gl] = s
-                            render_standings(s, highlight=2)
+                            render_standings(s, highlight=2, max_height="320px")
                 st.divider()
                 qualified = []
                 for gl in ["A","B","C","D"]:
@@ -1123,23 +1172,15 @@ elif page == "🏆 Copa América":
                     group_teams_header(teams)
                     col_m, col_t = st.columns([3,2])
                     with col_m:
-                        for t1,t2 in combinations(teams,2):
-                            key = (t1,t2) if (t1,t2) in st.session_state.ca_matches else (t2,t1)
-                            res = st.session_state.ca_matches.get(key)
-                            render_match_result(t1,t2,res)
-                            if res is None:
-                                r = match_input_form("ca",t1,t2,PLAYERS.get(t1,[]),PLAYERS.get(t2,[]),gl)
-                                if r:
-                                    hg,ag,sh,sa = r
-                                    st.session_state.ca_matches[key] = {"hg":hg,"ag":ag,"scorers_h":sh,"scorers_a":sa}
-                                    for s in sh: update_scorer(s,t1,1,"ca_")
-                                    for s in sa: update_scorer(s,t2,1,"ca_")
-                                    st.rerun()
+                        render_matches_by_round(
+                            teams, st.session_state.ca_matches,
+                            "ca", "ca_matches", PLAYERS, "ca_"
+                        )
                     with col_t:
                         gm = {k:v for k,v in st.session_state.ca_matches.items() if k[0] in teams and k[1] in teams and v is not None}
                         s = compute_standings(teams,gm)
                         st.session_state.ca_standings[gl] = s
-                        render_standings(s, highlight=2)
+                        render_standings(s, highlight=2, max_height="320px")
             st.divider()
             by_slot = {}
             for gl in ["A","B","C","D"]:
@@ -1326,23 +1367,15 @@ elif page == "🏆 Copa África":
                     group_teams_header(teams)
                     col_m,col_t = st.columns([3,2])
                     with col_m:
-                        for t1,t2 in combinations(teams,2):
-                            key = (t1,t2) if (t1,t2) in st.session_state.af_matches else (t2,t1)
-                            res = st.session_state.af_matches.get(key)
-                            render_match_result(t1,t2,res)
-                            if res is None:
-                                r = match_input_form("af",t1,t2,PLAYERS.get(t1,[]),PLAYERS.get(t2,[]),gl)
-                                if r:
-                                    hg,ag,sh,sa = r
-                                    st.session_state.af_matches[key] = {"hg":hg,"ag":ag,"scorers_h":sh,"scorers_a":sa}
-                                    for s in sh: update_scorer(s,t1,1,"af_")
-                                    for s in sa: update_scorer(s,t2,1,"af_")
-                                    st.rerun()
+                        render_matches_by_round(
+                            teams, st.session_state.af_matches,
+                            "af", "af_matches", PLAYERS, "af_"
+                        )
                     with col_t:
                         gm = {k:v for k,v in st.session_state.af_matches.items() if k[0] in teams and k[1] in teams and v is not None}
                         s = compute_standings(teams,gm)
                         st.session_state.af_standings[gl] = s
-                        render_standings(s, highlight=2)
+                        render_standings(s, highlight=2, max_height="400px")
             sA = st.session_state.af_standings.get("A",[])
             sB = st.session_state.af_standings.get("B",[])
             if len(sA)>=2 and len(sB)>=2:
@@ -1481,23 +1514,15 @@ elif page == "🏆 Copa Oro":
                     group_teams_header(teams)
                     col_m,col_t = st.columns([3,2])
                     with col_m:
-                        for t1,t2 in combinations(teams,2):
-                            key = (t1,t2) if (t1,t2) in st.session_state.co_matches else (t2,t1)
-                            res = st.session_state.co_matches.get(key)
-                            render_match_result(t1,t2,res)
-                            if res is None:
-                                r = match_input_form("co",t1,t2,PLAYERS.get(t1,[]),PLAYERS.get(t2,[]),gl)
-                                if r:
-                                    hg,ag,sh,sa = r
-                                    st.session_state.co_matches[key] = {"hg":hg,"ag":ag,"scorers_h":sh,"scorers_a":sa}
-                                    for s in sh: update_scorer(s,t1,1,"co_")
-                                    for s in sa: update_scorer(s,t2,1,"co_")
-                                    st.rerun()
+                        render_matches_by_round(
+                            teams, st.session_state.co_matches,
+                            "co", "co_matches", PLAYERS, "co_"
+                        )
                     with col_t:
                         gm = {k:v for k,v in st.session_state.co_matches.items() if k[0] in teams and k[1] in teams and v is not None}
                         s = compute_standings(teams,gm)
                         st.session_state.co_standings[gl] = s
-                        render_standings(s, highlight=2)
+                        render_standings(s, highlight=2, max_height="260px")
             sA = st.session_state.co_standings.get("A",[])
             sB = st.session_state.co_standings.get("B",[])
             if len(sA)>=2 and len(sB)>=2:
@@ -1642,23 +1667,15 @@ elif page == "🏆 Copa Asia":
                     group_teams_header(teams)
                     col_m,col_t = st.columns([3,2])
                     with col_m:
-                        for t1,t2 in combinations(teams,2):
-                            key = (t1,t2) if (t1,t2) in st.session_state.as_matches else (t2,t1)
-                            res = st.session_state.as_matches.get(key)
-                            render_match_result(t1,t2,res)
-                            if res is None:
-                                r = match_input_form("as",t1,t2,PLAYERS.get(t1,[]),PLAYERS.get(t2,[]),gl)
-                                if r:
-                                    hg,ag,sh,sa = r
-                                    st.session_state.as_matches[key] = {"hg":hg,"ag":ag,"scorers_h":sh,"scorers_a":sa}
-                                    for s in sh: update_scorer(s,t1,1,"as_")
-                                    for s in sa: update_scorer(s,t2,1,"as_")
-                                    st.rerun()
+                        render_matches_by_round(
+                            teams, st.session_state.as_matches,
+                            "as", "as_matches", PLAYERS, "as_"
+                        )
                     with col_t:
                         gm = {k:v for k,v in st.session_state.as_matches.items() if k[0] in teams and k[1] in teams and v is not None}
                         s = compute_standings(teams,gm)
                         st.session_state.as_standings[gl] = s
-                        render_standings(s, highlight=2)
+                        render_standings(s, highlight=2, max_height="260px")
             sA = st.session_state.as_standings.get("A",[])
             sB = st.session_state.as_standings.get("B",[])
             if len(sA)>=2 and len(sB)>=2:
@@ -1880,23 +1897,15 @@ elif page == "🏆 Mundial":
                     group_teams_header(teams)
                     col_m,col_t = st.columns([3,2])
                     with col_m:
-                        for t1,t2 in combinations(teams,2):
-                            key = (t1,t2) if (t1,t2) in st.session_state.wc_matches else (t2,t1)
-                            res = st.session_state.wc_matches.get(key)
-                            render_match_result(t1,t2,res)
-                            if res is None:
-                                r = match_input_form("wc",t1,t2,PLAYERS.get(t1,[]),PLAYERS.get(t2,[]),gl)
-                                if r:
-                                    hg,ag,sh,sa = r
-                                    st.session_state.wc_matches[key] = {"hg":hg,"ag":ag,"scorers_h":sh,"scorers_a":sa}
-                                    for s in sh: update_scorer(s,t1,1,"wc_")
-                                    for s in sa: update_scorer(s,t2,1,"wc_")
-                                    st.rerun()
+                        render_matches_by_round(
+                            teams, st.session_state.wc_matches,
+                            "wc", "wc_matches", PLAYERS, "wc_"
+                        )
                     with col_t:
                         gm = {k:v for k,v in st.session_state.wc_matches.items() if k[0] in teams and k[1] in teams and v is not None}
                         s = compute_standings(teams,gm)
                         st.session_state.wc_standings[gl] = s
-                        render_standings(s, highlight=2)
+                        render_standings(s, highlight=2, max_height="320px")
             st.divider()
             by_slot = {}
             for gl in ["A","B","C","D","E","F","G","H"]:
