@@ -33,7 +33,6 @@ LOGO_FILES = {
 
 @st.cache_data
 def load_logo_b64(path: str) -> str:
-    """Carga logo como base64 buscando en varias ubicaciones posibles."""
     if not path:
         return ""
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -309,6 +308,25 @@ hr { border-color: var(--border) !important; }
   object-fit: contain;
   filter: drop-shadow(0 2px 8px rgba(0,0,0,.5));
 }
+
+/* Etiqueta banderas en expanders */
+.group-teams-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.group-team-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--txt);
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -319,7 +337,6 @@ init_state()
 # ══════════════════════════════════════════════
 
 def fl(team, size=20):
-    """Devuelve img bandera inline HTML"""
     code = FLAG_MAP.get(team, "")
     if not code:
         return ""
@@ -327,12 +344,20 @@ def fl(team, size=20):
     return f'<img src="https://flagcdn.com/{size}x{h}/{code}.png" style="vertical-align:middle;border-radius:2px;margin-right:5px;">'
 
 def fl_big(team, width=40):
-    """Bandera grande"""
     code = FLAG_MAP.get(team, "")
     if not code:
         return ""
     h = int(width * 0.75)
     return f'<img src="https://flagcdn.com/{width}x{h}/{code}.png" style="vertical-align:middle;border-radius:3px;">'
+
+def group_teams_header(teams):
+    """Renderiza las banderas + nombres de equipos de un grupo DENTRO del expander."""
+    chips = ""
+    for t in teams:
+        code = FLAG_MAP.get(t, "")
+        img = f'<img src="https://flagcdn.com/20x15/{code}.png" style="vertical-align:middle;border-radius:2px;">' if code else ""
+        chips += f'<div class="group-team-chip">{img} {t}</div>'
+    st.markdown(f'<div class="group-teams-row">{chips}</div>', unsafe_allow_html=True)
 
 POS_COLOR = {"GK":"#F0A500","DF":"#2196F3","MF":"#4CAF50","FW":"#F44336"}
 
@@ -341,7 +366,6 @@ POS_COLOR = {"GK":"#F0A500","DF":"#2196F3","MF":"#4CAF50","FW":"#F44336"}
 # ══════════════════════════════════════════════
 
 def standings_df(standings, highlight=0, repechaje_pos=None):
-    """Devuelve lista de dicts con HTML ya armado — SIN pandas para evitar escape de tags."""
     rows = []
     for s in standings:
         pos  = s["pos"]
@@ -350,7 +374,7 @@ def standings_df(standings, highlight=0, repechaje_pos=None):
         if code:
             flag_html = (
                 f'<img src="https://flagcdn.com/20x15/{code}.png" ' +
-                'style="vertical-align:middle;border-radius:2px;margin-right:6px;">' 
+                'style="vertical-align:middle;border-radius:2px;margin-right:6px;">'
             )
         else:
             flag_html = ""
@@ -377,18 +401,12 @@ def standings_df(standings, highlight=0, repechaje_pos=None):
 
 
 def html_table(rows_list, col_widths=None):
-    """
-    Recibe lista de dicts y construye tabla HTML pura.
-    NUNCA usa pandas para evitar que escapen los tags <img>.
-    Los valores deben ser strings ya construidos (con HTML si hace falta).
-    """
     if not rows_list:
         st.info("Sin datos.")
         return
 
     cols = list(rows_list[0].keys())
 
-    # Cabecera
     th = ""
     for c in cols:
         th += (
@@ -399,7 +417,6 @@ def html_table(rows_list, col_widths=None):
             str(c) + '</th>'
         )
 
-    # Filas
     tbody = ""
     for i, row in enumerate(rows_list):
         bg = "rgba(255,255,255,0.03)" if i % 2 == 0 else "transparent"
@@ -539,7 +556,6 @@ def champ_banner(team, title="CAMPEÓN"):
 
 
 def conf_header(color, emoji, name, info="", conf_key=None):
-    """Cabecera de confederación con logo desde archivo local"""
     logo_html = ""
     if conf_key and LOGOS_B64.get(conf_key):
         logo_html = f'<img src="{LOGOS_B64[conf_key]}" class="conf-logo-badge" onerror="this.style.display=\'none\'">'
@@ -798,8 +814,9 @@ elif page == "🏆 Eurocopa":
             for gl in ["A","B","C","D","E","F"]:
                 teams = st.session_state.euro_groups.get(gl, [])
                 if not teams: continue
-                teams_html = " · ".join(f"{fl(t)}{t}" for t in teams)
-                with st.expander(f"Grupo {gl}   {teams_html}", expanded=True):
+                # ✅ FIX: título del expander solo texto, banderas van DENTRO
+                with st.expander(f"Grupo {gl}", expanded=True):
+                    group_teams_header(teams)
                     col_m, col_t = st.columns([3,2])
                     with col_m:
                         st.markdown("**Partidos**")
@@ -1018,7 +1035,9 @@ elif page == "🔢 Playoffs UEFA":
                 for gl in ["A","B","C","D"]:
                     teams = st.session_state.euro_playoff_groups.get(gl,[])
                     if not teams: continue
+                    # ✅ FIX: título texto, banderas dentro
                     with st.expander(f"Grupo {gl}", expanded=True):
+                        group_teams_header(teams)
                         col_m, col_t = st.columns([3,2])
                         with col_m:
                             for t1,t2 in combinations(teams,2):
@@ -1099,7 +1118,9 @@ elif page == "🏆 Copa América":
             for gl in ["A","B","C","D"]:
                 teams = st.session_state.ca_groups.get(gl,[])
                 if not teams: continue
+                # ✅ FIX
                 with st.expander(f"Grupo {gl}", expanded=True):
+                    group_teams_header(teams)
                     col_m, col_t = st.columns([3,2])
                     with col_m:
                         for t1,t2 in combinations(teams,2):
@@ -1297,7 +1318,9 @@ elif page == "🏆 Copa África":
         else:
             for gl in ["A","B"]:
                 teams = st.session_state.af_groups.get(gl,[])
+                # ✅ FIX
                 with st.expander(f"Grupo {gl}", expanded=True):
+                    group_teams_header(teams)
                     col_m,col_t = st.columns([3,2])
                     with col_m:
                         for t1,t2 in combinations(teams,2):
@@ -1447,7 +1470,9 @@ elif page == "🏆 Copa Oro":
         else:
             for gl in ["A","B"]:
                 teams = st.session_state.co_groups.get(gl,[])
+                # ✅ FIX
                 with st.expander(f"Grupo {gl}", expanded=True):
+                    group_teams_header(teams)
                     col_m,col_t = st.columns([3,2])
                     with col_m:
                         for t1,t2 in combinations(teams,2):
@@ -1603,7 +1628,9 @@ elif page == "🏆 Copa Asia":
         else:
             for gl in ["A","B"]:
                 teams = st.session_state.as_groups.get(gl,[])
+                # ✅ FIX
                 with st.expander(f"Grupo {gl}", expanded=True):
+                    group_teams_header(teams)
                     col_m,col_t = st.columns([3,2])
                     with col_m:
                         for t1,t2 in combinations(teams,2):
@@ -1839,7 +1866,9 @@ elif page == "🏆 Mundial":
             for gl in ["A","B","C","D","E","F","G","H"]:
                 teams = st.session_state.wc_groups.get(gl,[])
                 if not teams: continue
+                # ✅ FIX
                 with st.expander(f"Grupo {gl}", expanded=False):
+                    group_teams_header(teams)
                     col_m,col_t = st.columns([3,2])
                     with col_m:
                         for t1,t2 in combinations(teams,2):
@@ -1994,7 +2023,6 @@ elif page == "📊 Ranking FIFA":
     ranking = st.session_state.fifa_ranking
     sorted_r = sorted(ranking.items(), key=lambda x:x[1], reverse=True)
 
-    # Podio Top 3
     c1,c2,c3 = st.columns(3)
     for col,(team,pts),medal in zip([c1,c2,c3],sorted_r[:3],["🥇","🥈","🥉"]):
         code = FLAG_MAP.get(team, "")
