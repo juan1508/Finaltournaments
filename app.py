@@ -16,7 +16,7 @@ from data import (
 from state import (
     init_state, flag, flag_img, flag_url, compute_standings,
     generate_group_matches, get_match_result, update_scorer,
-    update_ranking_from_standings, save_state
+    update_ranking_from_standings, save_state, reset_season
 )
 
 # ══════════════════════════════════════════════
@@ -364,6 +364,27 @@ POS_COLOR = {"GK":"#F0A500","DF":"#2196F3","MF":"#4CAF50","FW":"#F44336"}
 # ══════════════════════════════════════════════
 # FUNCIONES AUXILIARES
 # ══════════════════════════════════════════════
+
+
+def locked_banner(tournament_name, lock_key):
+    """Muestra banner de grupos bloqueados con opción de desbloquear."""
+    teams_summary = ""
+    st.markdown(f"""
+    <div style='background:linear-gradient(135deg,rgba(0,229,160,.08),rgba(0,229,160,.03));
+    border:1px solid rgba(0,229,160,.3);border-left:4px solid var(--g);
+    border-radius:10px;padding:16px 20px;margin:8px 0;display:flex;align-items:center;gap:12px;'>
+      <div style='font-size:24px;'>🔒</div>
+      <div>
+        <div style='font-family:Bebas Neue;font-size:18px;letter-spacing:3px;color:var(--g);'>
+          GRUPOS BLOQUEADOS</div>
+        <div style='font-size:12px;color:var(--muted);margin-top:2px;'>
+          {tournament_name} · Los grupos están guardados y protegidos contra cambios accidentales</div>
+      </div>
+    </div>""", unsafe_allow_html=True)
+    if st.button(f"🔓 Desbloquear grupos {tournament_name}", key=f"unlock_{lock_key}"):
+        st.session_state[lock_key] = False
+        save_state()
+        st.rerun()
 
 def standings_df(standings, highlight=0, repechaje_pos=None):
     rows = []
@@ -874,19 +895,23 @@ if page == "🏠 Inicio":
     if st.session_state.wc_champion:
         st.divider()
         champ_banner(st.session_state.wc_champion, "CAMPEÓN DEL MUNDO")
-        if st.button("🔄 Nueva Temporada"):
+        st.markdown("""
+        <div style='background:rgba(255,87,34,.08);border:1px solid rgba(255,87,34,.3);
+        border-left:4px solid #FF5722;border-radius:10px;padding:14px 18px;margin:12px 0;'>
+          <div style='font-family:Bebas Neue;font-size:16px;letter-spacing:3px;color:#FF5722;'>
+            ⚠️ NUEVA TEMPORADA</div>
+          <div style='font-size:12px;color:var(--muted);margin-top:4px;'>
+            Se borrarán todos los grupos, partidos y resultados de todos los torneos.<br>
+            Se conservarán el Ranking FIFA, el historial de temporadas y los goleadores.</div>
+        </div>""", unsafe_allow_html=True)
+        if st.button("🔄 Confirmar Nueva Temporada", type="primary"):
             st.session_state.season_history.append({
                 "season": st.session_state.season,
                 "champion": st.session_state.wc_champion,
                 "ranking": dict(st.session_state.fifa_ranking),
             })
             st.session_state.season += 1
-            keys_reset = [k for k in st.session_state if k not in
-                          ["fifa_ranking","season","season_history","active_page","top_scorers"]]
-            for k in keys_reset:
-                del st.session_state[k]
-            init_state()
-            save_state()
+            reset_season()
             st.rerun()
 
 # ══════════════════════════════════════════════
@@ -900,44 +925,48 @@ elif page == "🏆 Eurocopa":
     tab_setup, tab_groups, tab_ko, tab_result = st.tabs(["⚙️ Configurar","📊 Grupos","⚔️ Eliminatorias","🏆 Resultado"])
 
     with tab_setup:
-        st.markdown("#### Selecciona y arma los 6 grupos (4 equipos c/u)")
-        _def = [t for t in (st.session_state.euro_teams or UEFA_TEAMS[:24]) if t in UEFA_TEAMS]
-        selected = st.multiselect("Elige 24 equipos UEFA", UEFA_TEAMS, default=_def, max_selections=24)
-        if len(selected) == 24:
-            st.session_state.euro_teams = selected
-            st.markdown("---")
-            st.markdown("**Asigna equipos a cada grupo:**")
-            cols = st.columns(3)
-            grp_labels = ["A","B","C","D","E","F"]
-            new_groups = {}
-            for i, gl in enumerate(grp_labels):
-                with cols[i % 3]:
-                    st.markdown(f"**Grupo {gl}**")
-                    default_g = [t for t in st.session_state.euro_groups.get(gl, selected[i*4:(i+1)*4]) if t in selected]
-                    chosen = st.multiselect(f"Grupo {gl}", selected, default=default_g, max_selections=4, key=f"euro_grp_{gl}")
-                    if chosen:
-                        flags_html = " ".join(
-                            f'{fl(t,20)}<span style="font-size:11px;color:var(--muted);">{t}</span>'
-                            for t in chosen)
-                        st.markdown(f'<div style="margin-top:4px;line-height:2;">{flags_html}</div>', unsafe_allow_html=True)
-                    new_groups[gl] = chosen
-            if st.button("💾 Guardar grupos"):
-                all_a = sum(new_groups.values(), [])
-                if len(all_a) != len(set(all_a)):
-                    st.error("Un equipo está en más de un grupo.")
-                elif any(len(v) != 4 for v in new_groups.values()):
-                    st.error("Cada grupo debe tener exactamente 4 equipos.")
-                else:
-                    st.session_state.euro_groups = new_groups
-                    all_m = {}
-                    for gl, teams in new_groups.items():
-                        all_m.update(generate_group_matches(teams))
-                    st.session_state.euro_matches = all_m
-                    st.success("✅ Grupos guardados.")
-                    save_state()
-                    st.rerun()
+        if st.session_state.locked_euro:
+            locked_banner("Eurocopa", "locked_euro")
         else:
-            st.info(f"Selecciona exactamente 24 equipos. Tienes {len(selected)}.")
+            st.markdown("#### Selecciona y arma los 6 grupos (4 equipos c/u)")
+            _def = [t for t in (st.session_state.euro_teams or UEFA_TEAMS[:24]) if t in UEFA_TEAMS]
+            selected = st.multiselect("Elige 24 equipos UEFA", UEFA_TEAMS, default=_def, max_selections=24)
+            if len(selected) == 24:
+                st.session_state.euro_teams = selected
+                st.markdown("---")
+                st.markdown("**Asigna equipos a cada grupo:**")
+                cols = st.columns(3)
+                grp_labels = ["A","B","C","D","E","F"]
+                new_groups = {}
+                for i, gl in enumerate(grp_labels):
+                    with cols[i % 3]:
+                        st.markdown(f"**Grupo {gl}**")
+                        default_g = [t for t in st.session_state.euro_groups.get(gl, selected[i*4:(i+1)*4]) if t in selected]
+                        chosen = st.multiselect(f"Grupo {gl}", selected, default=default_g, max_selections=4, key=f"euro_grp_{gl}")
+                        if chosen:
+                            flags_html = " ".join(
+                                f'{fl(t,20)}<span style="font-size:11px;color:var(--muted);">{t}</span>'
+                                for t in chosen)
+                            st.markdown(f'<div style="margin-top:4px;line-height:2;">{flags_html}</div>', unsafe_allow_html=True)
+                        new_groups[gl] = chosen
+                if st.button("💾 Guardar y bloquear grupos"):
+                    all_a = sum(new_groups.values(), [])
+                    if len(all_a) != len(set(all_a)):
+                        st.error("Un equipo está en más de un grupo.")
+                    elif any(len(v) != 4 for v in new_groups.values()):
+                        st.error("Cada grupo debe tener exactamente 4 equipos.")
+                    else:
+                        st.session_state.euro_groups = new_groups
+                        all_m = {}
+                        for gl, teams in new_groups.items():
+                            all_m.update(generate_group_matches(teams))
+                        st.session_state.euro_matches = all_m
+                        st.session_state.locked_euro = True
+                        st.success("✅ Grupos guardados y bloqueados.")
+                        save_state()
+                        st.rerun()
+            else:
+                st.info(f"Selecciona exactamente 24 equipos. Tienes {len(selected)}.")
 
     with tab_groups:
         if not st.session_state.euro_groups:
@@ -1196,8 +1225,11 @@ elif page == "🏆 Copa América":
                 conf_key="CONMEBOL")
     tab_setup, tab_groups, tab_ko, tab_result = st.tabs(["⚙️ Config","📊 Grupos","⚔️ Bracket","🏆 Resultado"])
     with tab_setup:
-        st.markdown("#### Equipos invitados (6, no UEFA)")
-        guests = st.multiselect("Selecciona 6 invitados", COPA_AMERICA_GUESTS_POOL,
+        if st.session_state.locked_ca:
+            locked_banner("Copa América", "locked_ca")
+        if not st.session_state.locked_ca:
+            st.markdown("#### Equipos invitados (6, no UEFA)")
+            guests = st.multiselect("Selecciona 6 invitados", COPA_AMERICA_GUESTS_POOL,
                                 default=st.session_state.ca_teams[10:] if len(st.session_state.ca_teams)==16 else [],
                                 max_selections=6)
         all_ca = CONMEBOL_TEAMS + guests
@@ -1215,7 +1247,7 @@ elif page == "🏆 Copa América":
                     if chosen:
                         st.markdown(" ".join(f'{fl(t,18)}<span style="font-size:10px;color:var(--muted);">{t}</span>' for t in chosen), unsafe_allow_html=True)
                     new_groups[gl] = chosen
-            if st.button("💾 Guardar grupos Copa América"):
+            if st.button("💾 Guardar y bloquear grupos"):
                 all_a = sum(new_groups.values(),[])
                 if len(all_a)!=len(set(all_a)): st.error("Duplicados.")
                 elif any(len(v)!=4 for v in new_groups.values()): st.error("4 equipos por grupo.")
@@ -1225,7 +1257,8 @@ elif page == "🏆 Copa América":
                     all_m = {}
                     for gl,teams in new_groups.items(): all_m.update(generate_group_matches(teams))
                     st.session_state.ca_matches = all_m
-                    st.success("✅ Grupos guardados."); save_state(); st.rerun()
+                    st.session_state.locked_ca = True
+                    st.success("✅ Grupos guardados y bloqueados."); save_state(); st.rerun()
     with tab_groups:
         if not st.session_state.ca_groups:
             st.info("Configura los grupos primero.")
@@ -1401,7 +1434,10 @@ elif page == "🏆 Copa África":
                 "10 equipos · 2 grupos de 5 · 2 primeros → Semis", conf_key="CAF")
     tab_setup,tab_groups,tab_ko,tab_result = st.tabs(["⚙️ Config","📊 Grupos","⚔️ Eliminatorias","🏆 Resultado"])
     with tab_setup:
-        _af_def = [t for t in (st.session_state.af_teams or CAF_TEAMS) if t in CAF_TEAMS]
+        if st.session_state.locked_af:
+            locked_banner("Copa África", "locked_af")
+        if not st.session_state.locked_af:
+            _af_def = [t for t in (st.session_state.af_teams or CAF_TEAMS) if t in CAF_TEAMS]
         selected = st.multiselect("Elige 10 equipos CAF", CAF_TEAMS, default=_af_def, max_selections=10)
         if len(selected)==10:
             col1,col2 = st.columns(2)
@@ -1417,14 +1453,15 @@ elif page == "🏆 Copa África":
                 gB = st.multiselect("Grupo B", selected, default=_gB_def, max_selections=5, key="af_gB")
                 if gB:
                     st.markdown(" ".join(f'{fl(t,16)}<span style="font-size:10px;color:var(--muted);">{t}</span>' for t in gB), unsafe_allow_html=True)
-            if st.button("💾 Guardar grupos África"):
+            if st.button("💾 Guardar y bloquear grupos"):
                 if len(gA)!=5 or len(gB)!=5: st.error("5 equipos por grupo.")
                 elif len(set(gA+gB))!=10: st.error("Duplicados.")
                 else:
                     st.session_state.af_teams = selected
                     st.session_state.af_groups = {"A":gA,"B":gB}
                     st.session_state.af_matches = {**generate_group_matches(gA),**generate_group_matches(gB)}
-                    st.success("✅ Guardados."); save_state(); st.rerun()
+                    st.session_state.locked_af = True
+                    st.success("✅ Grupos guardados y bloqueados."); save_state(); st.rerun()
     with tab_groups:
         if not st.session_state.af_groups: st.info("Configura primero.")
         else:
@@ -1550,7 +1587,10 @@ elif page == "🏆 Copa Oro":
                 "6 equipos · 2 grupos de 3 · A1vB2 y B1vA2 → Final", conf_key="CONCACAF")
     tab_setup,tab_groups,tab_ko,tab_result = st.tabs(["⚙️ Config","📊 Grupos","⚔️ Eliminatorias","🏆 Resultado"])
     with tab_setup:
-        _co_def = [t for t in (st.session_state.co_teams or CONCACAF_TEAMS) if t in CONCACAF_TEAMS]
+        if st.session_state.locked_co:
+            locked_banner("Copa Oro", "locked_co")
+        if not st.session_state.locked_co:
+            _co_def = [t for t in (st.session_state.co_teams or CONCACAF_TEAMS) if t in CONCACAF_TEAMS]
         selected = st.multiselect("Elige 6 equipos CONCACAF", CONCACAF_TEAMS, default=_co_def, max_selections=6)
         if len(selected)==6:
             col1,col2 = st.columns(2)
@@ -1566,13 +1606,14 @@ elif page == "🏆 Copa Oro":
                 gB = st.multiselect("Grupo B", selected, default=_gB_def, max_selections=3, key="co_gB")
                 if gB:
                     st.markdown(" ".join(f'{fl(t,16)}<span style="font-size:10px;color:var(--muted);">{t}</span>' for t in gB), unsafe_allow_html=True)
-            if st.button("💾 Guardar grupos Copa Oro"):
+            if st.button("💾 Guardar y bloquear grupos"):
                 if len(gA)!=3 or len(gB)!=3 or len(set(gA+gB))!=6: st.error("3 por grupo sin duplicados.")
                 else:
                     st.session_state.co_teams = selected
                     st.session_state.co_groups = {"A":gA,"B":gB}
                     st.session_state.co_matches = {**generate_group_matches(gA),**generate_group_matches(gB)}
-                    st.success("✅ Guardados."); save_state(); st.rerun()
+                    st.session_state.locked_co = True
+                    st.success("✅ Grupos guardados y bloqueados."); save_state(); st.rerun()
     with tab_groups:
         if not st.session_state.co_groups: st.info("Configura primero.")
         else:
@@ -1705,7 +1746,10 @@ elif page == "🏆 Copa Asia":
                 "6 equipos · 2 grupos de 3 · A1vB2 y B1vA2 → Final", conf_key="AFC")
     tab_setup,tab_groups,tab_ko,tab_result = st.tabs(["⚙️ Config","📊 Grupos","⚔️ Eliminatorias","🏆 Resultado"])
     with tab_setup:
-        _as_def = [t for t in (st.session_state.as_teams or AFC_TEAMS) if t in AFC_TEAMS]
+        if st.session_state.locked_as:
+            locked_banner("Copa Asia", "locked_as")
+        if not st.session_state.locked_as:
+            _as_def = [t for t in (st.session_state.as_teams or AFC_TEAMS) if t in AFC_TEAMS]
         selected = st.multiselect("Elige 6 equipos AFC", AFC_TEAMS, default=_as_def, max_selections=6)
         if len(selected)==6:
             col1,col2 = st.columns(2)
@@ -1721,13 +1765,14 @@ elif page == "🏆 Copa Asia":
                 gB = st.multiselect("Grupo B", selected, default=_gB_def, max_selections=3, key="as_gB")
                 if gB:
                     st.markdown(" ".join(f'{fl(t,16)}<span style="font-size:10px;color:var(--muted);">{t}</span>' for t in gB), unsafe_allow_html=True)
-            if st.button("💾 Guardar grupos Copa Asia"):
+            if st.button("💾 Guardar y bloquear grupos"):
                 if len(gA)!=3 or len(gB)!=3 or len(set(gA+gB))!=6: st.error("3 por grupo sin duplicados.")
                 else:
                     st.session_state.as_teams = selected
                     st.session_state.as_groups = {"A":gA,"B":gB}
                     st.session_state.as_matches = {**generate_group_matches(gA),**generate_group_matches(gB)}
-                    st.success("✅ Guardados."); save_state(); st.rerun()
+                    st.session_state.locked_as = True
+                    st.success("✅ Grupos guardados y bloqueados."); save_state(); st.rerun()
     with tab_groups:
         if not st.session_state.as_groups: st.info("Configura primero.")
         else:
@@ -1927,41 +1972,45 @@ elif page == "🏆 Mundial":
     with tab_config:
         st.markdown(f"**Clasificados: {len(st.session_state.wc_qualified)}/32**")
         if st.session_state.wc_qualified:
-            html = "<div style='display:flex;flex-wrap:wrap;gap:6px;'>" + "".join(team_chip(t,"#FFD700") for t in st.session_state.wc_qualified) + "</div>"
+            html = "<div style=\'display:flex;flex-wrap:wrap;gap:6px;\'>" + "".join(team_chip(t,"#FFD700") for t in st.session_state.wc_qualified) + "</div>"
             st.markdown(html, unsafe_allow_html=True)
         st.markdown("---")
-        host = st.selectbox("🏟️ País Anfitrión", ALL_TEAMS + ["New Zealand"],
-                            index=ALL_TEAMS.index(st.session_state.wc_host) if st.session_state.wc_host in ALL_TEAMS else 0)
-        st.markdown("---")
-        st.markdown("#### Arma los 8 grupos (4 equipos c/u)")
-        pool32 = list(dict.fromkeys(st.session_state.wc_qualified + [host]))[:32]
-        if len(pool32)<32:
-            for t in ALL_TEAMS+["New Zealand"]:
-                if t not in pool32 and len(pool32)<32: pool32.append(t)
-        new_groups = {}
-        grp_labels = ["A","B","C","D","E","F","G","H"]
-        cols1 = st.columns(4); cols2 = st.columns(4)
-        for i,gl in enumerate(grp_labels):
-            col = cols1[i] if i<4 else cols2[i-4]
-            with col:
-                st.markdown(f"**Grupo {gl}**")
-                default_g = st.session_state.wc_groups.get(gl, pool32[i*4:(i+1)*4])
-                chosen = st.multiselect(f"Grupo {gl}", pool32, default=default_g, max_selections=4, key=f"wc_grp_{gl}")
-                if chosen:
-                    st.markdown(" ".join(f'{fl(t,16)}<span style="font-size:10px;color:var(--muted);">{t}</span>' for t in chosen), unsafe_allow_html=True)
-                new_groups[gl] = chosen
-        if st.button("💾 Guardar grupos del Mundial"):
-            all_a = sum(new_groups.values(),[])
-            if len(all_a)!=len(set(all_a)): st.error("Duplicados.")
-            elif any(len(v)!=4 for v in new_groups.values()): st.error("4 por grupo.")
-            else:
-                st.session_state.wc_host = host
-                st.session_state.wc_groups = new_groups
-                all_m = {}
-                for gl,teams in new_groups.items(): all_m.update(generate_group_matches(teams))
-                st.session_state.wc_matches = all_m
-                save_state()
-                st.success("✅ Grupos del Mundial guardados."); st.rerun()
+        if st.session_state.locked_wc:
+            locked_banner("Mundial", "locked_wc")
+        else:
+            host = st.selectbox("🏟️ País Anfitrión", ALL_TEAMS + ["New Zealand"],
+                                index=ALL_TEAMS.index(st.session_state.wc_host) if st.session_state.wc_host in ALL_TEAMS else 0)
+            st.markdown("---")
+            st.markdown("#### Arma los 8 grupos (4 equipos c/u)")
+            pool32 = list(dict.fromkeys(st.session_state.wc_qualified + [host]))[:32]
+            if len(pool32)<32:
+                for t in ALL_TEAMS+["New Zealand"]:
+                    if t not in pool32 and len(pool32)<32: pool32.append(t)
+            new_groups = {}
+            grp_labels = ["A","B","C","D","E","F","G","H"]
+            cols1 = st.columns(4); cols2 = st.columns(4)
+            for i,gl in enumerate(grp_labels):
+                col = cols1[i] if i<4 else cols2[i-4]
+                with col:
+                    st.markdown(f"**Grupo {gl}**")
+                    default_g = st.session_state.wc_groups.get(gl, pool32[i*4:(i+1)*4])
+                    chosen = st.multiselect(f"Grupo {gl}", pool32, default=default_g, max_selections=4, key=f"wc_grp_{gl}")
+                    if chosen:
+                        st.markdown(" ".join(f'{fl(t,16)}<span style="font-size:10px;color:var(--muted);">{t}</span>' for t in chosen), unsafe_allow_html=True)
+                    new_groups[gl] = chosen
+            if st.button("💾 Guardar y bloquear grupos del Mundial"):
+                all_a = sum(new_groups.values(),[])
+                if len(all_a)!=len(set(all_a)): st.error("Duplicados.")
+                elif any(len(v)!=4 for v in new_groups.values()): st.error("4 por grupo.")
+                else:
+                    st.session_state.wc_host = host
+                    st.session_state.wc_groups = new_groups
+                    all_m = {}
+                    for gl,teams in new_groups.items(): all_m.update(generate_group_matches(teams))
+                    st.session_state.wc_matches = all_m
+                    st.session_state.locked_wc = True
+                    save_state()
+                    st.success("✅ Grupos del Mundial guardados y bloqueados."); st.rerun()
     with tab_groups:
         if not st.session_state.wc_groups: st.info("Configura los grupos primero.")
         else:
