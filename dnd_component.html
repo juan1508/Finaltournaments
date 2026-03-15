@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Segoe UI', sans-serif;
+  background: transparent;
+  color: #DDE4EF;
+  padding: 6px;
+  user-select: none;
+}
+.wrap { display: grid; grid-template-columns: 185px 1fr; gap: 10px; }
+.panel {
+  background: #0D1B2A;
+  border: 1px solid rgba(0,229,160,.2);
+  border-radius: 10px;
+  padding: 8px;
+  min-height: 160px;
+}
+.ptitle {
+  font-size: 9px; letter-spacing: 3px;
+  color: #5A7090; margin-bottom: 6px;
+  text-transform: uppercase;
+}
+.gg { display: grid; grid-template-columns: repeat(auto-fill, minmax(142px,1fr)); gap: 7px; }
+.gbox {
+  background: #0D1B2A;
+  border: 1px solid rgba(0,229,160,.18);
+  border-radius: 10px;
+  padding: 7px;
+  min-height: 72px;
+  transition: border-color .12s, background .12s;
+}
+.gbox.over { border-color: var(--ac); background: rgba(0,229,160,.07); }
+.glabel {
+  font-size: 9px; letter-spacing: 3px;
+  color: var(--ac); font-weight: 700;
+  margin-bottom: 5px;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.badge {
+  background: rgba(0,229,160,.15);
+  color: var(--ac);
+  border-radius: 6px; padding: 1px 6px;
+  font-size: 9px; font-weight: 700;
+}
+.badge.full { background: rgba(0,229,160,.3); }
+.chip {
+  display: flex; align-items: center; gap: 4px;
+  background: #132335;
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 5px; padding: 3px 7px;
+  margin: 2px 0; cursor: grab;
+  font-size: 11px; font-weight: 600;
+  transition: opacity .1s, border-color .1s;
+}
+.chip:hover { border-color: var(--ac); }
+.chip.dragging { opacity: .3; cursor: grabbing; }
+.chip img { border-radius: 2px; flex-shrink: 0; }
+.btns { display: flex; gap: 7px; margin-top: 8px; }
+.btn {
+  font-family: 'Segoe UI', sans-serif;
+  font-size: 10px; letter-spacing: 1.5px; font-weight: 700;
+  border: none; border-radius: 6px;
+  padding: 7px 14px; cursor: pointer; text-transform: uppercase;
+}
+.bshuffle { background: rgba(255,255,255,.07); color: #DDE4EF; border: 1px solid rgba(255,255,255,.12); }
+.bclear   { background: rgba(244,67,54,.1); color: #F44336; border: 1px solid rgba(244,67,54,.2); }
+.bsave    { background: linear-gradient(135deg, var(--ac), #00B87A); color: #050E1A; flex: 1; font-size: 12px; }
+.bsave:disabled { opacity: .4; cursor: not-allowed; }
+.status { font-size: 11px; margin-top: 7px; min-height: 16px; }
+.ok  { color: var(--ac); }
+.err { color: #F44336; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div>
+    <div class="ptitle">📦 sin asignar</div>
+    <div class="panel" id="pool"
+         ondragover="ov(event)" ondragleave="ol(event)" ondrop="drop(event,'__pool__')">
+    </div>
+  </div>
+  <div>
+    <div class="ptitle">grupos — arrastra los equipos</div>
+    <div class="gg" id="gg"></div>
+  </div>
+</div>
+<div class="btns">
+  <button class="btn bshuffle" onclick="shuffle()">🎲 Sorteo</button>
+  <button class="btn bclear"   onclick="clearAll()">✕ Limpiar</button>
+  <button class="btn bsave" id="bsave" onclick="saveGroups()" disabled>💾 Guardar grupos</button>
+</div>
+<div class="status" id="st"></div>
+
+<script>
+// Parámetros inyectados por Python
+const TEAMS  = __TEAMS__;
+const LABELS = __LABELS__;
+const FM     = __FM__;
+const SZ     = __SZ__;
+const AC     = "__AC__";
+document.documentElement.style.setProperty('--ac', AC);
+
+let S = __STATE__;
+let drag = null;
+
+const fi = t => {
+  const c = FM[t] || '';
+  return c ? `<img src="https://flagcdn.com/20x15/${c}.png" style="border-radius:2px;">` : '';
+};
+const chip = t => `<div class="chip" draggable="true" data-t="${t}"
+  ondragstart="ds(event)" ondragend="de(event)">${fi(t)} ${t}</div>`;
+
+function render() {
+  const asgn = Object.values(S).flat();
+  const pool = TEAMS.filter(t => !asgn.includes(t));
+  document.getElementById('pool').innerHTML =
+    pool.map(chip).join('') ||
+    '<span style="color:#5A7090;font-size:10px">Todos asignados ✓</span>';
+  document.getElementById('gg').innerHTML = LABELS.map(gl => {
+    const ts = S[gl] || [], full = ts.length >= SZ;
+    return `<div class="gbox" id="gb_${gl}"
+      ondragover="ov(event)" ondragleave="ol(event)" ondrop="drop(event,'${gl}')">
+      <div class="glabel">GRUPO ${gl}
+        <span class="badge${full ? ' full' : ''}">${ts.length}/${SZ}</span>
+      </div>
+      ${ts.map(chip).join('')}
+    </div>`;
+  }).join('');
+  validate();
+}
+
+function validate() {
+  const flat = Object.values(S).flat();
+  const allFull = LABELS.every(gl => (S[gl] || []).length === SZ);
+  const ok = allFull && flat.length === new Set(flat).size;
+  document.getElementById('bsave').disabled = !ok;
+  const el = document.getElementById('st');
+  if (ok) {
+    el.innerHTML = '<span class="ok">✅ Grupos completos — pulsa Guardar</span>';
+  } else {
+    const miss = LABELS.reduce((a, gl) => a + Math.max(0, SZ - (S[gl] || []).length), 0);
+    el.innerHTML = `<span class="err">⚠️ Faltan ${miss} equipo(s)</span>`;
+  }
+}
+
+function ds(e) { drag = e.currentTarget.dataset.t; e.currentTarget.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; }
+function de(e) { e.currentTarget.classList.remove('dragging'); }
+function ov(e) { e.preventDefault(); e.currentTarget.classList.add('over'); }
+function ol(e) { e.currentTarget.classList.remove('over'); }
+
+function drop(e, gl) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('over');
+  if (!drag) return;
+  for (const g of LABELS) S[g] = (S[g] || []).filter(t => t !== drag);
+  if (gl !== '__pool__') {
+    if (!S[gl]) S[gl] = [];
+    if (S[gl].length < SZ && !S[gl].includes(drag)) S[gl].push(drag);
+  }
+  drag = null;
+  render();
+}
+
+function shuffle() {
+  const sh = [...TEAMS].sort(() => Math.random() - .5);
+  S = {};
+  LABELS.forEach((gl, i) => { S[gl] = sh.slice(i * SZ, (i + 1) * SZ); });
+  render();
+}
+
+function clearAll() {
+  S = {};
+  LABELS.forEach(gl => S[gl] = []);
+  render();
+}
+
+function saveGroups() {
+  const flat = Object.values(S).flat();
+  const ok = LABELS.every(gl => (S[gl] || []).length === SZ) && flat.length === new Set(flat).size;
+  if (!ok) return;
+  // Enviar resultado a Streamlit via Streamlit Component API
+  Streamlit.setComponentValue(S);
+}
+
+// Inicializar Streamlit component
+function onRender(event) {
+  // No necesitamos re-renderizar desde Python, el estado inicial ya está en __STATE__
+}
+Streamlit.events.addEventListener(Streamlit.RENDER_EVENT, onRender);
+Streamlit.setFrameHeight(document.body.scrollHeight + 20);
+render();
+// Ajustar altura después del render
+setTimeout(() => Streamlit.setFrameHeight(document.body.scrollHeight + 20), 100);
+</script>
+<script src="https://unpkg.com/streamlit-component-lib/dist/streamlit-component-lib.js"></script>
+</body>
+</html>
