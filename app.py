@@ -390,137 +390,120 @@ def locked_banner(tournament_name, lock_key):
 
 def drag_drop_groups(teams, group_labels, group_size, existing_groups, key_prefix, accent_color="#00E5A0"):
     """
-    Drag & drop bidireccional usando declare_component con HTML embebido en código.
-    No requiere archivos externos — el HTML se escribe en /tmp en runtime.
+    Drag & drop real usando streamlit-sortables.
+    Retorna (dict{gl:[teams]}, bool) — bool=True si los grupos están completos.
     """
-    import streamlit.components.v1 as _cv1
-    import tempfile, pathlib
+    from streamlit_sortables import sort_items
 
     # Estado actual
-    current  = st.session_state.get(f"_dnd_{key_prefix}") or existing_groups
+    current = st.session_state.get(f"_dnd_{key_prefix}") or existing_groups
     assigned = {gl: [t for t in current.get(gl, []) if t in teams] for gl in group_labels}
+    all_assigned = [t for v in assigned.values() for t in v]
+    pool = [t for t in teams if t not in all_assigned]
 
-    teams_json   = json.dumps(teams)
-    groups_json  = json.dumps(assigned)
-    labels_json  = json.dumps(group_labels)
-    flagmap_json = json.dumps({t: FLAG_MAP.get(t, "") for t in teams})
-    n_groups     = len(group_labels)
-    widget_h     = max(480, n_groups * 100 + 200)
+    # Construir items para sort_items con multi_containers
+    # Formato: [{"header": "Pool", "items": [...]}, {"header": "Grupo A", "items": [...]}, ...]
+    # Los items llevan la bandera como emoji unicode — usamos "🏳 TeamName" o solo nombre
+    def team_label(t):
+        code = FLAG_MAP.get(t, "")
+        # Usar emoji de bandera si hay código ISO
+        if code and len(code) == 2:
+            # Convertir ISO a emoji de bandera (regional indicator)
+            flag_emoji = chr(0x1F1E6 + ord(code[0].upper()) - ord('A')) + \
+                         chr(0x1F1E6 + ord(code[1].upper()) - ord('A'))
+            return f"{flag_emoji} {t}"
+        return t
 
-    html = f"""<!DOCTYPE html>
-<html><head><meta charset="utf-8"><style>
-*{{box-sizing:border-box;margin:0;padding:0}}
-body{{font-family:'Segoe UI',sans-serif;background:transparent;color:#DDE4EF;padding:6px;user-select:none}}
-.wrap{{display:grid;grid-template-columns:185px 1fr;gap:10px}}
-.panel{{background:#0D1B2A;border:1px solid rgba(0,229,160,.2);border-radius:10px;padding:8px;min-height:160px}}
-.ptitle{{font-size:9px;letter-spacing:3px;color:#5A7090;margin-bottom:6px;text-transform:uppercase}}
-.gg{{display:grid;grid-template-columns:repeat(auto-fill,minmax(142px,1fr));gap:7px}}
-.gbox{{background:#0D1B2A;border:1px solid rgba(0,229,160,.18);border-radius:10px;padding:7px;min-height:72px;transition:border-color .12s,background .12s}}
-.gbox.over{{border-color:{accent_color};background:rgba(0,229,160,.07)}}
-.glabel{{font-size:9px;letter-spacing:3px;color:{accent_color};font-weight:700;margin-bottom:5px;display:flex;justify-content:space-between;align-items:center}}
-.badge{{background:rgba(0,229,160,.15);color:{accent_color};border-radius:6px;padding:1px 6px;font-size:9px;font-weight:700}}
-.badge.full{{background:rgba(0,229,160,.3)}}
-.chip{{display:flex;align-items:center;gap:4px;background:#132335;border:1px solid rgba(255,255,255,.08);border-radius:5px;padding:3px 7px;margin:2px 0;cursor:grab;font-size:11px;font-weight:600;transition:opacity .1s,border-color .1s}}
-.chip:hover{{border-color:{accent_color}}}
-.chip.dragging{{opacity:.3;cursor:grabbing}}
-.chip img{{border-radius:2px;flex-shrink:0}}
-.btns{{display:flex;gap:7px;margin-top:8px}}
-.btn{{font-family:'Segoe UI',sans-serif;font-size:10px;letter-spacing:1.5px;font-weight:700;border:none;border-radius:6px;padding:7px 14px;cursor:pointer;text-transform:uppercase}}
-.bshuffle{{background:rgba(255,255,255,.07);color:#DDE4EF;border:1px solid rgba(255,255,255,.12)}}
-.bclear{{background:rgba(244,67,54,.1);color:#F44336;border:1px solid rgba(244,67,54,.2)}}
-.bsave{{background:linear-gradient(135deg,{accent_color},#00B87A);color:#050E1A;flex:1;font-size:12px;letter-spacing:2px}}
-.bsave:disabled{{opacity:.4;cursor:not-allowed}}
-.status{{font-size:11px;margin-top:7px;min-height:16px}}
-.ok{{color:{accent_color}}}.err{{color:#F44336}}
-</style></head><body>
-<div class="wrap">
-  <div>
-    <div class="ptitle">📦 sin asignar</div>
-    <div class="panel" id="pool" ondragover="ov(event)" ondragleave="ol(event)" ondrop="drop(event,'__pool__')"></div>
-  </div>
-  <div>
-    <div class="ptitle">grupos — arrastra los equipos</div>
-    <div class="gg" id="gg"></div>
-  </div>
-</div>
-<div class="btns">
-  <button class="btn bshuffle" onclick="shuffle()">🎲 Sorteo</button>
-  <button class="btn bclear" onclick="clearAll()">✕ Limpiar</button>
-  <button class="btn bsave" id="bsave" onclick="saveGroups()" disabled>💾 Guardar grupos</button>
-</div>
-<div class="status" id="st"></div>
-<script src="https://unpkg.com/streamlit-component-lib@1.0.0/dist/streamlit-component-lib.js"></script>
-<script>
-const TEAMS={teams_json},LABELS={labels_json},FM={flagmap_json},SZ={group_size};
-let S={groups_json},drag=null;
-const fi=t=>{{const c=FM[t]||'';return c?`<img src="https://flagcdn.com/20x15/${{c}}.png" style="border-radius:2px;">`:''}};
-const chip=t=>`<div class="chip" draggable="true" data-t="${{t}}" ondragstart="ds(event)" ondragend="de(event)">${{fi(t)}} ${{t}}</div>`;
-function render(){{
-  const asgn=Object.values(S).flat();
-  const p=TEAMS.filter(t=>!asgn.includes(t));
-  document.getElementById('pool').innerHTML=p.map(chip).join('')||'<span style="color:#5A7090;font-size:10px">Todos asignados ✓</span>';
-  document.getElementById('gg').innerHTML=LABELS.map(gl=>{{
-    const ts=S[gl]||[],full=ts.length>=SZ;
-    return`<div class="gbox" id="gb_${{gl}}" ondragover="ov(event)" ondragleave="ol(event)" ondrop="drop(event,'${{gl}}')">
-      <div class="glabel">GRUPO ${{gl}}<span class="badge${{full?' full':''}}">${{ts.length}}/${{SZ}}</span></div>
-      ${{ts.map(chip).join('')}}</div>`;
-  }}).join('');
-  validate();
-}}
-function validate(){{
-  const flat=Object.values(S).flat();
-  const allFull=LABELS.every(gl=>(S[gl]||[]).length===SZ);
-  const ok=allFull&&flat.length===new Set(flat).size;
-  document.getElementById('bsave').disabled=!ok;
-  const el=document.getElementById('st');
-  if(ok){{el.innerHTML='<span class="ok">✅ Grupos completos — pulsa Guardar grupos</span>';}}
-  else{{const miss=LABELS.reduce((a,gl)=>a+Math.max(0,SZ-(S[gl]||[]).length),0);el.innerHTML=`<span class="err">⚠️ Faltan ${{miss}} equipo(s)</span>`;}}
-}}
-function ds(e){{drag=e.currentTarget.dataset.t;e.currentTarget.classList.add('dragging');e.dataTransfer.effectAllowed='move';}}
-function de(e){{e.currentTarget.classList.remove('dragging');}}
-function ov(e){{e.preventDefault();e.currentTarget.classList.add('over');}}
-function ol(e){{e.currentTarget.classList.remove('over');}}
-function drop(e,gl){{
-  e.preventDefault();e.currentTarget.classList.remove('over');
-  if(!drag)return;
-  for(const g of LABELS)S[g]=(S[g]||[]).filter(t=>t!==drag);
-  if(gl!=='__pool__'){{if(!S[gl])S[gl]=[];if(S[gl].length<SZ&&!S[gl].includes(drag))S[gl].push(drag);}}
-  drag=null;render();
-}}
-function shuffle(){{const sh=[...TEAMS].sort(()=>Math.random()-.5);S={{}};LABELS.forEach((gl,i)=>{{S[gl]=sh.slice(i*SZ,(i+1)*SZ);}});render();}}
-function clearAll(){{S={{}};LABELS.forEach(gl=>S[gl]=[]);render();}}
-function saveGroups(){{
-  const flat=Object.values(S).flat();
-  const ok=LABELS.every(gl=>(S[gl]||[]).length===SZ)&&flat.length===new Set(flat).size;
-  if(!ok)return;
-  Streamlit.setComponentValue(JSON.stringify(S));
-}}
-Streamlit.events.addEventListener(Streamlit.RENDER_EVENT,()=>{{}});
-Streamlit.setFrameHeight({widget_h});
-render();
-</script></body></html>"""
+    pool_labeled    = [team_label(t) for t in pool]
+    assigned_labeled = {gl: [team_label(t) for t in assigned.get(gl, [])] for gl in group_labels}
 
-    # Escribir HTML en /tmp — funciona en Streamlit Cloud
-    comp_dir = pathlib.Path(tempfile.gettempdir()) / f"st_dnd_{key_prefix}"
-    comp_dir.mkdir(exist_ok=True)
-    (comp_dir / "index.html").write_text(html, encoding="utf-8")
+    containers = [{"header": "📦 Sin asignar", "items": pool_labeled}]
+    for gl in group_labels:
+        containers.append({"header": f"Grupo {gl}", "items": assigned_labeled.get(gl, [])})
 
-    dnd_comp = _cv1.declare_component(f"dnd_{key_prefix}", path=str(comp_dir))
-    result   = dnd_comp(key=f"dnd_widget_{key_prefix}", default=None)
+    # CSS personalizado para que se vea bien con el tema oscuro
+    custom_css = f"""
+    .sortable-component {{
+        background: transparent !important;
+    }}
+    .sortable-container {{
+        background: #0D1B2A !important;
+        border: 1px solid {accent_color}30 !important;
+        border-radius: 10px !important;
+        padding: 8px !important;
+        min-height: 80px !important;
+    }}
+    .sortable-container-header {{
+        color: {accent_color} !important;
+        font-family: 'Segoe UI', sans-serif !important;
+        font-size: 10px !important;
+        letter-spacing: 3px !important;
+        font-weight: 700 !important;
+        text-transform: uppercase !important;
+        margin-bottom: 6px !important;
+        padding-bottom: 4px !important;
+        border-bottom: 1px solid {accent_color}20 !important;
+    }}
+    .sortable-item {{
+        background: #132335 !important;
+        color: #DDE4EF !important;
+        border: 1px solid rgba(255,255,255,.08) !important;
+        border-radius: 6px !important;
+        padding: 4px 8px !important;
+        margin: 2px 0 !important;
+        font-size: 12px !important;
+        font-weight: 600 !important;
+        cursor: grab !important;
+        font-family: 'Segoe UI', sans-serif !important;
+    }}
+    .sortable-item:hover {{
+        border-color: {accent_color} !important;
+    }}
+    """
 
-    if result is not None:
-        try:
-            parsed = json.loads(result) if isinstance(result, str) else result
-            if isinstance(parsed, dict) and all(len(parsed.get(gl, [])) == group_size for gl in group_labels):
-                st.session_state[f"_dnd_{key_prefix}"] = parsed
-                return parsed, True
-        except Exception:
-            pass
+    result_containers = sort_items(
+        containers,
+        multi_containers=True,
+        direction="vertical",
+        custom_style=custom_css,
+        key=f"sortable_{key_prefix}"
+    )
 
-    saved = st.session_state.get(f"_dnd_{key_prefix}")
-    if isinstance(saved, dict) and all(len(saved.get(gl, [])) == group_size for gl in group_labels):
-        return saved, False
-    return None, False
+    # Parsear resultado — el primer container es el pool, el resto son grupos
+    # Reconstruir mapeando labels a nombres originales
+    label_to_team = {team_label(t): t for t in teams}
+
+    result = {}
+    for i, container in enumerate(result_containers):
+        if i == 0:
+            continue  # Skip pool
+        gl = group_labels[i - 1]
+        result[gl] = [label_to_team.get(item, item) for item in container.get("items", [])]
+
+    # Guardar en session_state para persistencia
+    st.session_state[f"_dnd_{key_prefix}"] = result
+
+    # Validación y feedback
+    all_flat = [t for lst in result.values() for t in lst]
+    has_dups = len(all_flat) != len(set(all_flat))
+    all_full  = all(len(result.get(gl, [])) == group_size for gl in group_labels)
+
+    col_info, col_btn = st.columns([3, 1])
+    with col_info:
+        if has_dups:
+            st.error("⚠️ Hay equipos repetidos entre grupos.")
+        elif all_full:
+            st.success("✅ Todos los grupos completos.")
+        else:
+            missing = sum(max(0, group_size - len(result.get(gl, []))) for gl in group_labels)
+            st.warning(f"⏳ Faltan {missing} equipo(s) por asignar.")
+
+    with col_btn:
+        if all_full and not has_dups:
+            if st.button("💾 Guardar", key=f"save_{key_prefix}", type="primary", use_container_width=True):
+                return result, True
+
+    return result if (all_full and not has_dups) else None, False
 
 
 def standings_df(standings, highlight=0, repechaje_pos=None):
