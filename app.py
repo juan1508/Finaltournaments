@@ -390,93 +390,66 @@ def locked_banner(tournament_name, lock_key):
 
 def drag_drop_groups(teams, group_labels, group_size, existing_groups, key_prefix, accent_color="#00E5A0"):
     """
-    Selector de grupos nativo Streamlit con vista de banderas.
-    - Columna por grupo con multiselect
-    - Vista previa HTML con banderas debajo de cada multiselect
-    - Botón sorteo aleatorio
-    - Retorna (dict, bool): grupos asignados y si están todos completos
+    Drag & drop real usando declare_component (bidireccional).
+    El HTML se genera dinámicamente con el estado actual inyectado.
+    Retorna (dict, bool) — dict con grupos y bool=True si acaba de guardar.
     """
-    import random
+    import streamlit.components.v1 as _cv1
+    import tempfile, os, pathlib
 
-    # Sorteo aleatorio si se presiona el botón
-    shuffle_key = f"_shuffle_{key_prefix}"
-    if st.button("🎲 Sorteo aleatorio", key=f"btn_shuffle_{key_prefix}"):
-        shuffled = random.sample(teams, len(teams))
-        for i, gl in enumerate(group_labels):
-            chunk = shuffled[i*group_size:(i+1)*group_size]
-            st.session_state[f"_grp_{key_prefix}_{gl}"] = chunk
-        st.rerun()
+    # Estado actual a mostrar en el widget
+    current  = st.session_state.get(f"_dnd_{key_prefix}") or existing_groups
+    assigned = {gl: [t for t in current.get(gl, []) if t in teams] for gl in group_labels}
 
-    # Layout de columnas — máximo 4 por fila
-    n_cols = min(len(group_labels), 4)
-    rows = [group_labels[i:i+n_cols] for i in range(0, len(group_labels), n_cols)]
-    result = {}
+    teams_json   = json.dumps(teams)
+    groups_json  = json.dumps(assigned)
+    labels_json  = json.dumps(group_labels)
+    flagmap_json = json.dumps({t: FLAG_MAP.get(t, "") for t in teams})
+    n_groups     = len(group_labels)
+    widget_h     = max(480, n_groups * 100 + 200)
 
-    for row_labels in rows:
-        cols = st.columns(len(row_labels))
-        for col, gl in zip(cols, row_labels):
-            with col:
-                # Valor por defecto: session_state > existing_groups > distribución automática
-                ss_key_gl = f"_grp_{key_prefix}_{gl}"
-                if ss_key_gl in st.session_state:
-                    default_g = [t for t in st.session_state[ss_key_gl] if t in teams]
-                else:
-                    default_g = [t for t in existing_groups.get(gl, []) if t in teams]
-                    if not default_g:
-                        idx = group_labels.index(gl)
-                        default_g = teams[idx*group_size:(idx+1)*group_size]
+    # Leer template HTML y sustituir placeholders
+    html_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dnd_component.html")
+    if not os.path.exists(html_path):
+        html_path = "dnd_component.html"
 
-                chosen = st.multiselect(
-                    f"**Grupo {gl}**",
-                    options=teams,
-                    default=default_g,
-                    max_selections=group_size,
-                    key=f"_ms_{key_prefix}_{gl}"
-                )
+    with open(html_path, "r", encoding="utf-8") as f:
+        html_template = f.read()
 
-                # Vista previa con banderas
-                if chosen:
-                    count = len(chosen)
-                    full  = count >= group_size
-                    badge_bg = "rgba(0,229,160,.25)" if full else "rgba(0,229,160,.1)"
-                    badge_color = accent_color
-                    chips = "".join(
-                        f'<div style="display:flex;align-items:center;gap:5px;'
-                        f'background:#0D1B2A;border:1px solid rgba(255,255,255,.07);'
-                        f'border-radius:5px;padding:4px 8px;margin:2px 0;font-size:12px;font-weight:600;">'
-                        f'{fl(t, 20)} {t}</div>'
-                        for t in chosen
-                    )
-                    st.markdown(
-                        f'<div style="background:#07111E;border:1px solid {accent_color}30;'
-                        f'border-left:3px solid {accent_color};border-radius:8px;padding:8px;margin-top:4px;">'
-                        f'<div style="display:flex;justify-content:space-between;align-items:center;'
-                        f'margin-bottom:6px;">'
-                        f'<span style="font-size:9px;letter-spacing:3px;color:{accent_color};font-weight:700;">GRUPO {gl}</span>'
-                        f'<span style="background:{badge_bg};color:{badge_color};border-radius:6px;'
-                        f'padding:1px 7px;font-size:10px;font-weight:700;">{count}/{group_size}</span>'
-                        f'</div>{chips}</div>',
-                        unsafe_allow_html=True
-                    )
-                result[gl] = chosen
+    html = (html_template
+        .replace("__TEAMS__",  teams_json)
+        .replace("__LABELS__", labels_json)
+        .replace("__FM__",     flagmap_json)
+        .replace("__SZ__",     str(group_size))
+        .replace("__STATE__",  groups_json)
+        .replace("__AC__",     accent_color)
+    )
 
-    # Validación global
-    all_teams_flat = [t for lst in result.values() for t in lst]
-    has_dups = len(all_teams_flat) != len(set(all_teams_flat))
-    all_full  = all(len(result.get(gl, [])) == group_size for gl in group_labels)
+    # Crear componente en directorio temporal único por key_prefix
+    comp_dir = pathlib.Path(tempfile.gettempdir()) / f"dnd_{key_prefix}"
+    comp_dir.mkdir(exist_ok=True)
+    (comp_dir / "index.html").write_text(html, encoding="utf-8")
 
-    st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
+    # declare_component con path — retorna el valor enviado por Streamlit.setComponentValue
+    dnd_comp = _cv1.declare_component(f"dnd_{key_prefix}", path=str(comp_dir))
+    result = dnd_comp(key=f"dnd_widget_{key_prefix}", default=None)
 
-    if has_dups:
-        st.error("⚠️ Hay equipos repetidos entre grupos — cada equipo solo puede estar en un grupo.")
-        return None, False
-    if not all_full:
-        missing = sum(max(0, group_size - len(result.get(gl, []))) for gl in group_labels)
-        st.warning(f"⏳ Faltan {missing} equipo(s) por asignar.")
-        return None, False
+    if result is not None:
+        # El usuario presionó "Guardar grupos" dentro del widget
+        try:
+            if isinstance(result, str):
+                result = json.loads(result)
+            if isinstance(result, dict) and all(len(result.get(gl, [])) == group_size for gl in group_labels):
+                st.session_state[f"_dnd_{key_prefix}"] = result
+                return result, True
+        except Exception:
+            pass
 
-    st.success("✅ Todos los grupos completos.")
-    return result, True
+    # Retornar estado guardado previamente si existe
+    saved = st.session_state.get(f"_dnd_{key_prefix}")
+    if isinstance(saved, dict) and all(len(saved.get(gl, [])) == group_size for gl in group_labels):
+        return saved, False
+    return None, False
 
 
 def standings_df(standings, highlight=0, repechaje_pos=None):
