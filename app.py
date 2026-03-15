@@ -3,7 +3,6 @@ app.py — FMMJ Nations · Competencias de Selecciones
 Banderas reales via flagcdn.com · Logos de confederaciones · Diseño Sports App
 """
 import streamlit as st
-import streamlit.components.v1 as components
 import pandas as pd
 import base64
 import json
@@ -391,370 +390,79 @@ def locked_banner(tournament_name, lock_key):
 
 def drag_drop_groups(teams, group_labels, group_size, existing_groups, key_prefix, accent_color="#00E5A0"):
     """
-    Widget drag & drop para asignar equipos a grupos.
-    Retorna dict {gl: [team,...]} si el usuario confirmó, None si no.
+    Selector visual de grupos mejorado — nativo Streamlit, 100% funcional.
+    Muestra los grupos como cards con banderas. Retorna dict{gl:[teams]}.
     """
-    # Construir estado inicial: equipos ya asignados y pool libre
-    assigned = {}
-    for gl in group_labels:
-        assigned[gl] = existing_groups.get(gl, [])
+    n_cols = min(len(group_labels), 4)
+    cols_per_row = [group_labels[i:i+n_cols] for i in range(0, len(group_labels), n_cols)]
+    result = {}
 
-    all_assigned = [t for lst in assigned.values() for t in lst]
-    pool = [t for t in teams if t not in all_assigned]
+    for row_labels in cols_per_row:
+        cols = st.columns(len(row_labels))
+        for col, gl in zip(cols, row_labels):
+            with col:
+                default_g = [t for t in existing_groups.get(gl, []) if t in teams]
+                # Fallback: distribuir equipos restantes si no hay default
+                if not default_g:
+                    idx = group_labels.index(gl)
+                    chunk = teams[idx*group_size:(idx+1)*group_size]
+                    default_g = [t for t in chunk if t in teams]
 
-    # Serializar para pasar al widget JS
-    teams_json   = json.dumps(teams)
-    groups_json  = json.dumps(assigned)
-    labels_json  = json.dumps(group_labels)
-    flagmap_json = json.dumps({t: FLAG_MAP.get(t,"") for t in teams})
-    pool_json    = json.dumps(pool)
+                chosen = st.multiselect(
+                    f"Grupo {gl}",
+                    options=teams,
+                    default=default_g,
+                    max_selections=group_size,
+                    key=f"dnd_{key_prefix}_{gl}"
+                )
+                # Vista previa con banderas
+                if chosen:
+                    chips_html = "".join(
+                        f'<div style="display:flex;align-items:center;gap:5px;'
+                        f'background:#132335;border:1px solid rgba(0,229,160,.15);'
+                        f'border-radius:5px;padding:3px 8px;margin:2px 0;font-size:11px;font-weight:600;">'
+                        f'{fl(t,16)} {t}</div>'
+                        for t in chosen
+                    )
+                    count = len(chosen)
+                    full  = count >= group_size
+                    badge_color = accent_color if full else "#5A7090"
+                    st.markdown(
+                        f'<div style="background:#0D1B2A;border:1px solid {accent_color}30;'
+                        f'border-left:3px solid {accent_color};border-radius:8px;padding:8px;margin-top:4px;">'
+                        f'<div style="font-size:9px;letter-spacing:2px;color:{badge_color};'
+                        f'margin-bottom:5px;font-weight:700;">GRUPO {gl} '
+                        f'<span style="background:{accent_color}20;color:{badge_color};'
+                        f'border-radius:6px;padding:1px 6px;">{count}/{group_size}</span></div>'
+                        f'{chips_html}</div>',
+                        unsafe_allow_html=True
+                    )
+                result[gl] = chosen
 
-    n_groups   = len(group_labels)
-    # Altura dinámica según número de grupos y equipos
-    widget_h   = max(520, n_groups * 90 + 240)
+    # Botones de acción
+    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+    c1, c2 = st.columns([1, 3])
+    with c1:
+        if st.button("🎲 Sorteo", key=f"shuffle_{key_prefix}", use_container_width=True):
+            import random
+            shuffled = random.sample(teams, len(teams))
+            for i, gl in enumerate(group_labels):
+                chunk = shuffled[i*group_size:(i+1)*group_size]
+                st.session_state[f"dnd_{key_prefix}_{gl}"] = chunk
+            st.rerun()
 
-    html = f"""
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<style>
-  * {{ box-sizing: border-box; margin: 0; padding: 0; }}
-  body {{
-    font-family: 'Segoe UI', sans-serif;
-    background: transparent;
-    color: #DDE4EF;
-    padding: 8px;
-  }}
-  h4 {{
-    font-family: 'Segoe UI', sans-serif;
-    font-size: 11px;
-    letter-spacing: 3px;
-    color: {accent_color};
-    text-transform: uppercase;
-    margin-bottom: 8px;
-  }}
-  .layout {{
-    display: grid;
-    grid-template-columns: 200px 1fr;
-    gap: 12px;
-  }}
-  .pool-panel {{
-    background: #0D1B2A;
-    border: 1px solid rgba(0,229,160,.2);
-    border-radius: 10px;
-    padding: 10px;
-    min-height: 200px;
-  }}
-  .groups-grid {{
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: 8px;
-  }}
-  .group-box {{
-    background: #0D1B2A;
-    border: 1px solid rgba(0,229,160,.2);
-    border-radius: 10px;
-    padding: 8px;
-    min-height: 80px;
-  }}
-  .group-box.drag-over {{
-    border-color: {accent_color};
-    background: rgba(0,229,160,.06);
-  }}
-  .group-label {{
-    font-size: 11px;
-    letter-spacing: 3px;
-    color: {accent_color};
-    font-weight: 700;
-    margin-bottom: 6px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }}
-  .count-badge {{
-    background: rgba(0,229,160,.15);
-    color: {accent_color};
-    border-radius: 8px;
-    padding: 1px 7px;
-    font-size: 10px;
-  }}
-  .team-chip {{
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    background: #132335;
-    border: 1px solid rgba(255,255,255,.08);
-    border-radius: 6px;
-    padding: 4px 8px;
-    margin: 3px 0;
-    cursor: grab;
-    font-size: 11px;
-    font-weight: 600;
-    user-select: none;
-    transition: opacity .15s, border-color .15s;
-  }}
-  .team-chip:hover {{ border-color: {accent_color}; }}
-  .team-chip.dragging {{ opacity: .4; cursor: grabbing; }}
-  .team-chip img {{ border-radius: 2px; }}
-  .pool-title {{
-    font-size: 11px; letter-spacing: 3px;
-    color: #5A7090; margin-bottom: 6px;
-    text-transform: uppercase;
-  }}
-  .btn-row {{
-    display: flex; gap: 8px; margin-top: 12px;
-  }}
-  .btn {{
-    font-family: 'Segoe UI', sans-serif;
-    font-size: 12px; letter-spacing: 2px; font-weight: 700;
-    border: none; border-radius: 6px;
-    padding: 8px 18px; cursor: pointer; text-transform: uppercase;
-  }}
-  .btn-confirm {{
-    background: linear-gradient(135deg, {accent_color}, #00B87A);
-    color: #050E1A; flex: 1;
-  }}
-  .btn-confirm:disabled {{ opacity: .4; cursor: not-allowed; }}
-  .btn-shuffle {{
-    background: rgba(255,255,255,.06);
-    color: #DDE4EF; border: 1px solid rgba(255,255,255,.12);
-  }}
-  .btn-clear {{
-    background: rgba(244,67,54,.1);
-    color: #F44336; border: 1px solid rgba(244,67,54,.2);
-  }}
-  .error-msg {{ color: #F44336; font-size: 11px; margin-top: 6px; display:none; }}
-  .ok-msg {{ color: {accent_color}; font-size: 11px; margin-top: 6px; display:none; }}
-</style>
-</head>
-<body>
+    # Validación visual
+    all_assigned = [t for lst in result.values() for t in lst]
+    has_dups = len(all_assigned) != len(set(all_assigned))
+    all_full = all(len(result.get(gl,[])) == group_size for gl in group_labels)
 
-<div class="layout">
-  <div>
-    <div class="pool-title">📦 SIN ASIGNAR</div>
-    <div class="pool-panel" id="pool"
-         ondragover="onDragOver(event)"
-         ondragleave="onDragLeave(event)"
-         ondrop="onDrop(event,'__pool__')">
-    </div>
-  </div>
-  <div>
-    <h4>GRUPOS</h4>
-    <div class="groups-grid" id="groups-grid"></div>
-  </div>
-</div>
+    if has_dups:
+        st.error("⚠️ Hay equipos repetidos entre grupos.")
+    elif all_full:
+        st.success("✅ Todos los grupos completos — listo para guardar.")
 
-<div class="btn-row">
-  <button class="btn btn-shuffle" onclick="shuffleGroups()">🎲 Sorteo</button>
-  <button class="btn btn-clear"   onclick="clearAll()">✕ Limpiar</button>
-  <button class="btn btn-confirm" id="btn-confirm" onclick="confirm()" disabled>
-    💾 CONFIRMAR GRUPOS
-  </button>
-</div>
-<div class="error-msg" id="err"></div>
-<div class="ok-msg"    id="ok"></div>
+    return result if (all_full and not has_dups) else None
 
-<script>
-const ALL_TEAMS    = {teams_json};
-const GROUP_LABELS = {labels_json};
-const FLAG_MAP     = {flagmap_json};
-const GROUP_SIZE   = {group_size};
-let   state        = {groups_json};
-let   dragSrc      = null;
-
-// Inicializar pool con los no asignados
-const initPool = {pool_json};
-
-function flagImg(team) {{
-  const c = FLAG_MAP[team] || '';
-  return c ? `<img src="https://flagcdn.com/20x15/${{c}}.png" style="border-radius:2px;">` : '';
-}}
-
-function chipHTML(team) {{
-  return `<div class="team-chip" draggable="true" id="chip_${{team.replace(/ /g,'_')}}"
-    data-team="${{team}}"
-    ondragstart="dragStart(event)"
-    ondragend="dragEnd(event)">
-    ${{flagImg(team)}} ${{team}}
-  </div>`;
-}}
-
-function renderPool() {{
-  const assigned = Object.values(state).flat();
-  const pool = ALL_TEAMS.filter(t => !assigned.includes(t));
-  const el = document.getElementById('pool');
-  el.innerHTML = pool.map(chipHTML).join('') || '<span style="color:#5A7090;font-size:11px;">Arrastra equipos aquí</span>';
-}}
-
-function renderGroups() {{
-  const grid = document.getElementById('groups-grid');
-  grid.innerHTML = GROUP_LABELS.map(gl => {{
-    const teams = state[gl] || [];
-    const chips = teams.map(chipHTML).join('');
-    const count = teams.length;
-    const full  = count >= GROUP_SIZE;
-    return `<div class="group-box ${{full?'full':''}}"
-      id="gbox_${{gl}}"
-      ondragover="onDragOver(event)"
-      ondragleave="onDragLeave(event)"
-      ondrop="onDrop(event,'${{gl}}')">
-      <div class="group-label">
-        GRUPO ${{gl}}
-        <span class="count-badge" style="${{full?'background:rgba(0,229,160,.25);':''}}">
-          ${{count}}/${{GROUP_SIZE}}
-        </span>
-      </div>
-      ${{chips}}
-    </div>`;
-  }}).join('');
-}}
-
-function render() {{
-  renderPool();
-  renderGroups();
-  validate();
-}}
-
-function validate() {{
-  const allFull = GROUP_LABELS.every(gl => (state[gl]||[]).length === GROUP_SIZE);
-  const assigned = Object.values(state).flat();
-  const noDups = assigned.length === new Set(assigned).size;
-  document.getElementById('btn-confirm').disabled = !(allFull && noDups);
-  if (!noDups) {{
-    showErr('Hay equipos duplicados entre grupos.');
-  }} else {{
-    hideErr();
-  }}
-}}
-
-function showErr(msg) {{
-  const e = document.getElementById('err');
-  e.textContent = '⚠️ ' + msg; e.style.display='block';
-}}
-function hideErr() {{
-  document.getElementById('err').style.display='none';
-}}
-
-// ── Drag & Drop ──────────────────────────
-function dragStart(e) {{
-  dragSrc = e.currentTarget.dataset.team;
-  e.currentTarget.classList.add('dragging');
-  e.dataTransfer.effectAllowed = 'move';
-}}
-function dragEnd(e) {{
-  e.currentTarget.classList.remove('dragging');
-}}
-function onDragOver(e) {{
-  e.preventDefault();
-  e.currentTarget.classList.add('drag-over');
-  e.dataTransfer.dropEffect = 'move';
-}}
-function onDragLeave(e) {{
-  e.currentTarget.classList.remove('drag-over');
-}}
-function onDrop(e, targetGl) {{
-  e.preventDefault();
-  e.currentTarget.classList.remove('drag-over');
-  if (!dragSrc) return;
-
-  // Quitar de origen
-  for (const gl of GROUP_LABELS) {{
-    state[gl] = (state[gl]||[]).filter(t => t !== dragSrc);
-  }}
-
-  // Agregar al destino
-  if (targetGl === '__pool__') {{
-    // Solo quitar — ya está fuera
-  }} else {{
-    if (!state[targetGl]) state[targetGl] = [];
-    if ((state[targetGl].length < GROUP_SIZE) && !state[targetGl].includes(dragSrc)) {{
-      state[targetGl].push(dragSrc);
-    }}
-  }}
-  dragSrc = null;
-  render();
-}}
-
-// ── Sorteo aleatorio ─────────────────────
-function shuffleGroups() {{
-  const shuffled = [...ALL_TEAMS].sort(() => Math.random() - 0.5);
-  state = {{}};
-  GROUP_LABELS.forEach((gl, i) => {{
-    state[gl] = shuffled.slice(i * GROUP_SIZE, (i+1) * GROUP_SIZE);
-  }});
-  render();
-}}
-
-function clearAll() {{
-  state = {{}};
-  GROUP_LABELS.forEach(gl => state[gl] = []);
-  render();
-}}
-
-// ── Confirmar → enviar a Streamlit ───────
-function confirm() {{
-  const allFull = GROUP_LABELS.every(gl => (state[gl]||[]).length === GROUP_SIZE);
-  if (!allFull) return;
-  // Escribir en el input oculto y lanzar evento change
-  const inp = window.parent.document.querySelector('input[data-dnd-key="{key_prefix}"]');
-  if (inp) {{
-    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-    nativeInputValueSetter.call(inp, JSON.stringify(state));
-    inp.dispatchEvent(new Event('input', {{ bubbles: true }}));
-  }}
-  document.getElementById('ok').textContent = '✅ Grupos confirmados. Haz clic en "Guardar y bloquear" arriba.';
-  document.getElementById('ok').style.display = 'block';
-}}
-
-// Init
-render();
-</script>
-</body>
-</html>
-"""
-
-    # Input oculto que captura el resultado del widget
-    result_raw = st.text_input(
-        "dnd_result",
-        value="",
-        key=f"dnd_{key_prefix}",
-        label_visibility="collapsed"
-    )
-    # Agregar atributo data-dnd-key via JS (para que confirm() lo encuentre)
-    st.markdown(
-        f"""<script>
-        (function() {{
-            const inputs = window.parent.document.querySelectorAll('input[data-baseweb]');
-            inputs.forEach(inp => {{
-                if (inp.value === '' && !inp.dataset.dndKey) {{
-                    // heurística: el último input text vacío es nuestro
-                }}
-            }});
-            // Más confiable: buscar por data-testid
-            const all = window.parent.document.querySelectorAll('input');
-            all.forEach(inp => {{
-                if (inp.getAttribute('aria-label') === 'dnd_result') {{
-                    inp.dataset.dndKey = '{key_prefix}';
-                }}
-            }});
-        }})();
-        </script>""",
-        unsafe_allow_html=True
-    )
-
-    components.html(html, height=widget_h, scrolling=False)
-
-    # Parsear resultado si existe
-    if result_raw and result_raw.strip().startswith("{"):
-        try:
-            parsed = json.loads(result_raw)
-            # Validar que todos los grupos tengan el tamaño correcto
-            if all(len(parsed.get(gl,[])) == group_size for gl in group_labels):
-                return parsed
-        except Exception:
-            pass
-    return None
 
 def standings_df(standings, highlight=0, repechaje_pos=None):
     rows = []
