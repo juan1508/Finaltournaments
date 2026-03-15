@@ -390,48 +390,43 @@ def locked_banner(tournament_name, lock_key):
 
 def drag_drop_groups(teams, group_labels, group_size, existing_groups, key_prefix, accent_color="#00E5A0"):
     """
-    Drag & drop visual. 
-    Comunicación JS → Streamlit via st.query_params:
-    El JS escribe window.parent.location.search con el estado serializado,
-    lo que dispara un rerun de Streamlit que lee los params y los guarda.
+    Drag & drop visual.
+    El botón "Confirmar" dentro del widget escribe el estado en query_params
+    y hace rerun. Streamlit lee el param, lo retorna como resultado válido,
+    y el código del torneo lo guarda directamente — sin segundo botón.
+    Retorna (dict, bool) donde bool=True significa "acaba de confirmar ahora".
     """
     import streamlit.components.v1 as _comp
 
-    ss_key = f"_dnd_{key_prefix}"
+    ss_key     = f"_dnd_{key_prefix}"
+    qp_key     = f"dnd_{key_prefix}"
+    just_saved = False
 
-    # Leer si ya hay un resultado en query_params (viene del JS)
+    # ── Leer query_param si viene del JS ──────────────────────────
     qp = st.query_params.to_dict()
-    if f"dnd_{key_prefix}" in qp:
-        raw_qp = qp[f"dnd_{key_prefix}"]
+    if qp_key in qp:
         try:
-            parsed_qp = json.loads(raw_qp)
+            parsed_qp = json.loads(qp[qp_key])
             if all(len(parsed_qp.get(gl, [])) == group_size for gl in group_labels):
                 st.session_state[ss_key] = parsed_qp
-                # Limpiar el query param para no acumular en la URL
-                del st.query_params[f"dnd_{key_prefix}"]
+                just_saved = True
         except Exception:
             pass
+        # Limpiar siempre el query param
+        st.query_params.clear()
 
-    # Estado actual: preferir session_state sobre existing_groups
-    current = st.session_state.get(ss_key, None)
-    if current and all(gl in current for gl in group_labels):
-        assigned = {gl: [t for t in current.get(gl, []) if t in teams] for gl in group_labels}
-    else:
-        assigned = {gl: [t for t in existing_groups.get(gl, []) if t in teams] for gl in group_labels}
-
-    all_asgn  = [t for v in assigned.values() for t in v]
-    pool      = [t for t in teams if t not in all_asgn]
+    # ── Estado a mostrar en el widget ─────────────────────────────
+    current = st.session_state.get(ss_key) or existing_groups
+    assigned = {gl: [t for t in current.get(gl, []) if t in teams] for gl in group_labels}
+    all_asgn = [t for v in assigned.values() for t in v]
+    pool     = [t for t in teams if t not in all_asgn]
 
     teams_json   = json.dumps(teams)
     groups_json  = json.dumps(assigned)
     labels_json  = json.dumps(group_labels)
     flagmap_json = json.dumps({t: FLAG_MAP.get(t, "") for t in teams})
-    pool_json    = json.dumps(pool)
     n_groups     = len(group_labels)
     widget_h     = max(480, n_groups * 100 + 200)
-
-    # URL base actual sin query params de dnd
-    base_url = "?"
 
     html = f"""<!DOCTYPE html><html><head><meta charset="utf-8"><style>
 *{{box-sizing:border-box;margin:0;padding:0}}
@@ -450,11 +445,11 @@ body{{font-family:'Segoe UI',sans-serif;background:transparent;color:#DDE4EF;pad
 .chip.dragging{{opacity:.3;cursor:grabbing}}
 .chip img{{border-radius:2px;flex-shrink:0}}
 .btns{{display:flex;gap:7px;margin-top:8px}}
-.btn{{font-family:'Segoe UI',sans-serif;font-size:10px;letter-spacing:1.5px;font-weight:700;border:none;border-radius:6px;padding:6px 13px;cursor:pointer;text-transform:uppercase}}
+.btn{{font-family:'Segoe UI',sans-serif;font-size:10px;letter-spacing:1.5px;font-weight:700;border:none;border-radius:6px;padding:7px 14px;cursor:pointer;text-transform:uppercase}}
 .bshuffle{{background:rgba(255,255,255,.07);color:#DDE4EF;border:1px solid rgba(255,255,255,.12)}}
 .bclear{{background:rgba(244,67,54,.1);color:#F44336;border:1px solid rgba(244,67,54,.2)}}
-.bsend{{background:linear-gradient(135deg,{accent_color},#00B87A);color:#050E1A;flex:1}}
-.bsend:disabled{{opacity:.4;cursor:not-allowed}}
+.bsave{{background:linear-gradient(135deg,{accent_color},#00B87A);color:#050E1A;flex:1;font-size:12px}}
+.bsave:disabled{{opacity:.4;cursor:not-allowed}}
 .status{{font-size:11px;margin-top:7px;min-height:16px}}
 .ok{{color:{accent_color}}}.err{{color:#F44336}}
 </style></head><body>
@@ -464,24 +459,21 @@ body{{font-family:'Segoe UI',sans-serif;background:transparent;color:#DDE4EF;pad
     <div class="panel" id="pool" ondragover="ov(event)" ondragleave="ol(event)" ondrop="drop(event,'__pool__')"></div>
   </div>
   <div>
-    <div class="ptitle">grupos — arrastra los equipos</div>
+    <div class="ptitle">grupos</div>
     <div class="gg" id="gg"></div>
   </div>
 </div>
 <div class="btns">
   <button class="btn bshuffle" onclick="shuffle()">🎲 Sorteo</button>
-  <button class="btn bclear"   onclick="clearAll()">✕ Limpiar</button>
-  <button class="btn bsend" id="bsend" onclick="send()" disabled>✅ Confirmar y guardar</button>
+  <button class="btn bclear" onclick="clearAll()">✕ Limpiar</button>
+  <button class="btn bsave" id="bsave" onclick="save()" disabled>💾 Guardar grupos</button>
 </div>
 <div class="status" id="st"></div>
-
 <script>
 const TEAMS={teams_json},LABELS={labels_json},FM={flagmap_json},SZ={group_size};
 let S={groups_json},drag=null;
-
 const fi=t=>{{const c=FM[t]||'';return c?`<img src="https://flagcdn.com/20x15/${{c}}.png" style="border-radius:2px;">`:''}};
 const chip=t=>`<div class="chip" draggable="true" data-t="${{t}}" ondragstart="ds(event)" ondragend="de(event)">${{fi(t)}} ${{t}}</div>`;
-
 function render(){{
   const asgn=Object.values(S).flat();
   const p=TEAMS.filter(t=>!asgn.includes(t));
@@ -495,21 +487,15 @@ function render(){{
   }}).join('');
   validate();
 }}
-
 function validate(){{
   const flat=Object.values(S).flat();
   const allFull=LABELS.every(gl=>(S[gl]||[]).length===SZ);
   const ok=allFull&&flat.length===new Set(flat).size;
-  document.getElementById('bsend').disabled=!ok;
+  document.getElementById('bsave').disabled=!ok;
   const el=document.getElementById('st');
-  if(ok){{
-    el.innerHTML='<span class="ok">✅ Grupos completos</span>';
-  }}else{{
-    const miss=LABELS.reduce((a,gl)=>a+Math.max(0,SZ-(S[gl]||[]).length),0);
-    el.innerHTML=`<span class="err">⚠️ Faltan ${{miss}} equipo(s) por asignar</span>`;
-  }}
+  if(ok) el.innerHTML='<span class="ok">✅ Listo — pulsa Guardar grupos</span>';
+  else{{const miss=LABELS.reduce((a,gl)=>a+Math.max(0,SZ-(S[gl]||[]).length),0);el.innerHTML=`<span class="err">⚠️ Faltan ${{miss}} equipo(s)</span>`;}}
 }}
-
 function ds(e){{drag=e.currentTarget.dataset.t;e.currentTarget.classList.add('dragging');e.dataTransfer.effectAllowed='move';}}
 function de(e){{e.currentTarget.classList.remove('dragging');}}
 function ov(e){{e.preventDefault();e.currentTarget.classList.add('over');}}
@@ -518,39 +504,29 @@ function drop(e,gl){{
   e.preventDefault();e.currentTarget.classList.remove('over');
   if(!drag)return;
   for(const g of LABELS)S[g]=(S[g]||[]).filter(t=>t!==drag);
-  if(gl!=='__pool__'){{
-    if(!S[gl])S[gl]=[];
-    if(S[gl].length<SZ&&!S[gl].includes(drag))S[gl].push(drag);
-  }}
+  if(gl!=='__pool__'){{if(!S[gl])S[gl]=[];if(S[gl].length<SZ&&!S[gl].includes(drag))S[gl].push(drag);}}
   drag=null;render();
 }}
-
-function shuffle(){{
-  const sh=[...TEAMS].sort(()=>Math.random()-.5);
-  S={{}};LABELS.forEach((gl,i)=>{{S[gl]=sh.slice(i*SZ,(i+1)*SZ);}});render();
-}}
-
+function shuffle(){{const sh=[...TEAMS].sort(()=>Math.random()-.5);S={{}};LABELS.forEach((gl,i)=>{{S[gl]=sh.slice(i*SZ,(i+1)*SZ);}});render();}}
 function clearAll(){{S={{}};LABELS.forEach(gl=>S[gl]=[]);render();}}
-
-function send(){{
+function save(){{
   const flat=Object.values(S).flat();
-  const allFull=LABELS.every(gl=>(S[gl]||[]).length===SZ);
-  if(!allFull||flat.length!==new Set(flat).size)return;
-  // Escribir en query param del padre para que Streamlit lo lea en el próximo rerun
-  const encoded=encodeURIComponent(JSON.stringify(S));
-  window.parent.location.href=window.parent.location.pathname+'?dnd_{key_prefix}='+encoded;
+  const ok=LABELS.every(gl=>(S[gl]||[]).length===SZ)&&flat.length===new Set(flat).size;
+  if(!ok)return;
+  window.parent.location.href=window.parent.location.pathname+'?{qp_key}='+encodeURIComponent(JSON.stringify(S));
 }}
-
 render();
 </script></body></html>"""
 
     _comp.html(html, height=widget_h, scrolling=False)
 
-    # Devolver el estado guardado en session_state si existe y es válido
+    # Retornar grupos si acaban de ser confirmados O si ya existían válidos
+    if just_saved:
+        return st.session_state[ss_key], True
     saved = st.session_state.get(ss_key)
     if isinstance(saved, dict) and all(len(saved.get(gl, [])) == group_size for gl in group_labels):
-        return saved
-    return None
+        return saved, False
+    return None, False
 
 
 def standings_df(standings, highlight=0, repechaje_pos=None):
@@ -1099,27 +1075,19 @@ elif page == "🏆 Eurocopa":
             st.session_state.euro_teams = selected
             st.markdown("---")
             st.markdown("**2️⃣ Arrastra los equipos a cada grupo:**")
-            dnd_result = drag_drop_groups(
+            dnd_result, just_saved = drag_drop_groups(
                 selected, ["A","B","C","D","E","F"], 4,
                 st.session_state.euro_groups, "euro", "#4A90D9"
             )
-            st.markdown("---")
-            if st.button("💾 Guardar grupos"):
-                groups_to_save = dnd_result or st.session_state.euro_groups
-                all_a = sum(groups_to_save.values(), [])
-                if len(all_a) != len(set(all_a)) or len(all_a) != 24:
-                    st.error("Asigna exactamente 4 equipos a cada uno de los 6 grupos sin repetir.")
-                elif any(len(v) != 4 for v in groups_to_save.values()):
-                    st.error("Cada grupo debe tener exactamente 4 equipos.")
-                else:
-                    st.session_state.euro_groups = groups_to_save
-                    all_m = {}
-                    for gl, teams in groups_to_save.items():
-                        all_m.update(generate_group_matches(teams))
-                    st.session_state.euro_matches = all_m
-                    st.success("✅ Grupos guardados.")
-                    save_state()
-                    st.rerun()
+            if just_saved and dnd_result:
+                st.session_state.euro_groups = dnd_result
+                all_m = {}
+                for gl, teams in dnd_result.items():
+                    all_m.update(generate_group_matches(teams))
+                st.session_state.euro_matches = all_m
+                save_state()
+                st.success("✅ Grupos guardados.")
+                st.rerun()
         else:
             st.info(f"Selecciona exactamente 24 equipos. Tienes {len(selected)}.")
 
@@ -1389,23 +1357,17 @@ elif page == "🏆 Copa América":
         if len(all_ca) == 16:
             st.markdown("---")
             st.markdown("**2️⃣ Arrastra los equipos a cada grupo:**")
-            dnd_result = drag_drop_groups(
+            dnd_result, just_saved = drag_drop_groups(
                 all_ca, ["A","B","C","D"], 4,
                 st.session_state.ca_groups, "ca", "#27AE60"
             )
-            st.markdown("---")
-            if st.button("💾 Guardar grupos"):
-                groups_to_save = dnd_result or st.session_state.ca_groups
-                all_a = sum(groups_to_save.values(),[])
-                if len(all_a)!=len(set(all_a)) or len(all_a)!=16: st.error("Asigna 4 equipos a cada grupo sin repetir.")
-                elif any(len(v)!=4 for v in groups_to_save.values()): st.error("4 equipos por grupo.")
-                else:
-                    st.session_state.ca_teams = all_ca
-                    st.session_state.ca_groups = groups_to_save
-                    all_m = {}
-                    for gl,teams in groups_to_save.items(): all_m.update(generate_group_matches(teams))
-                    st.session_state.ca_matches = all_m
-                    st.success("✅ Grupos guardados."); save_state(); st.rerun()
+            if just_saved and dnd_result:
+                st.session_state.ca_teams = all_ca
+                st.session_state.ca_groups = dnd_result
+                all_m = {}
+                for gl,teams in dnd_result.items(): all_m.update(generate_group_matches(teams))
+                st.session_state.ca_matches = all_m
+                save_state(); st.success("✅ Grupos guardados."); st.rerun()
     with tab_groups:
         if not st.session_state.ca_groups:
             st.info("Configura los grupos primero.")
@@ -1585,18 +1547,13 @@ elif page == "🏆 Copa África":
         selected = st.multiselect("1️⃣ Elige 10 equipos CAF", CAF_TEAMS, default=_af_def, max_selections=10)
         if len(selected)==10:
             st.markdown("**2️⃣ Arrastra los equipos a cada grupo (5 por grupo):**")
-            dnd_result = drag_drop_groups(selected, ["A","B"], 5, st.session_state.af_groups, "af", "#F39C12")
-            st.markdown("---")
-            if st.button("💾 Guardar grupos"):
-                g2s = dnd_result or st.session_state.af_groups
-                gA = g2s.get("A",[]); gB = g2s.get("B",[])
-                if len(gA)!=5 or len(gB)!=5: st.error("5 equipos por grupo.")
-                elif len(set(gA+gB))!=10: st.error("Duplicados.")
-                else:
-                    st.session_state.af_teams = selected
-                    st.session_state.af_groups = g2s
-                    st.session_state.af_matches = {**generate_group_matches(gA),**generate_group_matches(gB)}
-                    st.success("✅ Grupos guardados."); save_state(); st.rerun()
+            dnd_result, just_saved = drag_drop_groups(selected, ["A","B"], 5, st.session_state.af_groups, "af", "#F39C12")
+            if just_saved and dnd_result:
+                gA = dnd_result.get("A",[]); gB = dnd_result.get("B",[])
+                st.session_state.af_teams = selected
+                st.session_state.af_groups = dnd_result
+                st.session_state.af_matches = {**generate_group_matches(gA),**generate_group_matches(gB)}
+                save_state(); st.success("✅ Grupos guardados."); st.rerun()
     with tab_groups:
         if not st.session_state.af_groups: st.info("Configura primero.")
         else:
@@ -1726,17 +1683,13 @@ elif page == "🏆 Copa Oro":
         selected = st.multiselect("1️⃣ Elige 6 equipos CONCACAF", CONCACAF_TEAMS, default=_co_def, max_selections=6)
         if len(selected)==6:
             st.markdown("**2️⃣ Arrastra los equipos a cada grupo (3 por grupo):**")
-            dnd_result = drag_drop_groups(selected, ["A","B"], 3, st.session_state.co_groups, "co", "#E74C3C")
-            st.markdown("---")
-            if st.button("💾 Guardar grupos"):
-                g2s = dnd_result or st.session_state.co_groups
-                gA = g2s.get("A",[]); gB = g2s.get("B",[])
-                if len(gA)!=3 or len(gB)!=3 or len(set(gA+gB))!=6: st.error("3 por grupo sin duplicados.")
-                else:
-                    st.session_state.co_teams = selected
-                    st.session_state.co_groups = g2s
-                    st.session_state.co_matches = {**generate_group_matches(gA),**generate_group_matches(gB)}
-                    st.success("✅ Grupos guardados."); save_state(); st.rerun()
+            dnd_result, just_saved = drag_drop_groups(selected, ["A","B"], 3, st.session_state.co_groups, "co", "#E74C3C")
+            if just_saved and dnd_result:
+                gA = dnd_result.get("A",[]); gB = dnd_result.get("B",[])
+                st.session_state.co_teams = selected
+                st.session_state.co_groups = dnd_result
+                st.session_state.co_matches = {**generate_group_matches(gA),**generate_group_matches(gB)}
+                save_state(); st.success("✅ Grupos guardados."); st.rerun()
     with tab_groups:
         if not st.session_state.co_groups: st.info("Configura primero.")
         else:
@@ -1873,17 +1826,13 @@ elif page == "🏆 Copa Asia":
         selected = st.multiselect("1️⃣ Elige 6 equipos AFC", AFC_TEAMS, default=_as_def, max_selections=6)
         if len(selected)==6:
             st.markdown("**2️⃣ Arrastra los equipos a cada grupo (3 por grupo):**")
-            dnd_result = drag_drop_groups(selected, ["A","B"], 3, st.session_state.as_groups, "as", "#9B59B6")
-            st.markdown("---")
-            if st.button("💾 Guardar grupos"):
-                g2s = dnd_result or st.session_state.as_groups
-                gA = g2s.get("A",[]); gB = g2s.get("B",[])
-                if len(gA)!=3 or len(gB)!=3 or len(set(gA+gB))!=6: st.error("3 por grupo sin duplicados.")
-                else:
-                    st.session_state.as_teams = selected
-                    st.session_state.as_groups = g2s
-                    st.session_state.as_matches = {**generate_group_matches(gA),**generate_group_matches(gB)}
-                    st.success("✅ Grupos guardados."); save_state(); st.rerun()
+            dnd_result, just_saved = drag_drop_groups(selected, ["A","B"], 3, st.session_state.as_groups, "as", "#9B59B6")
+            if just_saved and dnd_result:
+                gA = dnd_result.get("A",[]); gB = dnd_result.get("B",[])
+                st.session_state.as_teams = selected
+                st.session_state.as_groups = dnd_result
+                st.session_state.as_matches = {**generate_group_matches(gA),**generate_group_matches(gB)}
+                save_state(); st.success("✅ Grupos guardados."); st.rerun()
     with tab_groups:
         if not st.session_state.as_groups: st.info("Configura primero.")
         else:
@@ -2095,24 +2044,18 @@ elif page == "🏆 Mundial":
             for t in ALL_TEAMS+["New Zealand"]:
                 if t not in pool32 and len(pool32)<32: pool32.append(t)
         st.markdown("**2️⃣ Arrastra los equipos a cada grupo (4 por grupo):**")
-        dnd_result = drag_drop_groups(
+        dnd_result, just_saved = drag_drop_groups(
             pool32, ["A","B","C","D","E","F","G","H"], 4,
             st.session_state.wc_groups, "wc", "#FFD700"
         )
-        st.markdown("---")
-        if st.button("💾 Guardar grupos del Mundial"):
-            g2s = dnd_result or st.session_state.wc_groups
-            all_a = sum(g2s.values(),[])
-            if len(all_a)!=len(set(all_a)): st.error("Duplicados.")
-            elif any(len(v)!=4 for v in g2s.values()): st.error("4 por grupo.")
-            else:
-                st.session_state.wc_host = host
-                st.session_state.wc_groups = g2s
-                all_m = {}
-                for gl,teams in g2s.items(): all_m.update(generate_group_matches(teams))
-                st.session_state.wc_matches = all_m
-                save_state()
-                st.success("✅ Grupos del Mundial guardados."); st.rerun()
+        if just_saved and dnd_result:
+            st.session_state.wc_host = host
+            st.session_state.wc_groups = dnd_result
+            all_m = {}
+            for gl,teams in dnd_result.items(): all_m.update(generate_group_matches(teams))
+            st.session_state.wc_matches = all_m
+            save_state()
+            st.success("✅ Grupos del Mundial guardados."); st.rerun()
     with tab_groups:
         if not st.session_state.wc_groups: st.info("Configura los grupos primero.")
         else:
