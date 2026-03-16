@@ -5,14 +5,14 @@ pages/copa_america.py - Copa América FMMJ (CONMEBOL)
 Campeón → directo. 2do-7mo → playoffs. 1er-3ro playoffs → mundial. 4to → repechaje.
 """
 import sys, os as _os
-_ROOT = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
-if _ROOT not in sys.path:
-    sys.path.insert(0, _ROOT)
+_root = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+if _root not in sys.path:
+    sys.path.insert(0, _root)
 import streamlit as st
 import random
 from data import CONMEBOL_TEAMS, CONCACAF_TEAMS, AFC_TEAMS, CAF_TEAMS, PLAYOFF_TEAMS, get_flag_url
 from state import get_state, update_ranking, RANKING_POINTS
-from utils.tournament import (
+from tournament import (
     display_name, flag_img, team_badge, generate_group_fixtures,
     calculate_standings, match_key, render_standings_table,
     register_scorers, draw_groups
