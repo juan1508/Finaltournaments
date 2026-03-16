@@ -435,38 +435,180 @@ def _build_euro_knockout(state, euro):
 def _show_euro_knockout(state, euro):
     bracket = euro.setdefault("knockout_bracket", {})
     results = euro.setdefault("knockout_results", {})
+    from data import get_flag_url, TEAM_DISPLAY_NAMES
 
-    # ── Info: mejores terceros y tabla aplicada ───────────────────────
+    # ── Botón reset llaves ────────────────────────────────────────────
+    col_r, col_i = st.columns([1, 4])
+    with col_r:
+        if st.button("🔄 Resetear Llaves", type="secondary", key="reset_euro_bracket"):
+            euro["knockout_bracket"] = {}
+            euro["knockout_results"] = {}
+            euro["direct_qualified"] = []
+            euro["playoff_pool"] = []
+            euro["best4_groups"] = []
+            euro["thirds_mapping"] = {}
+            euro["phase"] = "grupos"
+            save_state()
+            st.rerun()
+
+    # ── Info mejores 3eros y tabla aplicada ──────────────────────────
     best4 = euro.get("best4_groups", [])
     mapping = euro.get("thirds_mapping", {})
     if best4:
-        from data import get_flag_url
         standings = euro.get("group_standings", {})
-        thirds_teams = {g: standings[g][2]["team"] for g in best4 if len(standings.get(g,[])) > 2}
-        html = "<div style='background:#0a1428;border:1px solid #1a3060;border-radius:10px;padding:12px;margin-bottom:16px;'>"
-        html += "<div style='font-size:0.8rem;color:#ffd700;font-weight:700;margin-bottom:8px;'>📋 MEJORES 3EROS CLASIFICADOS — Tabla UEFA aplicada: <b>" + "".join(sorted(best4)) + "</b></div>"
-        html += "<div style='display:flex;gap:16px;flex-wrap:wrap;'>"
+        thirds_teams = {g: standings[g][2]["team"] for g in best4 if len(standings.get(g, [])) > 2}
+        clave = "".join(sorted(best4))
+        html = (f"<div style='background:#0a1428;border:1px solid #1a3060;border-radius:10px;"
+                f"padding:14px 16px;margin-bottom:16px;'>")
+        html += (f"<div style='font-size:0.85rem;color:#ffd700;font-weight:700;margin-bottom:10px;'>"
+                 f"📋 4 Mejores Terceros — Tabla UEFA: <span style='background:#162a5a;padding:2px 8px;"
+                 f"border-radius:6px;'>{clave}</span></div>")
+        html += "<div style='display:flex;gap:12px;flex-wrap:wrap;'>"
         for slot, g in sorted(mapping.items()):
-            team = thirds_teams.get(g, "?")
-            fu = get_flag_url(team, 20, 15) if team != "?" else ""
-            flag_tag = f"<img src='{fu}' style='vertical-align:middle;margin-right:4px;border-radius:2px;' width='20' height='15'>" if fu else ""
-            from data import TEAM_DISPLAY_NAMES
+            team = thirds_teams.get(g, "")
+            if not team:
+                continue
+            fu = get_flag_url(team, 24, 18)
             tname = TEAM_DISPLAY_NAMES.get(team, team)
-            html += f"<div style='background:#0d1f3c;padding:6px 10px;border-radius:6px;font-size:0.82rem;'>"
-            html += f"<span style='color:#6090c0;'>{slot} enfrenta:</span><br>"
-            html += f"{flag_tag}<b style='color:#dce8ff;'>3ro Grupo {g} — {tname}</b></div>"
+            flag_tag = f"<img src='{fu}' style='vertical-align:middle;margin-right:5px;border-radius:2px;' width='24' height='18'>" if fu else ""
+            html += (f"<div style='background:#0d1f3c;border:1px solid #1a3560;padding:8px 12px;"
+                     f"border-radius:8px;min-width:140px;'>"
+                     f"<div style='color:#5090c0;font-size:0.72rem;text-transform:uppercase;margin-bottom:4px;'>{slot}</div>"
+                     f"<div style='color:#dce8ff;font-size:0.85rem;font-weight:600;'>"
+                     f"{flag_tag}{tname}</div>"
+                     f"<div style='color:#406080;font-size:0.7rem;margin-top:2px;'>3ro Grupo {g}</div>"
+                     f"</div>")
         html += "</div></div>"
         st.markdown(html, unsafe_allow_html=True)
 
+    # ── Bracket visual ────────────────────────────────────────────────
+    _render_euro_bracket(euro, bracket, results)
+
+    # ── Partidos jugables ─────────────────────────────────────────────
     phases = [
-        ("octavos",  "🔵 Octavos de Final", "cuartos"),
-        ("cuartos",  "🟡 Cuartos de Final",  "semis"),
-        ("semis",    "🟠 Semifinales",        "final"),
-        ("final",    "🏆 GRAN FINAL",         None),
+        ("octavos", "🔵 Octavos de Final", "cuartos"),
+        ("cuartos", "🟡 Cuartos de Final",  "semis"),
+        ("semis",   "🟠 Semifinales",        "final"),
+        ("final",   "🏆 GRAN FINAL",         None),
     ]
     final_done = show_knockout_generic(state, euro, "Eurocopa FMMJ", phases, "euro")
     if final_done:
         _determine_euro_classified(state, euro, results, bracket)
+
+
+def _render_euro_bracket(euro, bracket, results):
+    """Bracket visual de 8 octavos → 4 cuartos → 2 semis → final"""
+    from data import get_flag_url, TEAM_DISPLAY_NAMES
+
+    def team_cell(team, is_winner=False, score=None):
+        if not team:
+            return "<div style='height:36px;background:#0b1830;border-radius:6px;margin:2px 0;display:flex;align-items:center;padding:0 8px;color:#304060;font-size:0.78rem;'>Por definir</div>"
+        fu = get_flag_url(team, 20, 15)
+        flag_tag = f"<img src='{fu}' style='vertical-align:middle;margin-right:6px;border-radius:2px;' width='20' height='15'>" if fu else ""
+        tname = TEAM_DISPLAY_NAMES.get(team, team)
+        bg = "#0d3a20" if is_winner else "#0b1830"
+        border = "border-left:3px solid #ffd700;" if is_winner else ""
+        score_tag = f"<span style='margin-left:auto;font-weight:700;color:#ffd700;'>{score}</span>" if score is not None else ""
+        return (f"<div style='height:36px;background:{bg};{border}border-radius:6px;margin:2px 0;"
+                f"display:flex;align-items:center;padding:0 8px;font-size:0.82rem;color:#dce8ff;'>"
+                f"{flag_tag}{tname}{score_tag}</div>")
+
+    def match_card(match, result, phase_label=""):
+        home = match.get("home", "")
+        away = match.get("away", "")
+        winner = result.get("winner", "")
+        hg = result.get("home_goals")
+        ag = result.get("away_goals")
+        played = result.get("played", False)
+        h_score = hg if played else None
+        a_score = ag if played else None
+        h_win = winner == home and played
+        a_win = winner == away and played
+        html = "<div style='background:#091525;border:1px solid #1a2a4a;border-radius:8px;padding:6px 8px;margin-bottom:6px;min-width:200px;'>"
+        if phase_label:
+            html += f"<div style='font-size:0.65rem;color:#406080;text-transform:uppercase;margin-bottom:4px;'>{phase_label}</div>"
+        html += team_cell(home, h_win, h_score)
+        html += team_cell(away, a_win, a_score)
+        html += "</div>"
+        return html
+
+    octavos = bracket.get("octavos", [])
+    cuartos = bracket.get("cuartos", [])
+    semis   = bracket.get("semis", [])
+    final   = bracket.get("final", [])
+
+    if not octavos:
+        return
+
+    html = "<div style='overflow-x:auto;padding-bottom:8px;'>"
+    html += "<div style='display:flex;gap:16px;align-items:flex-start;min-width:800px;'>"
+
+    # ── Octavos (columna izq y der) ──────────────────────────────────
+    html += "<div style='flex:0 0 220px;'>"
+    html += "<div style='font-size:0.7rem;color:#406080;text-transform:uppercase;margin-bottom:6px;letter-spacing:1px;'>Octavos</div>"
+    for i, m in enumerate(octavos[:4]):
+        r = results.get(f"euro_octavos_{i}", {})
+        html += match_card(m, r, f"M{i+1}")
+    html += "</div>"
+
+    # ── Cuartos izq ─────────────────────────────────────────────────
+    html += "<div style='flex:0 0 220px;margin-top:44px;'>"
+    html += "<div style='font-size:0.7rem;color:#406080;text-transform:uppercase;margin-bottom:6px;letter-spacing:1px;'>Cuartos</div>"
+    for i, m in enumerate(cuartos[:2]):
+        r = results.get(f"euro_cuartos_{i}", {})
+        html += match_card(m, r)
+    html += "</div>"
+
+    # ── Semis ────────────────────────────────────────────────────────
+    html += "<div style='flex:0 0 220px;margin-top:88px;'>"
+    html += "<div style='font-size:0.7rem;color:#406080;text-transform:uppercase;margin-bottom:6px;letter-spacing:1px;'>Semis</div>"
+    for i, m in enumerate(semis[:2]):
+        r = results.get(f"euro_semis_{i}", {})
+        html += match_card(m, r)
+    html += "</div>"
+
+    # ── Final ────────────────────────────────────────────────────────
+    html += "<div style='flex:0 0 220px;margin-top:132px;'>"
+    html += "<div style='font-size:0.7rem;color:#ffd700;text-transform:uppercase;margin-bottom:6px;letter-spacing:1px;font-weight:700;'>🏆 Final</div>"
+    for i, m in enumerate(final[:1]):
+        r = results.get(f"euro_final_{i}", {})
+        html += match_card(m, r, "Gran Final")
+    html += "</div>"
+
+    # ── Cuartos der ──────────────────────────────────────────────────
+    html += "<div style='flex:0 0 220px;margin-top:44px;'>"
+    html += "<div style='font-size:0.7rem;color:#406080;text-transform:uppercase;margin-bottom:6px;letter-spacing:1px;'>Cuartos</div>"
+    for i, m in enumerate(cuartos[2:4]):
+        r = results.get(f"euro_cuartos_{i+2}", {})
+        html += match_card(m, r)
+    html += "</div>"
+
+    # ── Octavos der ─────────────────────────────────────────────────
+    html += "<div style='flex:0 0 220px;'>"
+    html += "<div style='font-size:0.7rem;color:#406080;text-transform:uppercase;margin-bottom:6px;letter-spacing:1px;'>Octavos</div>"
+    for i, m in enumerate(octavos[4:8]):
+        r = results.get(f"euro_octavos_{i+4}", {})
+        html += match_card(m, r, f"M{i+5}")
+    html += "</div>"
+
+    html += "</div></div>"
+
+    # Campeón si existe
+    winner_final = results.get("euro_final_0", {}).get("winner")
+    if winner_final:
+        from data import TEAM_DISPLAY_NAMES
+        fu = get_flag_url(winner_final, 32, 24)
+        flag_tag = f"<img src='{fu}' style='vertical-align:middle;margin-right:8px;border-radius:3px;' width='32' height='24'>" if fu else ""
+        tname = TEAM_DISPLAY_NAMES.get(winner_final, winner_final)
+        html += (f"<div style='background:linear-gradient(135deg,#1a1300,#2a2000);border:2px solid #ffd700;"
+                 f"border-radius:12px;padding:16px 20px;margin-top:16px;text-align:center;'>"
+                 f"<div style='font-size:1.6rem;font-family:Bebas Neue,sans-serif;color:#ffd700;letter-spacing:2px;'>"
+                 f"🏆 CAMPEÓN EUROCOPA FMMJ</div>"
+                 f"<div style='font-size:1.2rem;color:#fff;margin-top:6px;font-weight:700;'>{flag_tag}{tname}</div>"
+                 f"</div>")
+
+    st.markdown(html, unsafe_allow_html=True)
+    st.markdown("---")
 
 
 def _determine_euro_classified(state, euro, results, bracket):
