@@ -317,35 +317,117 @@ def show_eurocopa():
 
 
 def _build_euro_knockout(state, euro):
+    """
+    Construye octavos de final de la Eurocopa con el formato UEFA oficial.
+    Los 4 mejores terceros se enfrentan según la tabla oficial UEFA
+    que define los cruces en función de qué grupos aportaron 3eros clasificados.
+
+    Tabla UEFA oficial (grupos A-F):
+    Grupos con 3eros | 1B vs | 1C vs | 1E vs | 1F vs
+    A B C D          |  3D   |  3A   |  3B   |  3C   ← fila imagen
+    A B C E          |  3E   |  3A   |  3B   |  3C
+    A B C F          |  3F   |  3A   |  3B   |  3C
+    A B D E          |  3E   |  3D   |  3A   |  3B
+    A B D F          |  3F   |  3D   |  3A   |  3B  (corregido)  
+    A B E F          |  3E   |  3F   |  3B   |  3A  (corregido)
+    A C D E          |  3E   |  3D   |  3C   |  3A
+    A C D F          |  3F   |  3D   |  3C   |  3A
+    A C E F          |  3E   |  3F   |  3C   |  3A
+    A D E F          |  3E   |  3F   |  3D   |  3A
+    B C D E          |  3E   |  3D   |  3B   |  3C
+    B C D F          |  3F   |  3D   |  3C   |  3B
+    B C E F          |  3E   |  3F   |  3C   |  3B
+    B D E F          |  3F   |  3E   |  3D   |  3B
+    C D E F          |  3F   |  3E   |  3D   |  3C
+
+    Cruces fijos de octavos:
+    M37: 1A vs 2C
+    M38: 2A vs 2B  
+    M39: 1F vs 2E
+    M40: 1D vs 2F   (o bien corregido: ver UEFA 2024)
+    M41: 1B vs T3   (según tabla)
+    M42: 1E vs T3
+    M43: 1C vs T3
+    M44: 1G-or-T3 — se adapta a 6 grupos
+
+    Para FMMJ (grupos A-F, 6 grupos):
+    Cruces fijos:
+    1A vs 2C  |  1B vs T3  |  1C vs T3  |  1D vs 2F
+    2A vs 2B  |  1E vs T3  |  1F vs 2E  |  T3 restante vs T3
+    """
     standings = euro.get("group_standings", {})
-    groups = sorted(standings.keys())
+    groups = sorted(standings.keys())  # ['A','B','C','D','E','F']
     if len(groups) < 6:
         st.error("Faltan standings de grupos.")
         return
 
-    firsts  = [standings[g][0]["team"] for g in groups if standings.get(g)]
-    seconds = [standings[g][1]["team"] for g in groups if len(standings.get(g,[])) > 1]
-    thirds  = [{"team": standings[g][2]["team"], **{k: standings[g][2][k] for k in ["pts","gd","gf"]}}
-               for g in groups if len(standings.get(g,[])) > 2]
+    firsts  = {g: standings[g][0]["team"] for g in groups if standings.get(g)}
+    seconds = {g: standings[g][1]["team"] for g in groups if len(standings.get(g,[])) > 1}
+    thirds_raw = {}
+    for g in groups:
+        s = standings.get(g, [])
+        if len(s) >= 3:
+            thirds_raw[g] = {"team": s[2]["team"], "pts": s[2]["pts"], "gd": s[2]["gd"], "gf": s[2]["gf"]}
     fourths = [standings[g][3]["team"] for g in groups if len(standings.get(g,[])) > 3]
 
-    thirds_sorted = sorted(thirds, key=lambda x: (-x["pts"], -x["gd"], -x["gf"]))
-    best4_thirds  = [t["team"] for t in thirds_sorted[:4]]
-    worst2_thirds = [t["team"] for t in thirds_sorted[4:]]
+    # Seleccionar los 4 mejores terceros
+    thirds_sorted = sorted(thirds_raw.items(), key=lambda x: (-x[1]["pts"], -x[1]["gd"], -x[1]["gf"]))
+    best4_groups = [g for g, _ in thirds_sorted[:4]]   # ej. ['A','B','D','E']
+    worst2_thirds = [thirds_raw[g]["team"] for g, _ in thirds_sorted[4:]]
+    best4_key = "".join(sorted(best4_groups))           # ej. 'ABDE'
 
-    euro["best_thirds"] = best4_thirds
-    # R16: 6 primeros + 6 segundos + 4 mejores terceros
-    r16 = firsts + seconds + best4_thirds
-    random.shuffle(r16)
-    octavos = [{"home": r16[i], "away": r16[i+1], "winner": None} for i in range(0, 16, 2)]
+    # Tabla UEFA oficial: clave = grupos con 3eros clasificados
+    # Valor: {receptor: grupo_del_3ero}
+    # Receptores: 1B, 1C, 1E, 1F
+    UEFA_THIRDS_TABLE = {
+        "ABCD": {"1B": "D", "1C": "A", "1E": "B", "1F": "C"},
+        "ABCE": {"1B": "E", "1C": "A", "1E": "B", "1F": "C"},
+        "ABCF": {"1B": "F", "1C": "A", "1E": "B", "1F": "C"},
+        "ABDE": {"1B": "E", "1C": "D", "1E": "A", "1F": "B"},
+        "ABDF": {"1B": "F", "1C": "D", "1E": "A", "1F": "B"},
+        "ABEF": {"1B": "E", "1C": "F", "1E": "B", "1F": "A"},
+        "ACDE": {"1B": "E", "1C": "D", "1E": "C", "1F": "A"},
+        "ACDF": {"1B": "F", "1C": "D", "1E": "C", "1F": "A"},
+        "ACEF": {"1B": "E", "1C": "F", "1E": "C", "1F": "A"},
+        "ADEF": {"1B": "E", "1C": "F", "1E": "D", "1F": "A"},
+        "BCDE": {"1B": "E", "1C": "D", "1E": "B", "1F": "C"},
+        "BCDF": {"1B": "F", "1C": "D", "1E": "C", "1F": "B"},
+        "BCEF": {"1B": "E", "1C": "F", "1E": "C", "1F": "B"},
+        "BDEF": {"1B": "F", "1C": "E", "1E": "D", "1F": "B"},
+        "CDEF": {"1B": "F", "1C": "E", "1E": "D", "1F": "C"},
+    }
 
+    mapping = UEFA_THIRDS_TABLE.get(best4_key, {})
+    t3 = {slot: thirds_raw[g]["team"] for slot, g in mapping.items() if g in thirds_raw}
+
+    # Cruces oficiales octavos Eurocopa (adaptado a 6 grupos A-F):
+    # M1: 1A vs 2C   M2: 1B vs T3(1B)
+    # M3: 1C vs T3(1C) M4: 1D vs 2F
+    # M5: 2A vs 2B   M6: 1E vs T3(1E)
+    # M7: 1F vs 2E   M8: T3(1F) — en Eurocopa real hay M8 distinto
+    # Formato FMMJ 6 grupos:
+    octavos = [
+        {"home": firsts.get("A"), "away": seconds.get("C"), "winner": None},   # M1
+        {"home": firsts.get("D"), "away": seconds.get("F"), "winner": None},   # M2
+        {"home": seconds.get("A"), "away": seconds.get("B"), "winner": None},  # M3
+        {"home": firsts.get("F"), "away": seconds.get("E"), "winner": None},   # M4
+        {"home": firsts.get("B"), "away": t3.get("1B"),    "winner": None},   # M5
+        {"home": firsts.get("C"), "away": t3.get("1C"),    "winner": None},   # M6
+        {"home": firsts.get("E"), "away": t3.get("1E"),    "winner": None},   # M7
+        {"home": t3.get("1F"),   "away": seconds.get("D"), "winner": None},   # M8
+    ]
+    # Filtrar partidos sin equipos definidos
+    octavos = [m for m in octavos if m["home"] and m["away"]]
+
+    euro["best_thirds"] = [thirds_raw[g]["team"] for g in best4_groups]
+    euro["best4_groups"] = best4_groups
+    euro["thirds_mapping"] = mapping
     euro["knockout_bracket"] = {
         "octavos": octavos, "cuartos": [], "semis": [], "tercer_puesto": [], "final": []
     }
     euro["knockout_results"] = {}
     euro["playoff_pool"] = []
     euro["phase"] = "llaves"
-    # 4tos y 2 peores terceros → playoff pool (se amplia al eliminar equipos)
     euro["_fourths"] = fourths
     euro["_worst_thirds"] = worst2_thirds
 
@@ -353,6 +435,29 @@ def _build_euro_knockout(state, euro):
 def _show_euro_knockout(state, euro):
     bracket = euro.setdefault("knockout_bracket", {})
     results = euro.setdefault("knockout_results", {})
+
+    # ── Info: mejores terceros y tabla aplicada ───────────────────────
+    best4 = euro.get("best4_groups", [])
+    mapping = euro.get("thirds_mapping", {})
+    if best4:
+        from data import get_flag_url
+        standings = euro.get("group_standings", {})
+        thirds_teams = {g: standings[g][2]["team"] for g in best4 if len(standings.get(g,[])) > 2}
+        html = "<div style='background:#0a1428;border:1px solid #1a3060;border-radius:10px;padding:12px;margin-bottom:16px;'>"
+        html += "<div style='font-size:0.8rem;color:#ffd700;font-weight:700;margin-bottom:8px;'>📋 MEJORES 3EROS CLASIFICADOS — Tabla UEFA aplicada: <b>" + "".join(sorted(best4)) + "</b></div>"
+        html += "<div style='display:flex;gap:16px;flex-wrap:wrap;'>"
+        for slot, g in sorted(mapping.items()):
+            team = thirds_teams.get(g, "?")
+            fu = get_flag_url(team, 20, 15) if team != "?" else ""
+            flag_tag = f"<img src='{fu}' style='vertical-align:middle;margin-right:4px;border-radius:2px;' width='20' height='15'>" if fu else ""
+            from data import TEAM_DISPLAY_NAMES
+            tname = TEAM_DISPLAY_NAMES.get(team, team)
+            html += f"<div style='background:#0d1f3c;padding:6px 10px;border-radius:6px;font-size:0.82rem;'>"
+            html += f"<span style='color:#6090c0;'>{slot} enfrenta:</span><br>"
+            html += f"{flag_tag}<b style='color:#dce8ff;'>3ro Grupo {g} — {tname}</b></div>"
+        html += "</div></div>"
+        st.markdown(html, unsafe_allow_html=True)
+
     phases = [
         ("octavos",  "🔵 Octavos de Final", "cuartos"),
         ("cuartos",  "🟡 Cuartos de Final",  "semis"),
