@@ -4,6 +4,7 @@ utils.py — Helpers compartidos para FMMJ World Cup Simulator
 import streamlit as st
 import random
 from data import FLAG_MAP, TEAM_DISPLAY_NAMES, get_flag_url, CONFEDERATIONS, PLAYERS
+from flag_emoji import flag_emoji, team_label_emoji
 
 
 def display_name(team):
@@ -11,16 +12,16 @@ def display_name(team):
 
 
 def flag_img(team, w=20, h=15):
-    """Devuelve HTML con la bandera — usar solo en st.markdown, NUNCA en labels de widgets."""
+    """HTML con bandera — usar SOLO en st.markdown(unsafe_allow_html=True)."""
     url = get_flag_url(team, w, h)
     if url:
         return f"<img src='{url}' style='vertical-align:middle;margin-right:4px;border-radius:2px;' width='{w}' height='{h}'>"
     return ""
 
 
-def team_label(team):
-    """Texto plano para usar en labels de selectbox/checkbox/radio."""
-    return display_name(team)
+def tlabel(team):
+    """Label con emoji de bandera — seguro para cualquier widget Streamlit."""
+    return team_label_emoji(team, TEAM_DISPLAY_NAMES)
 
 
 def get_team_confederation(team):
@@ -49,16 +50,11 @@ def get_jornadas(teams):
             [(teams[1], teams[2])],
         ]
     elif n == 5:
-        # Round robin estándar para 5 equipos (10 partidos en 5 jornadas dobles más descanso)
         fixtures = [(teams[i], teams[j]) for i in range(n) for j in range(i+1, n)]
-        # Agrupar en jornadas de 2 partidos (uno descansa)
-        jornadas = []
-        used = []
-        jornada = []
+        jornadas, jornada = [], []
         for pair in fixtures:
-            involved = set(pair)
             used_in_round = set(t for p in jornada for t in p)
-            if not involved & used_in_round:
+            if not set(pair) & used_in_round:
                 jornada.append(pair)
                 if len(jornada) == 2:
                     jornadas.append(jornada)
@@ -88,25 +84,16 @@ def calculate_standings(group_teams, results):
                 continue
             hg = res.get("home_goals", 0)
             ag = res.get("away_goals", 0)
-            table[t1]["pj"] += 1
-            table[t2]["pj"] += 1
-            table[t1]["gf"] += hg
-            table[t1]["ga"] += ag
-            table[t2]["gf"] += ag
-            table[t2]["ga"] += hg
+            table[t1]["pj"] += 1; table[t2]["pj"] += 1
+            table[t1]["gf"] += hg; table[t1]["ga"] += ag
+            table[t2]["gf"] += ag; table[t2]["ga"] += hg
             if hg > ag:
-                table[t1]["pts"] += 3
-                table[t1]["pg"] += 1
-                table[t2]["pp"] += 1
+                table[t1]["pts"] += 3; table[t1]["pg"] += 1; table[t2]["pp"] += 1
             elif hg < ag:
-                table[t2]["pts"] += 3
-                table[t2]["pg"] += 1
-                table[t1]["pp"] += 1
+                table[t2]["pts"] += 3; table[t2]["pg"] += 1; table[t1]["pp"] += 1
             else:
-                table[t1]["pts"] += 1
-                table[t2]["pts"] += 1
-                table[t1]["pe"] += 1
-                table[t2]["pe"] += 1
+                table[t1]["pts"] += 1; table[t2]["pts"] += 1
+                table[t1]["pe"] += 1; table[t2]["pe"] += 1
     for t in table.values():
         t["gd"] = t["gf"] - t["ga"]
     return sorted(table.values(), key=lambda x: (-x["pts"], -x["gd"], -x["gf"]))
@@ -120,16 +107,14 @@ def render_standings_table(standings, advancing=2, show_thirds=False):
         html += f"<th style='padding:7px 8px;text-align:{align};'>{h}</th>"
     html += "</tr>"
     for i, row in enumerate(standings):
-        if i < advancing:
-            badge, bg = "🟢", "#0d3a20"
-        elif show_thirds and i == advancing:
-            badge, bg = "🟡", "#2a2a00"
-        else:
-            badge, bg = "🔴", "#0a0a1a"
+        if i < advancing:          badge, bg = "🟢", "#0d3a20"
+        elif show_thirds and i == advancing: badge, bg = "🟡", "#2a2a00"
+        else:                      badge, bg = "🔴", "#0a0a1a"
         html += f"<tr style='background:{bg};border-bottom:1px solid #111e35;'>"
         html += f"<td style='padding:7px 8px;text-align:center;'>{badge}</td>"
         html += f"<td style='padding:7px 8px;text-align:center;color:#666;font-weight:700;'>{i+1}</td>"
-        html += f"<td style='padding:7px 8px;text-align:left;color:#e0e8ff;'>{flag_img(row['team'],18,13)}&nbsp;{display_name(row['team'])}</td>"
+        html += (f"<td style='padding:7px 8px;text-align:left;color:#e0e8ff;'>"
+                 f"{flag_emoji(row['team'])} {display_name(row['team'])}</td>")
         for k in ["pj","pg","pe","pp","gf","ga","gd"]:
             color = "#ffd700" if k == "gd" else "#e0e8ff"
             html += f"<td style='padding:7px 8px;text-align:center;color:{color};'>{row[k]}</td>"
@@ -150,9 +135,8 @@ def _scorer_input(team, num_goals, existing_scorers, widget_key, state, torneo):
             default_idx = 0
             if i < len(existing_scorers) and existing_scorers[i] in player_names:
                 default_idx = player_names.index(existing_scorers[i])
-            # LABEL PLANO — sin HTML
             sel = st.selectbox(
-                f"Gol {i+1} — {display_name(team)}",
+                f"Gol {i+1} — {tlabel(team)}",
                 player_names,
                 index=default_idx,
                 key=f"{widget_key}_{i}"
@@ -160,7 +144,7 @@ def _scorer_input(team, num_goals, existing_scorers, widget_key, state, torneo):
             scorers.append(sel)
     else:
         val = st.text_input(
-            f"Goleadores {display_name(team)}",
+            f"Goleadores {tlabel(team)}",
             value=", ".join(existing_scorers),
             key=f"{widget_key}_free"
         )
@@ -185,10 +169,6 @@ def register_scorers(scorers_list, team, state, torneo_name):
 
 
 def manual_group_setup(state, tour_key, teams, num_groups, teams_per_group, confirm_label="Confirmar grupos"):
-    """
-    Widget para armar grupos manualmente.
-    IMPORTANTE: todos los labels de widgets usan texto plano (sin HTML).
-    """
     tour = state[tour_key]
     ranking = state["ranking"]
     teams_sorted = sorted(teams, key=lambda t: -ranking.get(t, 0))
@@ -202,17 +182,16 @@ def manual_group_setup(state, tour_key, teams, num_groups, teams_per_group, conf
     assigned = [t for lst in dg.values() for t in lst]
     unassigned = [t for t in teams_sorted if t not in assigned]
 
-    # ── Sección equipos disponibles ──────────────────────────────────
+    # ── Equipos disponibles ───────────────────────────────────────────
     if unassigned:
-        st.markdown("**Equipos disponibles (ordenados por Ranking FMMJ):**")
+        st.markdown("**Equipos disponibles (por Ranking FMMJ):**")
         cols_un = st.columns(4)
         for idx, team in enumerate(unassigned):
             with cols_un[idx % 4]:
                 opts = ["— Grupo —"] + [f"Grupo {g}" for g in group_keys]
-                # Label TEXTO PLANO — sin flag_img()
-                label = display_name(team)
+                # ✅ tlabel() usa emoji Unicode → funciona en selectbox
                 sel = st.selectbox(
-                    label,
+                    tlabel(team),
                     opts,
                     key=f"assign_{tour_key}_{team}",
                 )
@@ -233,7 +212,6 @@ def manual_group_setup(state, tour_key, teams, num_groups, teams_per_group, conf
             with col:
                 count = len(dg.get(g, []))
                 color = "#00cc66" if count == teams_per_group else "#ffd700"
-                # Cabecera del grupo como HTML (no es label de widget → OK)
                 st.markdown(
                     f"<div style='font-weight:700;color:{color};margin-bottom:6px;"
                     f"font-family:Bebas Neue,sans-serif;font-size:1rem;'>GRUPO {g} ({count}/{teams_per_group})</div>",
@@ -242,9 +220,10 @@ def manual_group_setup(state, tour_key, teams, num_groups, teams_per_group, conf
                 for t in list(dg.get(g, [])):
                     c1, c2 = st.columns([5, 1])
                     with c1:
-                        # Bandera en markdown → OK
+                        # ✅ emoji en markdown también OK
                         st.markdown(
-                            f"<div style='padding:2px 0;font-size:0.88rem;'>{flag_img(t,16,11)}&nbsp;{display_name(t)}</div>",
+                            f"<div style='padding:2px 0;font-size:0.9rem;'>"
+                            f"{flag_emoji(t)} {display_name(t)}</div>",
                             unsafe_allow_html=True
                         )
                     with c2:
