@@ -903,16 +903,92 @@ def conf_color(team):
 # ---------------------------------------------------------------------------
 # GOLEADORES
 # ---------------------------------------------------------------------------
+def _scorer_input(team, num_goals, existing_scorers, widget_key, state, torneo):
+    """
+    Muestra la lista de jugadores del equipo para marcar goleadores.
+    Usa multiselect con los jugadores reales + número de goles por jugador.
+    Retorna lista de strings "Nombre N" para compatibilidad con register_scorers.
+    """
+    players = PLAYERS.get(team, [])
+    if not players:
+        # Fallback: text input si no hay jugadores
+        val = st.text_input(
+            f"⚽ Goleadores {display_name(team)}",
+            value=", ".join(existing_scorers),
+            key=widget_key,
+            placeholder="Jugador 1, Jugador 2"
+        )
+        return [s.strip() for s in val.split(",") if s.strip()]
+
+    # Separar jugadores por posición para mejor UX
+    fw = [p["name"] for p in players if p["pos"] == "FW"]
+    mf = [p["name"] for p in players if p["pos"] == "MF"]
+    df_gk = [p["name"] for p in players if p["pos"] in ("DF", "GK")]
+    player_names = fw + mf + df_gk  # FW primero
+
+    # Reconstruir selección existente
+    existing_names = []
+    existing_counts = {}
+    for entry in existing_scorers:
+        parts = entry.rsplit(" ", 1)
+        if len(parts) == 2:
+            try:
+                existing_counts[parts[0]] = int(parts[1])
+                existing_names.append(parts[0])
+            except ValueError:
+                existing_counts[entry] = 1
+                existing_names.append(entry)
+        else:
+            existing_counts[entry] = 1
+            existing_names.append(entry)
+
+    # Filtrar nombres válidos
+    valid_existing = [n for n in existing_names if n in player_names]
+
+    if num_goals == 0:
+        return []
+
+    st.markdown(f"<div style='font-size:0.8rem;color:#a0c0ff;font-weight:600;margin-bottom:4px;'>⚽ {display_name(team)}</div>", unsafe_allow_html=True)
+    
+    selected = st.multiselect(
+        f"Goleadores {display_name(team)}",
+        options=player_names,
+        default=valid_existing,
+        key=f"{widget_key}_ms",
+        label_visibility="collapsed",
+        placeholder="Selecciona goleadores..."
+    )
+
+    result = []
+    for player in selected:
+        default_g = existing_counts.get(player, 1)
+        goals = st.number_input(
+            f"Goles de {player}",
+            min_value=1,
+            max_value=num_goals,
+            value=min(default_g, num_goals),
+            key=f"{widget_key}_{player}_g",
+            label_visibility="collapsed"
+        )
+        result.append(f"{player} {goals}")
+
+    return result
+
+
 def register_scorers(scorers_list, team, state, torneo):
     """
-    scorers_list: "Messi 2, Neymar 1" o lista
+    Registra goles en all_scorers global.
+    scorers_list: lista de "Nombre N" o string CSV.
     """
     if not scorers_list:
         return
     if isinstance(scorers_list, str):
         entries = [s.strip() for s in scorers_list.split(",") if s.strip()]
     else:
-        entries = scorers_list
+        entries = list(scorers_list)
+
+    if "all_scorers" not in state:
+        state["all_scorers"] = {}
 
     for entry in entries:
         parts = entry.rsplit(" ", 1)
@@ -920,20 +996,18 @@ def register_scorers(scorers_list, team, state, torneo):
             name, goals_str = parts
             try:
                 goals = int(goals_str)
-            except:
+            except ValueError:
                 goals = 1
         else:
             name = entry
             goals = 1
 
-        key = f"{name} ({display_name(team)})"
-        if "all_scorers" not in state:
-            state["all_scorers"] = {}
-        if key not in state["all_scorers"]:
-            state["all_scorers"][key] = {"team": team, "goals": 0, "torneos": {}}
-        state["all_scorers"][key]["goals"] += goals
-        state["all_scorers"][key]["torneos"][torneo] = \
-            state["all_scorers"][key]["torneos"].get(torneo, 0) + goals
+        skey = f"{name}||{team}"
+        sc = state["all_scorers"]
+        if skey not in sc:
+            sc[skey] = {"name": name, "team": team, "goals": 0, "torneos": {}}
+        sc[skey]["goals"] += goals
+        sc[skey]["torneos"][torneo] = sc[skey]["torneos"].get(torneo, 0) + goals
 
 # ---------------------------------------------------------------------------
 # RENDER TABLA DE POSICIONES
@@ -1263,20 +1337,25 @@ def _show_group_stage(state, euro):
                 with col5:
                     save = st.button("💾", key=f"euro_save_{g}_{home}_{away}", help="Guardar resultado")
 
-                # Goleadores
+                # Goleadores con jugadores reales
                 col_sc1, col_sc2 = st.columns(2)
                 with col_sc1:
-                    hs = st.text_input(f"Goleadores {display_name(home)}", value=", ".join(res.get("home_scorers", [])),
-                                      key=f"euro_hs_{g}_{home}_{away}", placeholder="Jugador 2, Jugador2 1")
+                    hs = _scorer_input(home, hg, res.get("home_scorers", []),
+                                       f"euro_sc_{g}_{home}_{away}_h", state, "Eurocopa FMMJ")
                 with col_sc2:
-                    as_ = st.text_input(f"Goleadores {display_name(away)}", value=", ".join(res.get("away_scorers", [])),
-                                       key=f"euro_as_{g}_{home}_{away}", placeholder="Jugador 1")
+                    as_ = _scorer_input(away, ag, res.get("away_scorers", []),
+                                        f"euro_sc_{g}_{home}_{away}_a", state, "Eurocopa FMMJ")
 
                 if save:
+                    # Registrar limpiando duplicados primero
+                    old_sc = state.get("all_scorers", {})
+                    for skey in list(old_sc.keys()):
+                        if old_sc[skey]["team"] in (home, away) and "Eurocopa FMMJ" in old_sc[skey].get("torneos", {}):
+                            pass  # se sobreescribe en register
                     euro["group_results"][key] = {
                         "home_goals": hg, "away_goals": ag,
-                        "home_scorers": [s.strip() for s in hs.split(",") if s.strip()],
-                        "away_scorers": [s.strip() for s in as_.split(",") if s.strip()],
+                        "home_scorers": hs,
+                        "away_scorers": as_,
                         "played": True
                     }
                     register_scorers(hs, home, state, "Eurocopa FMMJ")
@@ -1426,19 +1505,16 @@ def _show_knockout(state, euro):
                 # Goleadores
                 col_s1, col_s2 = st.columns(2)
                 with col_s1:
-                    hs = st.text_input(f"⚽ Gol. {display_name(home)}", value=", ".join(res.get("home_scorers", [])),
-                                      key=f"{key}_hs")
+                    hs = _scorer_input(home, hg, res.get("home_scorers", []), f"{key}_hs", state, "Eurocopa FMMJ")
                 with col_s2:
-                    as_ = st.text_input(f"⚽ Gol. {display_name(away)}", value=", ".join(res.get("away_scorers", [])),
-                                       key=f"{key}_as")
+                    as_ = _scorer_input(away, ag, res.get("away_scorers", []), f"{key}_as", state, "Eurocopa FMMJ")
 
                 if save:
                     winner = home if hg > ag else (away if ag > hg else pen_winner)
                     results[key] = {
                         "home_goals": hg, "away_goals": ag,
                         "penalty_winner": pen_winner, "winner": winner,
-                        "home_scorers": [s.strip() for s in hs.split(",") if s.strip()],
-                        "away_scorers": [s.strip() for s in as_.split(",") if s.strip()],
+                        "home_scorers": hs, "away_scorers": as_,
                     }
                     euro["knockout_bracket"][phase_key][idx]["winner"] = winner
                     register_scorers(hs, home, state, "Eurocopa FMMJ")
@@ -1808,9 +1884,9 @@ def _show_group_stage(state, ca):
                     save = st.button("💾", key=f"ca_save_{g}_{home}_{away}")
                 col_s1, col_s2 = st.columns(2)
                 with col_s1:
-                    hs = st.text_input(f"⚽ {display_name(home)}", value=", ".join(res.get("home_scorers", [])), key=f"ca_hs_{g}_{home}_{away}")
+                    hs = _scorer_input(home, hg, res.get("home_scorers", []), f"ca_hs_{g}_{home}_{away}", state, "Copa América FMMJ")
                 with col_s2:
-                    as_ = st.text_input(f"⚽ {display_name(away)}", value=", ".join(res.get("away_scorers", [])), key=f"ca_as_{g}_{home}_{away}")
+                    as_ = _scorer_input(away, ag, res.get("away_scorers", []), f"ca_as_{g}_{home}_{away}", state, "Copa América FMMJ")
                 if save:
                     ca["group_results"][key] = {
                         "home_goals": hg, "away_goals": ag, "played": True,
@@ -1925,9 +2001,9 @@ def _show_knockout(state, ca):
 
                 col_s1, col_s2 = st.columns(2)
                 with col_s1:
-                    hs = st.text_input(f"⚽ {display_name(home)}", value=", ".join(res.get("home_scorers", [])), key=f"{key}_hs")
+                    hs = _scorer_input(home, hg, res.get("home_scorers", []), f"{key}_hs", state, torneo_name)
                 with col_s2:
-                    as_ = st.text_input(f"⚽ {display_name(away)}", value=", ".join(res.get("away_scorers", [])), key=f"{key}_as")
+                    as_ = _scorer_input(away, ag, res.get("away_scorers", []), f"{key}_as", state, torneo_name)
 
                 if save:
                     winner = home if hg > ag else (away if ag > hg else pen_winner)
@@ -2174,9 +2250,9 @@ def _show_6team_groups(state, tour, torneo_name):
                     save = st.button("💾", key=f"{torneo_name[:3]}_save_{g}_{home}_{away}")
                 col_s1, col_s2 = st.columns(2)
                 with col_s1:
-                    hs = st.text_input(f"⚽ {display_name(home)}", value=", ".join(res.get("home_scorers", [])), key=f"{torneo_name[:3]}_hs_{g}_{home}_{away}")
+                    hs = _scorer_input(home, hg, res.get("home_scorers", []), f"{torneo_name[:3]}_hs_{g}_{home}_{away}", state, torneo_name)
                 with col_s2:
-                    as_ = st.text_input(f"⚽ {display_name(away)}", value=", ".join(res.get("away_scorers", [])), key=f"{torneo_name[:3]}_as_{g}_{home}_{away}")
+                    as_ = _scorer_input(away, ag, res.get("away_scorers", []), f"{torneo_name[:3]}_as_{g}_{home}_{away}", state, torneo_name)
                 if save:
                     tour["group_results"][key] = {
                         "home_goals": hg, "away_goals": ag, "played": True,
@@ -2271,9 +2347,9 @@ def _show_6team_knockout(state, tour, torneo_name):
 
             col_s1, col_s2 = st.columns(2)
             with col_s1:
-                hs = st.text_input(f"⚽ {display_name(home)}", value=", ".join(res.get("home_scorers", [])), key=f"{key}_hs")
+                hs = _scorer_input(home, hg, res.get("home_scorers", []), f"{key}_hs", state, torneo_name)
             with col_s2:
-                as_ = st.text_input(f"⚽ {display_name(away)}", value=", ".join(res.get("away_scorers", [])), key=f"{key}_as")
+                as_ = _scorer_input(away, ag, res.get("away_scorers", []), f"{key}_as", state, torneo_name)
 
             if save:
                 winner = home if hg > ag else (away if ag > hg else pen_winner)
@@ -2524,9 +2600,9 @@ def _show_caf_groups(state, tour, torneo_name):
                     save = st.button("💾", key=f"caf_save_{g}_{home}_{away}")
                 col_s1, col_s2 = st.columns(2)
                 with col_s1:
-                    hs = st.text_input(f"⚽ {display_name(home)}", value=", ".join(res.get("home_scorers", [])), key=f"caf_hs_{g}_{home}_{away}")
+                    hs = _scorer_input(home, hg, res.get("home_scorers", []), f"caf_hs_{g}_{home}_{away}", state, "Copa África FMMJ")
                 with col_s2:
-                    as_ = st.text_input(f"⚽ {display_name(away)}", value=", ".join(res.get("away_scorers", [])), key=f"caf_as_{g}_{home}_{away}")
+                    as_ = _scorer_input(away, ag, res.get("away_scorers", []), f"caf_as_{g}_{home}_{away}", state, "Copa África FMMJ")
                 if save:
                     tour["group_results"][key] = {
                         "home_goals": hg, "away_goals": ag, "played": True,
@@ -2622,9 +2698,9 @@ def _show_caf_knockout(state, tour, torneo_name):
 
             col_s1, col_s2 = st.columns(2)
             with col_s1:
-                hs = st.text_input(f"⚽ {display_name(home)}", value=", ".join(res.get("home_scorers", [])), key=f"{key}_hs")
+                hs = _scorer_input(home, hg, res.get("home_scorers", []), f"{key}_hs", state, torneo_name)
             with col_s2:
-                as_ = st.text_input(f"⚽ {display_name(away)}", value=", ".join(res.get("away_scorers", [])), key=f"{key}_as")
+                as_ = _scorer_input(away, ag, res.get("away_scorers", []), f"{key}_as", state, torneo_name)
 
             if save:
                 winner = home if hg > ag else (away if ag > hg else pw)
@@ -3312,9 +3388,9 @@ def _show_wc_groups(state, wc):
                     save = st.button("💾", key=f"wc_save_{g}_{home}_{away}")
                 col_s1, col_s2 = st.columns(2)
                 with col_s1:
-                    hs = st.text_input(f"⚽ {display_name(home)}", value=", ".join(res.get("home_scorers", [])), key=f"wc_hs_{g}_{home}_{away}")
+                    hs = _scorer_input(home, hg, res.get("home_scorers", []), f"wc_hs_{g}_{home}_{away}", state, "FMMJ World Cup")
                 with col_s2:
-                    as_ = st.text_input(f"⚽ {display_name(away)}", value=", ".join(res.get("away_scorers", [])), key=f"wc_as_{g}_{home}_{away}")
+                    as_ = _scorer_input(away, ag, res.get("away_scorers", []), f"wc_as_{g}_{home}_{away}", state, "FMMJ World Cup")
                 if save:
                     wc["group_results"][key] = {
                         "home_goals": hg, "away_goals": ag, "played": True,
@@ -3419,9 +3495,9 @@ def _show_wc_knockout(state, wc):
 
             col_s1, col_s2 = st.columns(2)
             with col_s1:
-                hs = st.text_input(f"⚽ {display_name(home)}", value=", ".join(res.get("home_scorers", [])), key=f"{key}_hs")
+                hs = _scorer_input(home, hg, res.get("home_scorers", []), f"{key}_hs", state, torneo_name)
             with col_s2:
-                as_ = st.text_input(f"⚽ {display_name(away)}", value=", ".join(res.get("away_scorers", [])), key=f"{key}_as")
+                as_ = _scorer_input(away, ag, res.get("away_scorers", []), f"{key}_as", state, torneo_name)
 
             if save:
                 winner = home if hg > ag else (away if ag > hg else pw)
@@ -3498,6 +3574,135 @@ def _show_wc_knockout(state, wc):
                     st.rerun()
             if res.get("winner"):
                 st.markdown(f"**🥉 3er Puesto: {display_name(res['winner'])}**")
+
+
+# ============================================================
+# TABLA DE GOLEADORES
+# ============================================================
+def show_goleadores():
+    state = get_state()
+    st.markdown("""
+    <style>
+    .gol-header {background:linear-gradient(135deg,#1a0030 0%,#3a0060 50%,#1a0030 100%);
+    border:2px solid #ffd700;border-radius:16px;padding:20px 28px;margin-bottom:24px;}
+    </style>
+    """, unsafe_allow_html=True)
+    st.markdown("""<div class='gol-header'>
+        <div style='font-size:1.8rem;font-weight:800;color:#ffd700;'>⚽ Tabla de Goleadores FMMJ</div>
+        <div style='color:#aaa;font-size:.85rem;'>Goles acumulados en todos los torneos clasificatorios y el Mundial</div>
+    </div>""", unsafe_allow_html=True)
+
+    all_scorers = state.get("all_scorers", {})
+    if not all_scorers:
+        st.info("Aún no hay goles registrados. Comienza a ingresar resultados en los torneos.")
+        return
+
+    # Construir lista de goleadores
+    rows = []
+    for skey, data in all_scorers.items():
+        name = data.get("name", skey.split("||")[0])
+        team = data.get("team", "")
+        goals = data.get("goals", 0)
+        torneos = data.get("torneos", {})
+        if goals > 0:
+            rows.append({
+                "name": name,
+                "team": team,
+                "goals": goals,
+                "torneos": torneos,
+            })
+
+    rows.sort(key=lambda x: -x["goals"])
+
+    # ── FILTROS ──────────────────────────────────────────────────────────────
+    col_f1, col_f2, col_f3 = st.columns(3)
+    with col_f1:
+        torneos_list = sorted(set(t for r in rows for t in r["torneos"].keys()))
+        torneo_filter = st.selectbox("🏆 Torneo", ["Todos"] + torneos_list)
+    with col_f2:
+        conf_filter_g = st.selectbox("🌍 Confederación", ["Todas", "UEFA", "CONMEBOL", "CAF", "CONCACAF", "AFC", "OFC"])
+    with col_f3:
+        top_n = st.selectbox("Mostrar", [10, 20, 50, "Todos"], index=0)
+
+    # Filtrar
+    filtered = []
+    for r in rows:
+        if torneo_filter != "Todos" and torneo_filter not in r["torneos"]:
+            continue
+        conf = get_team_confederation(r["team"])
+        if conf_filter_g != "Todas" and conf != conf_filter_g:
+            continue
+        goles = r["torneos"].get(torneo_filter, 0) if torneo_filter != "Todos" else r["goals"]
+        if goles > 0:
+            filtered.append({**r, "goles_filtro": goles})
+
+    filtered.sort(key=lambda x: -x["goles_filtro"])
+    if top_n != "Todos":
+        filtered = filtered[:int(top_n)]
+
+    if not filtered:
+        st.info("No hay goleadores con ese filtro.")
+        return
+
+    # ── PODIO TOP 3 ──────────────────────────────────────────────────────────
+    if len(filtered) >= 3:
+        st.markdown("### 🥇 Podio")
+        podio_cols = st.columns(3)
+        medals = ["🥇", "🥈", "🥉"]
+        colors = ["#ffd700", "#c0c0c0", "#cd7f32"]
+        for i, (col, medal, color) in enumerate(zip(podio_cols, medals, colors)):
+            if i < len(filtered):
+                r = filtered[i]
+                with col:
+                    st.markdown(f"""
+                    <div style='background:#0a1020;border:2px solid {color};border-radius:12px;
+                    padding:16px;text-align:center;'>
+                        <div style='font-size:2rem;'>{medal}</div>
+                        <div style='font-size:1rem;font-weight:700;color:#fff;margin:4px 0;'>{r["name"]}</div>
+                        <div style='font-size:0.8rem;color:#aaa;'>{flag_img(r["team"],18,13)}&nbsp;{display_name(r["team"])}</div>
+                        <div style='font-size:2rem;font-weight:900;color:{color};margin-top:8px;'>{r["goles_filtro"]}</div>
+                        <div style='font-size:0.7rem;color:#888;'>goles</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+    # ── TABLA COMPLETA ────────────────────────────────────────────────────────
+    st.markdown("### 📊 Tabla Completa")
+    import pandas as pd
+    table_rows = []
+    for pos, r in enumerate(filtered, 1):
+        torneos_str = ", ".join([f"{t}: {g}" for t, g in sorted(r["torneos"].items(), key=lambda x: -x[1])])
+        table_rows.append({
+            "#": pos,
+            "Jugador": r["name"],
+            "Selección": display_name(r["team"]),
+            "Goles": r["goles_filtro"],
+            "Torneos": torneos_str,
+        })
+    df = pd.DataFrame(table_rows)
+    st.dataframe(df, use_container_width=True, hide_index=True,
+                 column_config={
+                     "#": st.column_config.NumberColumn(width="small"),
+                     "Goles": st.column_config.NumberColumn(width="small"),
+                 })
+
+    # ── GOLEADORES POR EQUIPO ─────────────────────────────────────────────────
+    st.markdown("### 🏳️ Por Selección")
+    teams_in_table = sorted(set(r["team"] for r in filtered))
+    sel_team = st.selectbox("Ver equipo:", ["— Selecciona —"] + [display_name(t) for t in teams_in_table])
+    if sel_team != "— Selecciona —":
+        team_key = next((t for t in teams_in_table if display_name(t) == sel_team), None)
+        if team_key:
+            team_rows = [r for r in filtered if r["team"] == team_key]
+            for r in team_rows:
+                torneos_str = " · ".join([f"{t}: {g}⚽" for t, g in r["torneos"].items()])
+                st.markdown(
+                    f"<div style='padding:6px 12px;background:#0a1020;border-radius:6px;margin-bottom:4px;'>"
+                    f"<span style='font-weight:700;color:#fff;'>{r['name']}</span>"
+                    f"&nbsp;<span style='color:#ffd700;font-weight:900;'>{r['goles_filtro']} ⚽</span>"
+                    f"&nbsp;<span style='color:#888;font-size:0.8rem;'>{torneos_str}</span></div>",
+                    unsafe_allow_html=True
+                )
+
 # ============================================================
 # APP PRINCIPAL — LAYOUT Y ROUTING
 # ============================================================
@@ -3689,6 +3894,7 @@ with st.sidebar:
     menu_options = {
         "🏠 Inicio": "inicio",
         "🏅 Ranking FMMJ": "ranking",
+        "⚽ Goleadores": "goleadores",
         "🏆 Eurocopa (UEFA)": "eurocopa",
         "🌎 Copa América (CONMEBOL)": "copa_america",
         "🌍 Copa África (CAF)": "copa_africa",
@@ -3715,6 +3921,8 @@ if page_key == "inicio":
     _show_home(state)
 elif page_key == "ranking":
     show_ranking()
+elif page_key == "goleadores":
+    show_goleadores()
 elif page_key == "eurocopa":
     show_eurocopa()
 elif page_key == "copa_america":
