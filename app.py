@@ -13,10 +13,10 @@ from state import init_state, get_state, reset_for_new_edition
 from tournament import display_name, flag_img
 
 # Importar todas las páginas al inicio para evitar errores en Streamlit Cloud
-from pages.repechaje import show_ranking, show_repechaje, show_world_cup_draw
-from pages.eurocopa import show as show_eurocopa
-from pages.copa_america import show as show_copa_america
-from pages.confederaciones import show_copa_africa, show_copa_oro, show_copa_asia
+from page_repechaje import show_ranking, show_repechaje, show_world_cup_draw
+from page_eurocopa import show as show_eurocopa
+from page_copa_america import show as show_copa_america
+from page_confederaciones import show_copa_africa, show_copa_oro, show_copa_asia
 
 st.set_page_config(
     page_title="FMMJ World Cup Simulator",
