@@ -1745,187 +1745,6 @@ def show_goleadores():
 # ══════════════════════════════════════════════════════════════
 # SORTEO Y MUNDIAL
 # ══════════════════════════════════════════════════════════════
-def show_world_cup_draw():
-    state = get_state()
-    wc = state["world_cup"]
-    qualified = state["world_cup_qualified"]
-    host = state.get("host", "Nigeria")
-
-    if host and host not in qualified:
-        qualified.insert(0, host)
-        state["world_cup_qualified"] = qualified
-
-    st.markdown(f"""<div style='background:linear-gradient(135deg,#b89000 0%,#ffd700 40%,#b89000 100%);
-        border-radius:16px;padding:24px 32px;margin-bottom:20px;box-shadow:0 8px 32px rgba(200,160,0,.4);'>
-        <div style='font-size:2.2rem;font-weight:900;color:#06101e;font-family:Bebas Neue,sans-serif;letter-spacing:3px;'>🌍 FMMJ WORLD CUP</div>
-        <div style='font-size:.95rem;color:#333;margin-top:4px;'>32 selecciones · 8 grupos de 4 · Anfitrión: {flag_html(host)} {display_name(host)}</div>
-    </div>""", unsafe_allow_html=True)
-
-    tabs = st.tabs(["🏅 Clasificados","🎲 Bombos","🎯 Sorteo","📊 Grupos","⚽ Llaves"])
-    with tabs[0]: _show_wc_classified(state, qualified)
-    with tabs[1]: _show_wc_pots(state, wc, qualified)
-    with tabs[2]: _show_wc_draw(state, wc, qualified)
-    with tabs[3]: _show_wc_groups(state, wc)
-    with tabs[4]: _show_wc_knockout(state, wc)
-
-
-def _show_wc_classified(state, qualified):
-    st.markdown("### 🏅 Las 32 Selecciones del FMMJ World Cup")
-    cupos = {"UEFA":13,"CONMEBOL":4,"CAF":5,"CONCACAF":3,"AFC":4,"OFC":1}
-    conf_groups = {}
-    for t in qualified:
-        c = get_team_confederation(t)
-        conf_groups.setdefault(c, []).append(t)
-
-    cols = st.columns(3)
-    for i, (conf, teams) in enumerate(conf_groups.items()):
-        with cols[i % 3]:
-            total = cupos.get(conf, 0)
-            html = f"<div style='background:#091525;border:1px solid #1a2a5a;border-radius:10px;padding:14px;margin-bottom:12px;'>"
-            html += f"<div style='font-weight:700;color:#ffd700;margin-bottom:8px;font-family:Bebas Neue,sans-serif;'>{conf} — {len(teams)}/{total}</div>"
-            for t in teams:
-                html += f"<div style='padding:3px 0;'>{flag_html(t)} {display_name(t)}</div>"
-            html += "</div>"
-            st.markdown(html, unsafe_allow_html=True)
-    st.info(f"**Total: {len(qualified)}/32**")
-    if len(qualified) < 32:
-        st.warning(f"Faltan {32 - len(qualified)} equipos por clasificar.")
-
-
-def _show_wc_pots(state, wc, qualified):
-    st.markdown("### 🎲 Bombos del Sorteo FMMJ World Cup")
-    st.caption("4 bombos de 8 equipos por ranking FMMJ. El anfitrión encabeza el Bombo 1.")
-    if len(qualified) < 32:
-        st.warning(f"Aún no están los 32 equipos ({len(qualified)}/32).")
-        return
-
-    host = state.get("host")
-    ranking = state["ranking"]
-    teams_sorted = sorted(qualified, key=lambda t: -ranking.get(t, 0))
-    if host and host in teams_sorted:
-        teams_sorted.remove(host)
-        teams_sorted.insert(0, host)
-
-    pots = {i+1: teams_sorted[i*8:(i+1)*8] for i in range(4)}
-    wc["pots"] = {str(k): v for k, v in pots.items()}
-
-    pot_styles = [
-        ("🟡 BOMBO 1","#1a1300","#ffd700"),
-        ("🟢 BOMBO 2","#001a0d","#00cc66"),
-        ("🔵 BOMBO 3","#00001a","#3388ff"),
-        ("🔴 BOMBO 4","#1a000d","#ff6699"),
-    ]
-    cols = st.columns(2)
-    for i, (label, bg, color) in enumerate(pot_styles):
-        with cols[i % 2]:
-            html = f"<div style='background:{bg};border:2px solid {color};border-radius:10px;padding:14px;margin-bottom:12px;'>"
-            html += f"<div style='font-weight:800;color:{color};margin-bottom:10px;font-family:Bebas Neue,sans-serif;font-size:1.1rem;'>{label}</div>"
-            for t in pots.get(i+1, []):
-                h_tag = " 🏠" if t == host else ""
-                html += f"<div style='padding:3px 0;'>{flag_html(t)} {display_name(t)}{h_tag}</div>"
-            html += "</div>"
-            st.markdown(html, unsafe_allow_html=True)
-
-
-def _show_wc_draw(state, wc, qualified):
-    st.markdown("### 🎯 Sorteo del FMMJ World Cup")
-    st.caption("Regla: máx. 2 equipos UEFA por grupo. Sin 2 equipos de la misma confederación (excl. UEFA).")
-    if len(qualified) < 32:
-        st.warning("Aún no están los 32 clasificados.")
-        return
-
-    if wc.get("groups") and wc.get("setup_done"):
-        st.success("✅ Sorteo realizado.")
-        _render_wc_groups(wc)
-        if st.button("🔄 Repetir Sorteo", type="secondary"):
-            wc["groups"] = {}
-            wc["setup_done"] = False
-            if "draft_world_cup" in st.session_state: del st.session_state["draft_world_cup"]
-            save_state(); st.rerun()
-        if wc["phase"] == "sorteo" and st.button("▶️ Iniciar Fase de Grupos", type="primary"):
-            wc["phase"] = "grupos"
-            save_state(); st.rerun()
-        return
-
-    manual_group_setup(state, "world_cup", qualified, num_groups=8, teams_per_group=4,
-                       confirm_label="Confirmar Grupos del Mundial FMMJ")
-
-
-def _render_wc_groups(wc):
-    groups = wc.get("groups", {})
-    cols = st.columns(4)
-    for idx, (g, teams) in enumerate(groups.items()):
-        with cols[idx % 4]:
-            html = f"<div style='background:#091020;border:1px solid #1a2860;border-radius:10px;padding:12px;margin-bottom:10px;'>"
-            html += f"<div style='color:#ffd700;font-weight:700;border-bottom:1px solid #ffd700;padding-bottom:4px;margin-bottom:8px;font-family:Bebas Neue,sans-serif;'>GRUPO {g}</div>"
-            for t in teams:
-                html += f"<div style='padding:3px 0;font-size:0.85rem;'>{flag_html(t)} {display_name(t)}</div>"
-            html += "</div>"
-            st.markdown(html, unsafe_allow_html=True)
-
-
-def _show_wc_groups(state, wc):
-    if not wc.get("groups"):
-        st.warning("Realiza el sorteo primero.")
-        return
-    st.markdown("### 📊 Fase de Grupos — FMMJ World Cup")
-    all_done = show_group_jornadas(state, wc, "FMMJ", advancing=2)
-    if all_done or st.checkbox("🔓 Forzar avance Mundial"):
-        if wc["phase"] == "grupos":
-            if st.button("⚽ Generar Octavos de Final", type="primary"):
-                _build_wc_knockout(state, wc)
-                save_state(); st.rerun()
-
-
-def _build_wc_knockout(state, wc):
-    standings = wc.get("group_standings", {})
-    groups = sorted(standings.keys())
-    pairs = [(groups[i], groups[i+1]) for i in range(0, len(groups)-1, 2)]
-    octavos = []
-    for ga, gb in pairs:
-        f_a = standings[ga][0]["team"] if standings.get(ga) else None
-        s_b = standings[gb][1]["team"] if len(standings.get(gb,[])) > 1 else None
-        f_b = standings[gb][0]["team"] if standings.get(gb) else None
-        s_a = standings[ga][1]["team"] if len(standings.get(ga,[])) > 1 else None
-        if f_a and s_b: octavos.append({"home": f_a, "away": s_b, "winner": None})
-        if f_b and s_a: octavos.append({"home": f_b, "away": s_a, "winner": None})
-    wc["knockout_bracket"] = {
-        "octavos": octavos, "cuartos": [], "semis": [], "tercer_puesto": [], "final": []
-    }
-    wc["knockout_results"] = {}
-    wc["phase"] = "octavos"
-
-
-def _show_wc_knockout(state, wc):
-    st.markdown("### ⚽ Fase Eliminatoria — FMMJ World Cup")
-    bracket = wc.get("knockout_bracket", {})
-    if not bracket:
-        st.info("Completa la fase de grupos primero.")
-        return
-    results = wc.setdefault("knockout_results", {})
-    phases = [
-        ("octavos", "🔵 Octavos de Final", "cuartos"),
-        ("cuartos", "🟡 Cuartos de Final",  "semis"),
-        ("semis",   "🟠 Semifinales",        "final"),
-        ("final",   "🏆 GRAN FINAL FMMJ",    None),
-    ]
-    final_done = show_knockout_generic(state, wc, "FMMJ World Cup", phases, "wc")
-    if final_done:
-        champ = results.get("wc_final_0", {}).get("winner")
-        if champ and not wc.get("champion"):
-            wc["champion"] = champ
-            wc["phase"] = "completado"
-            st.balloons()
-            st.markdown(f"""<div style='background:linear-gradient(135deg,#ffd700,#c8a000);border-radius:16px;
-                padding:28px;text-align:center;margin-top:20px;'>
-                <div style='font-size:3rem;'>🏆</div>
-                <div style='font-size:2.2rem;font-weight:900;color:#06101e;font-family:Bebas Neue,sans-serif;'>{display_name(champ)}</div>
-                <div style='font-size:1rem;color:#333;'>¡CAMPEÓN DEL FMMJ WORLD CUP!</div>
-            </div>""", unsafe_allow_html=True)
-            save_state()
-
-
-
 # ══════════════════════════════════════════════════════════════
 # QUALIFIERS — Página central de eliminatorias por confederación
 # ══════════════════════════════════════════════════════════════
@@ -1936,7 +1755,7 @@ def show_qualifiers():
     <div style='background:linear-gradient(135deg,#06101e 0%,#0c1e3a 50%,#06101e 100%);
         border:2px solid #c8a000;border-radius:16px;padding:20px 28px;margin-bottom:20px;'>
         <div style='font-size:2rem;font-weight:900;color:#ffd700;font-family:Bebas Neue,sans-serif;letter-spacing:3px;'>
-            🌐 QUALIFIERS — FMMJ WORLD CUP
+            🌐 QUALIFIERS — FMMJ NATIONS
         </div>
         <div style='color:#5080a0;font-size:0.88rem;margin-top:4px;'>
             Eliminatorias por confederación · Ingresa marcadores y define los clasificados al Mundial
@@ -2084,90 +1903,99 @@ def show_qualifiers():
 # HOME
 # ══════════════════════════════════════════════════════════════
 def show_home(state):
-    host = state.get("host", "Nigeria")
+    # Conteo de clasificados por confederación
     qualified = state.get("world_cup_qualified", [])
 
+    # ── Header ───────────────────────────────────────────────────────
     st.markdown(f"""<div style='background:linear-gradient(135deg,#06101e 0%,#0c1e3a 50%,#06101e 100%);
-        border:2px solid #c8a000;border-radius:20px;padding:40px;margin-bottom:28px;text-align:center;'>
-        <div style='font-size:3.5rem;font-family:Bebas Neue,sans-serif;font-weight:700;
-                    color:#ffd700;letter-spacing:5px;text-shadow:0 0 40px rgba(255,215,0,.6);'>
-            🌍 FMMJ WORLD CUP
+        border:2px solid #c8a000;border-radius:20px;padding:36px;margin-bottom:24px;text-align:center;'>
+        <div style='font-size:3.2rem;font-family:Bebas Neue,sans-serif;font-weight:700;
+                    color:#ffd700;letter-spacing:5px;text-shadow:0 0 40px rgba(255,215,0,.5);'>
+            🌍 FMMJ NATIONS
         </div>
-        <div style='font-size:1rem;color:#406080;letter-spacing:3px;margin-top:6px;'>
-            SIMULADOR OFICIAL FMMJ · {state.get('edition',1)}ª EDICIÓN
-        </div>
-        <div style='margin-top:16px;font-size:1rem;color:#90b0d0;'>
-            Anfitrión: {flag_html(host)} <strong>{display_name(host)}</strong>
+        <div style='font-size:0.95rem;color:#406080;letter-spacing:3px;margin-top:6px;'>
+            SIMULADOR OFICIAL · {state.get("edition",1)}ª EDICIÓN
         </div>
     </div>""", unsafe_allow_html=True)
 
-    cupos_info = [
-        ("🏆 UEFA",13,"UEFA","#003580"),
-        ("🌎 CONMEBOL",4,"CONMEBOL","#006b3c"),
-        ("🌍 CAF",5,"CAF","#7a4500"),
-        ("⭐ CONCACAF",3,"CONCACAF","#6a0000"),
-        ("🌏 AFC",4,"AFC","#3a0060"),
-        ("🔁 OFC/Rep.",2,"OFC","#1a3a1a"),
+    # ── Estado de torneos ────────────────────────────────────────────
+    torneos = [
+        ("🏆 Eurocopa",    "euro",         "UEFA",     13, "#003580"),
+        ("🌎 Copa América","copa_america",  "CONMEBOL",  4, "#006b3c"),
+        ("🌍 Copa África", "copa_africa",   "CAF",       5, "#7a4500"),
+        ("⭐ Copa Oro",    "copa_oro",      "CONCACAF",  3, "#6a0000"),
+        ("🌏 Copa Asia",   "copa_asia",     "AFC",       4, "#3a0060"),
+        ("🔁 Repechaje",   None,            "OFC",       2, "#1a3a1a"),
     ]
+
     cols = st.columns(6)
-    conf_q = {}
-    for t in qualified:
-        c = get_team_confederation(t)
-        conf_q[c] = conf_q.get(c, 0) + 1
-
-    for col, (label, total, conf, color) in zip(cols, cupos_info):
-        current = conf_q.get(conf, 0)
-        done = current >= total
+    for col, (label, key, conf, total, color) in zip(cols, torneos):
+        if key:
+            phase = state.get(key, {}).get("phase", "—")
+            q = len(state.get(key, {}).get("qualified", []))
+        else:
+            pt = state.get("playoff_teams", {})
+            q = sum(1 for s in ["slot1","slot2"] if state.get("playoff_results",{}).get(s))
+            phase = "completado" if q >= 2 else "pendiente"
+        done  = q >= total
+        phase_label = {"sorteo":"Sorteo","grupos":"Grupos","llaves":"Llaves",
+                       "playoff":"Playoff","playoff_uefa":"Playoff","completado":"✅ Listo",
+                       "configuracion":"Config","pendiente":"Pendiente"}.get(phase, phase)
         with col:
-            st.markdown(f"""<div style='background:#091525;border:1px solid {color};border-radius:12px;
-                padding:14px;text-align:center;'>
-                <div style='font-size:0.8rem;font-weight:700;color:#c0d0f0;'>{label}</div>
-                <div style='font-size:1.8rem;font-weight:900;color:{"#00cc66" if done else "#ffd700"};'>{current}/{total}</div>
-            </div>""", unsafe_allow_html=True)
+            st.markdown(
+                f"<div style='background:#091525;border:1px solid {color};border-radius:12px;"
+                f"padding:12px 8px;text-align:center;'>"
+                f"<div style='font-size:0.72rem;font-weight:700;color:#c0d0f0;margin-bottom:4px;'>{label}</div>"
+                f"<div style='font-size:1.6rem;font-weight:900;color:{"#00cc66" if done else "#ffd700"};'>{q}/{total}</div>"
+                f"<div style='font-size:0.62rem;color:#406080;margin-top:2px;'>{phase_label}</div>"
+                f"</div>",
+                unsafe_allow_html=True
+            )
 
-    st.markdown(f"<br><div style='text-align:center;font-size:1rem;color:#8090a8;margin-bottom:10px;'>{len(qualified)}/32 clasificados al FMMJ World Cup</div>", unsafe_allow_html=True)
-    st.progress(len(qualified) / 32)
+    st.markdown("<br>", unsafe_allow_html=True)
 
+    # ── Guía + Clasificados recientes ────────────────────────────────
     c1, c2 = st.columns(2)
     with c1:
         st.markdown("### 🗺️ Guía del Simulador")
         st.markdown("""
-1. **🏅 Ranking FMMJ** — Ranking dinámico
-2. **🏆 Eurocopa** — 24 equipos UEFA → 13 cupos
-3. **🌎 Copa América** — 10 + 6 invitadas → 4 cupos
-4. **🌍 Copa África** — 10 equipos CAF → 5 cupos
-5. **⭐ Copa Oro** — 6 CONCACAF → 3 cupos
-6. **🌏 Copa Asia** — 6 AFC → 4 cupos
-7. **🔁 Repechaje** — 2 llaves → 2 cupos
-8. **🌍 Sorteo y Mundial** — 32 equipos 🏆
+1. **🏅 Ranking FMMJ** — Ranking dinámico por resultados
+2. **🏆 Eurocopa** — 24 equipos UEFA · Grupos + Llaves
+3. **🌎 Copa América** — 10 CONMEBOL + 6 invitadas
+4. **🌍 Copa África** — 10 equipos CAF
+5. **⭐ Copa Oro** — 6 CONCACAF
+6. **🌏 Copa Asia** — 6 AFC
+7. **🌐 Qualifiers** — Playoffs y clasificados por confederación
+8. **🔁 Repechaje** — 2 llaves ida y vuelta
         """)
     with c2:
-        st.markdown("### ✅ Últimos Clasificados")
+        st.markdown("### ✅ Clasificados Recientes")
         if qualified:
-            for t in reversed(qualified[-10:]):
-                st.markdown(f"{flag_html(t)} {display_name(t)}", unsafe_allow_html=True)
+            for t in reversed(qualified[-12:]):
+                conf = get_team_confederation(t)
+                conf_colors = {"UEFA":"#003580","CONMEBOL":"#006b3c","CAF":"#7a4500",
+                               "CONCACAF":"#6a0000","AFC":"#3a0060","OFC":"#1a3a1a"}
+                cc = conf_colors.get(conf,"#1a1a2e")
+                from data import get_flag_url, TEAM_DISPLAY_NAMES
+                fu = get_flag_url(t, 20, 15)
+                flag_tag = f"<img src='{fu}' style='vertical-align:middle;margin-right:5px;border-radius:2px;' width='20' height='15'>" if fu else ""
+                tname = TEAM_DISPLAY_NAMES.get(t, t)
+                st.markdown(
+                    f"<div style='display:flex;align-items:center;padding:4px 8px;border-radius:6px;"
+                    f"background:#091525;margin-bottom:3px;'>"
+                    f"{flag_tag}<span style='color:#dce8ff;font-size:0.85rem;'>{tname}</span>"
+                    f"<span style='margin-left:auto;background:{cc};color:#fff;font-size:0.65rem;"
+                    f"padding:2px 6px;border-radius:10px;'>{conf}</span></div>",
+                    unsafe_allow_html=True
+                )
         else:
-            st.info("Ninguno clasificado aún.")
+            st.info("Ningún clasificado aún. Empieza por la Eurocopa.")
 
 
 def show_config(state):
     st.markdown("### ⚙️ Configuración del Simulador FMMJ")
-    st.markdown("#### 🏠 Anfitrión del Mundial")
-    all_teams_list = sorted(
-        UEFA_TEAMS + CONMEBOL_TEAMS + CAF_TEAMS + CONCACAF_TEAMS + AFC_TEAMS + PLAYOFF_TEAMS,
-        key=lambda t: display_name(t)
-    )
-    host_display = [display_name(t) for t in all_teams_list]
-    current_host = state.get("host", "Nigeria")
-    current_idx = all_teams_list.index(current_host) if current_host in all_teams_list else 0
-    sel = st.selectbox("Seleccionar anfitrión:", host_display, index=current_idx)
-    new_host = all_teams_list[host_display.index(sel)]
-    if new_host != current_host:
-        if st.button(f"✅ Confirmar: {display_name(new_host)}", type="primary"):
-            state["host"] = new_host
-            save_state(); st.rerun()
-
     st.markdown("---")
+
     st.markdown("#### 💾 Gestión de Datos")
     c1, c2, c3 = st.columns(3)
     with c1:
@@ -2189,7 +2017,6 @@ def show_config(state):
     st.markdown("#### 📊 Estado Actual")
     st.json({
         "edicion": state.get("edition"),
-        "anfitrion": display_name(state.get("host","")),
         "clasificados": len(state.get("world_cup_qualified",[])),
         "eurocopa": state.get("euro",{}).get("phase"),
         "copa_america": state.get("copa_america",{}).get("phase"),
@@ -2211,17 +2038,14 @@ with st.sidebar:
     <hr style='border-color:#142038;margin:8px 0 14px;'/>
     """, unsafe_allow_html=True)
 
-    host = state.get("host", "Nigeria")
     edition = state.get("edition", 1)
     qc = len(state.get("world_cup_qualified", []))
 
     st.markdown(f"""<div style='background:#091525;border:1px solid #1a3a6a;border-radius:10px;padding:12px;margin-bottom:14px;'>
         <div style='font-size:0.68rem;color:#406080;text-transform:uppercase;'>Edición</div>
         <div style='font-size:1rem;font-weight:700;color:#ffd700;font-family:Bebas Neue,sans-serif;'>FMMJ {edition}ª Copa</div>
-        <div style='margin-top:5px;font-size:0.68rem;color:#406080;'>Anfitrión</div>
-        <div style='font-size:0.9rem;font-weight:600;color:#dce8ff;'>{flag_html(host)} {display_name(host)}</div>
         <div style='margin-top:5px;font-size:0.68rem;color:#406080;'>Clasificados</div>
-        <div style='font-size:1rem;font-weight:700;color:{"#00cc66" if qc >= 32 else "#ffd700"};'>{qc}/32</div>
+        <div style='font-size:1rem;font-weight:700;color:{"#00cc66" if qc >= 31 else "#ffd700"};'>{qc} clasificados</div>
     </div>""", unsafe_allow_html=True)
 
     menu_options = {
@@ -2235,7 +2059,6 @@ with st.sidebar:
         "🌏 Copa Asia (AFC)": "copa_asia",
         "🌐 Qualifiers": "qualifiers",
         "🔁 Repechaje Internacional": "repechaje",
-        "🌍 Sorteo y Mundial": "mundial",
         "⚙️ Configuración": "config",
     }
     selected = st.radio("", list(menu_options.keys()), label_visibility="collapsed")
@@ -2265,5 +2088,4 @@ elif page_key == "copa_oro":    show_copa_oro()
 elif page_key == "copa_asia":   show_copa_asia()
 elif page_key == "qualifiers":  show_qualifiers()
 elif page_key == "repechaje":   show_repechaje()
-elif page_key == "mundial":     show_world_cup_draw()
 elif page_key == "config":      show_config(state)
