@@ -17,10 +17,11 @@ from state import (
     reset_for_new_edition, update_ranking, get_team_confederation, RANKING_POINTS
 )
 from utils import (
-    display_name, flag_img, get_team_confederation, get_jornadas,
+    display_name, get_team_confederation, get_jornadas,
     match_key, calculate_standings, render_standings_table,
     manual_group_setup, _scorer_input, register_scorers
 )
+from flag_emoji import flag_emoji
 
 # ─────────────────────────────────────────────
 # PAGE CONFIG
@@ -62,12 +63,12 @@ state = get_state()
 def show_match_row(home, away, prefix_key, results_dict, torneo_name, state, show_scorers=True):
     res = results_dict.get(prefix_key, {})
     c1, c2, c3, c4, c5, c6 = st.columns([3, 1, 1, 3, 2, 1])
-    with c1: st.markdown(f"{flag_img(home)}&nbsp;**{display_name(home)}**", unsafe_allow_html=True)
+    with c1: st.markdown(f"{flag_emoji(home)} **{display_name(home)}**", unsafe_allow_html=True)
     with c2:
         hg = st.number_input("", 0, 20, int(res.get("home_goals", 0)), key=f"{prefix_key}_hg", label_visibility="collapsed")
     with c3:
         ag = st.number_input("", 0, 20, int(res.get("away_goals", 0)), key=f"{prefix_key}_ag", label_visibility="collapsed")
-    with c4: st.markdown(f"{flag_img(away)}&nbsp;**{display_name(away)}**", unsafe_allow_html=True)
+    with c4: st.markdown(f"{flag_emoji(away)} **{display_name(away)}**", unsafe_allow_html=True)
     with c5:
         if hg == ag:
             ps = st.selectbox("Penales", ["—", display_name(home), display_name(away)], key=f"{prefix_key}_pen")
@@ -112,7 +113,7 @@ def _render_groups_grid(groups, cols_n=3):
             html = f"<div style='background:#0b1a35;border:1px solid #1a3560;border-radius:10px;padding:14px;margin-bottom:12px;'>"
             html += f"<div style='font-size:1rem;font-weight:700;color:#ffd700;border-bottom:2px solid #ffd700;padding-bottom:6px;margin-bottom:10px;font-family:Bebas Neue,sans-serif;'>GRUPO {g}</div>"
             for t in teams:
-                html += f"<div style='padding:3px 0;'>{flag_img(t,18,13)}&nbsp;{display_name(t)}</div>"
+                html += f"<div style='padding:3px 0;'>{flag_emoji(t)} {display_name(t)}</div>"
             html += "</div>"
             st.markdown(html, unsafe_allow_html=True)
 
@@ -471,11 +472,11 @@ def _show_euro_classified(state, euro):
     if direct:
         st.markdown("#### ✅ Cupos Directos (Top 5)")
         for i, t in enumerate(direct):
-            st.markdown(f"{medals[i] if i < 5 else '✅'} {flag_img(t,22,16)}&nbsp;**{display_name(t)}**", unsafe_allow_html=True)
+            st.markdown(f"{medals[i] if i < 5 else '✅'} {flag_emoji(t)} **{display_name(t)}**", unsafe_allow_html=True)
     if playoff_q:
         st.markdown("#### 🔄 Vía Playoff UEFA (8 cupos)")
         for t in playoff_q:
-            st.markdown(f"✅ {flag_img(t,22,16)}&nbsp;**{display_name(t)}**", unsafe_allow_html=True)
+            st.markdown(f"✅ {flag_emoji(t)} **{display_name(t)}**", unsafe_allow_html=True)
     st.info(f"**Total UEFA: {len(qualified)}/13**")
 
 
@@ -674,13 +675,13 @@ def _show_ca_classified(state, ca):
     st.markdown("### 🌍 Clasificados CONMEBOL al Mundial FMMJ")
     champion = ca.get("champion")
     if champion:
-        st.markdown(f"🏆 **Campeón (Directo):** {flag_img(champion,24,18)}&nbsp;**{display_name(champion)}**", unsafe_allow_html=True)
+        st.markdown(f"🏆 **Campeón (Directo):** {flag_emoji(champion)} **{display_name(champion)}**", unsafe_allow_html=True)
     for t in ca.get("qualified", []):
         if t != champion:
-            st.markdown(f"✅ {flag_img(t,22,16)}&nbsp;**{display_name(t)}**", unsafe_allow_html=True)
+            st.markdown(f"✅ {flag_emoji(t)} **{display_name(t)}**", unsafe_allow_html=True)
     rep = state["playoff_teams"].get("conmebol_slot")
     if rep:
-        st.markdown(f"🔁 **Repechaje:** {flag_img(rep,22,16)}&nbsp;**{display_name(rep)}**", unsafe_allow_html=True)
+        st.markdown(f"🔁 **Repechaje:** {flag_emoji(rep)} **{display_name(rep)}**", unsafe_allow_html=True)
     st.info(f"**Total CONMEBOL: {len(ca.get('qualified',[]))}/4**")
 
 
@@ -846,12 +847,12 @@ def _show_caf_classified(state, tour):
     if direct:
         st.markdown("#### ✅ Campeón y Subcampeón (Directos)")
         for t in direct:
-            st.markdown(f"✅ {flag_img(t,22,16)}&nbsp;**{display_name(t)}**", unsafe_allow_html=True)
+            st.markdown(f"✅ {flag_emoji(t)} **{display_name(t)}**", unsafe_allow_html=True)
     playoff_q = [t for t in tour.get("qualified", []) if t not in direct]
     if playoff_q:
         st.markdown("#### 🔄 Vía Playoff CAF")
         for t in playoff_q:
-            st.markdown(f"✅ {flag_img(t,22,16)}&nbsp;**{display_name(t)}**", unsafe_allow_html=True)
+            st.markdown(f"✅ {flag_emoji(t)} **{display_name(t)}**", unsafe_allow_html=True)
     st.info(f"**Total CAF: {len(tour.get('qualified',[]))}/5**")
 
 
@@ -1008,14 +1009,14 @@ def _show_6team_classified(state, tour, torneo_name, repechaje_slot_key):
     st.markdown(f"### 🌍 Clasificados {torneo_name}")
     champion = tour.get("champion")
     if champion:
-        st.markdown(f"🏆 **Campeón (Directo):** {flag_img(champion,24,18)}&nbsp;**{display_name(champion)}**", unsafe_allow_html=True)
+        st.markdown(f"🏆 **Campeón (Directo):** {flag_emoji(champion)} **{display_name(champion)}**", unsafe_allow_html=True)
     for t in tour.get("qualified", []):
         if t != champion:
-            st.markdown(f"✅ {flag_img(t,22,16)}&nbsp;**{display_name(t)}**", unsafe_allow_html=True)
+            st.markdown(f"✅ {flag_emoji(t)} **{display_name(t)}**", unsafe_allow_html=True)
     if repechaje_slot_key:
         rep = state["playoff_teams"].get(repechaje_slot_key)
         if rep:
-            st.markdown(f"🔁 **Repechaje:** {flag_img(rep,22,16)}&nbsp;**{display_name(rep)}**", unsafe_allow_html=True)
+            st.markdown(f"🔁 **Repechaje:** {flag_emoji(rep)} **{display_name(rep)}**", unsafe_allow_html=True)
     st.info(f"**Total {torneo_name}: {len(tour.get('qualified',[]))} clasificados**")
 
 
@@ -1104,7 +1105,7 @@ def show_repechaje():
             if slot:
                 st.markdown(
                     f"<div style='background:#0d4f2e;border-radius:8px;padding:10px;color:#4eff91;font-weight:700;margin-bottom:8px;'>"
-                    f"🎉 {label}: {flag_img(slot,24,18)}&nbsp;{display_name(slot)}</div>",
+                    f"🎉 {label}: {flag_emoji(slot)} {display_name(slot)}</div>",
                     unsafe_allow_html=True
                 )
                 if slot not in state["world_cup_qualified"]:
@@ -1125,12 +1126,12 @@ def _show_tie(state, tie_key, home_team, away_team, slot_key, pr):
         key = f"rep_{tie_key}_{leg}"
         res = pr.get(key, {})
         c1, c2, c3, c4, c5 = st.columns([3, 1, 1, 3, 1])
-        with c1: st.markdown(f"{flag_img(h)}&nbsp;**{display_name(h)}**", unsafe_allow_html=True)
+        with c1: st.markdown(f"{flag_emoji(h)} **{display_name(h)}**", unsafe_allow_html=True)
         with c2:
             hg = st.number_input("", 0, 20, int(res.get("home_goals", 0)), key=f"{key}_hg", label_visibility="collapsed")
         with c3:
             ag = st.number_input("", 0, 20, int(res.get("away_goals", 0)), key=f"{key}_ag", label_visibility="collapsed")
-        with c4: st.markdown(f"{flag_img(a)}&nbsp;**{display_name(a)}**", unsafe_allow_html=True)
+        with c4: st.markdown(f"{flag_emoji(a)} **{display_name(a)}**", unsafe_allow_html=True)
         with c5:
             if st.button("💾", key=f"{key}_save"):
                 pr[key] = {"home": h, "away": a, "home_goals": hg, "away_goals": ag, "played": True}
@@ -1204,7 +1205,7 @@ def show_ranking():
         row_bg = "#0c3a22" if qualified else ("#091525" if pos_real % 2 == 0 else "#06101e")
         html += f"""<tr style='background:{row_bg};border-bottom:1px solid #101e38;'>
             <td style='padding:8px;text-align:center;color:#555;font-weight:700;'>{pos}</td>
-            <td style='padding:8px;'>{flag_img(team,20,15)}&nbsp;<span style='font-weight:600;color:#dce8ff;'>{display_name(team)}</span></td>
+            <td style='padding:8px;'>{flag_emoji(team)} <span style='font-weight:600;color:#dce8ff;'>{display_name(team)}</span></td>
             <td style='padding:8px;text-align:center;'>
                 <span class='conf-chip' style='background:{conf_colors.get(conf,"#222")};color:#fff;'>{conf}</span>
             </td>"""
@@ -1267,7 +1268,7 @@ def show_goleadores():
                         padding:16px;text-align:center;'>
                         <div style='font-size:2rem;'>{medal}</div>
                         <div style='font-size:1rem;font-weight:700;color:#fff;'>{r['name']}</div>
-                        <div style='font-size:0.8rem;color:#aaa;'>{flag_img(r['team'],18,13)}&nbsp;{display_name(r['team'])}</div>
+                        <div style='font-size:0.8rem;color:#aaa;'>{flag_emoji(r['team'])} {display_name(r['team'])}</div>
                         <div style='font-size:2rem;font-weight:900;color:{color};'>{r['goles_f']}</div>
                     </div>""", unsafe_allow_html=True)
 
@@ -1296,7 +1297,7 @@ def show_world_cup_draw():
     st.markdown(f"""<div style='background:linear-gradient(135deg,#b89000 0%,#ffd700 40%,#b89000 100%);
         border-radius:16px;padding:24px 32px;margin-bottom:20px;box-shadow:0 8px 32px rgba(200,160,0,.4);'>
         <div style='font-size:2.2rem;font-weight:900;color:#06101e;font-family:Bebas Neue,sans-serif;letter-spacing:3px;'>🌍 FMMJ WORLD CUP</div>
-        <div style='font-size:.95rem;color:#333;margin-top:4px;'>32 selecciones · 8 grupos de 4 · Anfitrión: {flag_img(host,22,16)}&nbsp;{display_name(host)}</div>
+        <div style='font-size:.95rem;color:#333;margin-top:4px;'>32 selecciones · 8 grupos de 4 · Anfitrión: {flag_emoji(host)} {display_name(host)}</div>
     </div>""", unsafe_allow_html=True)
 
     tabs = st.tabs(["🏅 Clasificados","🎲 Bombos","🎯 Sorteo","📊 Grupos","⚽ Llaves"])
@@ -1322,7 +1323,7 @@ def _show_wc_classified(state, qualified):
             html = f"<div style='background:#091525;border:1px solid #1a2a5a;border-radius:10px;padding:14px;margin-bottom:12px;'>"
             html += f"<div style='font-weight:700;color:#ffd700;margin-bottom:8px;font-family:Bebas Neue,sans-serif;'>{conf} — {len(teams)}/{total}</div>"
             for t in teams:
-                html += f"<div style='padding:3px 0;'>{flag_img(t,18,13)}&nbsp;{display_name(t)}</div>"
+                html += f"<div style='padding:3px 0;'>{flag_emoji(t)} {display_name(t)}</div>"
             html += "</div>"
             st.markdown(html, unsafe_allow_html=True)
     st.info(f"**Total: {len(qualified)}/32**")
@@ -1360,7 +1361,7 @@ def _show_wc_pots(state, wc, qualified):
             html += f"<div style='font-weight:800;color:{color};margin-bottom:10px;font-family:Bebas Neue,sans-serif;font-size:1.1rem;'>{label}</div>"
             for t in pots.get(i+1, []):
                 h_tag = " 🏠" if t == host else ""
-                html += f"<div style='padding:3px 0;'>{flag_img(t,18,13)}&nbsp;{display_name(t)}{h_tag}</div>"
+                html += f"<div style='padding:3px 0;'>{flag_emoji(t)} {display_name(t)}{h_tag}</div>"
             html += "</div>"
             st.markdown(html, unsafe_allow_html=True)
 
@@ -1397,7 +1398,7 @@ def _render_wc_groups(wc):
             html = f"<div style='background:#091020;border:1px solid #1a2860;border-radius:10px;padding:12px;margin-bottom:10px;'>"
             html += f"<div style='color:#ffd700;font-weight:700;border-bottom:1px solid #ffd700;padding-bottom:4px;margin-bottom:8px;font-family:Bebas Neue,sans-serif;'>GRUPO {g}</div>"
             for t in teams:
-                html += f"<div style='padding:3px 0;font-size:0.85rem;'>{flag_img(t,18,13)}&nbsp;{display_name(t)}</div>"
+                html += f"<div style='padding:3px 0;font-size:0.85rem;'>{flag_emoji(t)} {display_name(t)}</div>"
             html += "</div>"
             st.markdown(html, unsafe_allow_html=True)
 
@@ -1480,7 +1481,7 @@ def show_home(state):
             SIMULADOR OFICIAL FMMJ · {state.get('edition',1)}ª EDICIÓN
         </div>
         <div style='margin-top:16px;font-size:1rem;color:#90b0d0;'>
-            Anfitrión: {flag_img(host,24,18)}&nbsp;<strong>{display_name(host)}</strong>
+            Anfitrión: {flag_emoji(host)} <strong>{display_name(host)}</strong>
         </div>
     </div>""", unsafe_allow_html=True)
 
@@ -1528,7 +1529,7 @@ def show_home(state):
         st.markdown("### ✅ Últimos Clasificados")
         if qualified:
             for t in reversed(qualified[-10:]):
-                st.markdown(f"{flag_img(t,18,13)}&nbsp;{display_name(t)}", unsafe_allow_html=True)
+                st.markdown(f"{flag_emoji(t)} {display_name(t)}", unsafe_allow_html=True)
         else:
             st.info("Ninguno clasificado aún.")
 
@@ -1602,7 +1603,7 @@ with st.sidebar:
         <div style='font-size:0.68rem;color:#406080;text-transform:uppercase;'>Edición</div>
         <div style='font-size:1rem;font-weight:700;color:#ffd700;font-family:Bebas Neue,sans-serif;'>FMMJ {edition}ª Copa</div>
         <div style='margin-top:5px;font-size:0.68rem;color:#406080;'>Anfitrión</div>
-        <div style='font-size:0.9rem;font-weight:600;color:#dce8ff;'>{flag_img(host,18,13)}&nbsp;{display_name(host)}</div>
+        <div style='font-size:0.9rem;font-weight:600;color:#dce8ff;'>{flag_emoji(host)} {display_name(host)}</div>
         <div style='margin-top:5px;font-size:0.68rem;color:#406080;'>Clasificados</div>
         <div style='font-size:1rem;font-weight:700;color:{"#00cc66" if qc >= 32 else "#ffd700"};'>{qc}/32</div>
     </div>""", unsafe_allow_html=True)
