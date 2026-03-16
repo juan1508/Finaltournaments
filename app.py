@@ -1,3709 +1,30 @@
 """
-app.py - FMMJ World Cup Simulator — archivo único, sin imports externos propios
+app.py — FMMJ World Cup Simulator
+Archivo único con persistencia JSON y todas las competiciones clasificatorias
 """
 import streamlit as st
-import sys
-import os
 import random
-import copy
 import json
-
-# ============================================================
-# DATA
-# ============================================================
-# ---------------------------------------------------------------------------
-# LISTAS DE EQUIPOS POR CONFEDERACIÓN
-# ---------------------------------------------------------------------------
-UEFA_TEAMS = [
-    "Switzerland", "Denmark", "Poland", "Austria", "Croatia",
-    "Sweden", "Serbia", "Wales", "Scotland", "Belgium",
-    "Ukraine", "Czech Republic", "Iceland", "Greece", "Turkey",
-    "Norway", "Netherlands", "France", "Spain", "Portugal",
-    "Italy", "England", "Germany", "Hungary"
-]
-
-CONMEBOL_TEAMS = [
-    "Brazil", "Argentina", "Colombia", "Chile", "Peru",
-    "Uruguay", "Venezuela", "Bolivia", "Paraguay", "Ecuador",
-]
-
-CAF_TEAMS = [
-    "South Africa", "Morocco", "Tunisia", "Ghana", "Senegal",
-    "Egypt", "Ivory Coast", "Cameroon", "Nigeria", "Algeria",
-]
-
-CONCACAF_TEAMS = ["Mexico", "Panama", "Costa Rica", "USA", "Canada", "Jamaica"]
-AFC_TEAMS = ["Korea", "Saudi Arabia", "Japan", "Australia", "Israel", "Qatar"]
-PLAYOFF_TEAMS = ["New Zealand"]
-
-ALL_TEAMS = UEFA_TEAMS + CONMEBOL_TEAMS + CAF_TEAMS + CONCACAF_TEAMS + AFC_TEAMS + PLAYOFF_TEAMS
-COPA_AMERICA_GUESTS_POOL = CONCACAF_TEAMS + AFC_TEAMS + CAF_TEAMS + PLAYOFF_TEAMS
-
-CONFEDERATIONS = {
-    "UEFA": UEFA_TEAMS,
-    "CONMEBOL": CONMEBOL_TEAMS,
-    "CAF": CAF_TEAMS,
-    "CONCACAF": CONCACAF_TEAMS,
-    "AFC": AFC_TEAMS,
-    "OFC": PLAYOFF_TEAMS,
-}
-
-# ---------------------------------------------------------------------------
-# FLAG_MAP
-# ---------------------------------------------------------------------------
-FLAG_MAP = {
-    "Switzerland": "ch", "Denmark": "dk", "Poland": "pl", "Austria": "at",
-    "Croatia": "hr", "Sweden": "se", "Serbia": "rs", "Wales": "gb-wls",
-    "Scotland": "gb-sct", "Belgium": "be", "Ukraine": "ua",
-    "Czech Republic": "cz", "Iceland": "is", "Greece": "gr", "Turkey": "tr",
-    "Norway": "no", "Netherlands": "nl", "France": "fr", "Spain": "es",
-    "Portugal": "pt", "Italy": "it", "England": "gb-eng", "Germany": "de",
-    "Hungary": "hu", "Israel": "il",
-    "Brazil": "br", "Argentina": "ar", "Colombia": "co", "Chile": "cl",
-    "Peru": "pe", "Uruguay": "uy", "Venezuela": "ve", "Bolivia": "bo",
-    "Paraguay": "py", "Ecuador": "ec",
-    "South Africa": "za", "Morocco": "ma", "Tunisia": "tn", "Ghana": "gh",
-    "Senegal": "sn", "Egypt": "eg", "Ivory Coast": "ci", "Cameroon": "cm",
-    "Nigeria": "ng", "Algeria": "dz",
-    "Mexico": "mx", "Panama": "pa", "Costa Rica": "cr", "USA": "us",
-    "Canada": "ca", "Jamaica": "jm",
-    "Korea": "kr", "Saudi Arabia": "sa", "Japan": "jp", "Australia": "au",
-    "Qatar": "qa",
-    "New Zealand": "nz",
-}
-
-COUNTRY_CODES = FLAG_MAP
-
-# ---------------------------------------------------------------------------
-# LOGOS DE CONFEDERACIONES
-# ---------------------------------------------------------------------------
-CONF_LOGOS = {
-    "UEFA":     "uefa.png",
-    "CONMEBOL": "conmebol.png",
-    "CAF":      "caf.png",
-    "CONCACAF": "concacaf.png",
-    "AFC":      "afc.png",
-    "FIFA":     "fmmj.png",
-    "FMMJ":     "fmmj.png",
-}
-
-def get_flag_url(country_name, width=20, height=15):
-    code = FLAG_MAP.get(country_name, "")
-    if code:
-        return f"https://flagcdn.com/{width}x{height}/{code}.png"
-    return ""
-
-# ---------------------------------------------------------------------------
-# RANKING INICIAL FIFA FMMJ
-# ---------------------------------------------------------------------------
-INITIAL_FIFA_RANKING = {
-    "France": 1840, "Spain": 1810, "England": 1780, "Germany": 1750,
-    "Portugal": 1720, "Italy": 1690, "Netherlands": 1650, "Belgium": 1620,
-    "Croatia": 1580, "Denmark": 1560, "Switzerland": 1530, "Norway": 1480,
-    "Austria": 1450, "Sweden": 1420, "Poland": 1390, "Serbia": 1360,
-    "Turkey": 1330, "Ukraine": 1310, "Czech Republic": 1280, "Greece": 1250,
-    "Scotland": 1220, "Wales": 1200, "Hungary": 1180, "Iceland": 1150,
-    "Israel": 1200,
-    "Argentina": 1870, "Brazil": 1830, "Colombia": 1650, "Uruguay": 1620,
-    "Chile": 1540, "Ecuador": 1510, "Paraguay": 1430, "Peru": 1380,
-    "Bolivia": 1250, "Venezuela": 1230,
-    "Senegal": 1630, "Morocco": 1600, "Tunisia": 1530, "Ghana": 1480,
-    "Egypt": 1450, "Ivory Coast": 1440, "Nigeria": 1420, "Cameroon": 1390,
-    "Algeria": 1350, "South Africa": 1330,
-    "Mexico": 1550, "USA": 1530, "Canada": 1490, "Costa Rica": 1380,
-    "Panama": 1360, "Jamaica": 1280,
-    "Japan": 1560, "Korea": 1530, "Australia": 1470, "Saudi Arabia": 1420,
-    "Qatar": 1370, "New Zealand": 1100,
-}
-
-# ---------------------------------------------------------------------------
-# NOMBRES PARA MOSTRAR EN ESPAÑOL
-# ---------------------------------------------------------------------------
-TEAM_DISPLAY_NAMES = {
-    "Switzerland": "Suiza", "Denmark": "Dinamarca", "Poland": "Polonia",
-    "Austria": "Austria", "Croatia": "Croacia", "Sweden": "Suecia",
-    "Serbia": "Serbia", "Wales": "Gales", "Scotland": "Escocia",
-    "Belgium": "Bélgica", "Ukraine": "Ucrania", "Czech Republic": "Rep. Checa",
-    "Iceland": "Islandia", "Greece": "Grecia", "Turkey": "Turquía",
-    "Norway": "Noruega", "Netherlands": "Países Bajos", "France": "Francia",
-    "Spain": "España", "Portugal": "Portugal", "Italy": "Italia",
-    "England": "Inglaterra", "Germany": "Alemania", "Hungary": "Hungría",
-    "Israel": "Israel",
-    "Brazil": "Brasil", "Argentina": "Argentina", "Colombia": "Colombia",
-    "Chile": "Chile", "Peru": "Perú", "Uruguay": "Uruguay",
-    "Venezuela": "Venezuela", "Bolivia": "Bolivia", "Paraguay": "Paraguay",
-    "Ecuador": "Ecuador",
-    "South Africa": "Sudáfrica", "Morocco": "Marruecos", "Tunisia": "Túnez",
-    "Ghana": "Ghana", "Senegal": "Senegal", "Egypt": "Egipto",
-    "Ivory Coast": "Costa de Marfil", "Cameroon": "Camerún", "Nigeria": "Nigeria",
-    "Algeria": "Argelia",
-    "Mexico": "México", "Panama": "Panamá", "Costa Rica": "Costa Rica",
-    "USA": "Estados Unidos", "Canada": "Canadá", "Jamaica": "Jamaica",
-    "Korea": "Corea del Sur", "Saudi Arabia": "Arabia Saudita", "Japan": "Japón",
-    "Australia": "Australia", "Israel": "Israel", "Qatar": "Catar",
-    "New Zealand": "Nueva Zelanda",
-}
-
-# ---------------------------------------------------------------------------
-# JUGADORES
-# ---------------------------------------------------------------------------
-PLAYERS = {
-    "Ukraine": [
-        {"name": "V. Tsygankov", "pos": "MF"}, {"name": "O. Zinchenko", "pos": "DF"},
-        {"name": "R. Malinovskyi", "pos": "MF"}, {"name": "T. Stepanenko", "pos": "MF"},
-        {"name": "Y. Rakitskyi", "pos": "DF"}, {"name": "M. Shaparenko", "pos": "MF"},
-        {"name": "A. Lunin", "pos": "GK"}, {"name": "V. Buyalskyi", "pos": "MF"},
-        {"name": "M. Matviienko", "pos": "DF"}, {"name": "M. Mudryk", "pos": "FW"},
-    ],
-    "Czech Republic": [
-        {"name": "P. Schick", "pos": "FW"}, {"name": "T. Soucek", "pos": "MF"},
-        {"name": "A. Barak", "pos": "MF"}, {"name": "V. Coufal", "pos": "DF"},
-        {"name": "A. Hložek", "pos": "FW"}, {"name": "T. Holes", "pos": "MF"},
-        {"name": "L. Krejčí", "pos": "DF"}, {"name": "J. Pavlenka", "pos": "GK"},
-        {"name": "V. Černý", "pos": "FW"}, {"name": "M. Jurásek", "pos": "DF"},
-    ],
-    "Iceland": [
-        {"name": "S. Ingason", "pos": "DF"}, {"name": "A. Guðmundsson", "pos": "MF"},
-        {"name": "H. Magnússon", "pos": "DF"}, {"name": "J. Guðmundsson", "pos": "MF"},
-        {"name": "R. Rúnarsson", "pos": "GK"}, {"name": "A. Sigurðsson", "pos": "MF"},
-        {"name": "J. Þorsteinsson", "pos": "MF"}, {"name": "M. Anderson", "pos": "MF"},
-        {"name": "H. Haraldsson", "pos": "MF"}, {"name": "K. Hlynsson", "pos": "MF"},
-    ],
-    "Greece": [
-        {"name": "O. Vlachodimos", "pos": "GK"}, {"name": "K. Mavropanos", "pos": "DF"},
-        {"name": "V. Pavlidis", "pos": "FW"}, {"name": "K. Tsimikas", "pos": "DF"},
-        {"name": "A. Bakasetas", "pos": "MF"}, {"name": "P. Mantalos", "pos": "MF"},
-        {"name": "T. Fountas", "pos": "FW"}, {"name": "T. Douvikas", "pos": "FW"},
-        {"name": "G. Giakoumakis", "pos": "FW"}, {"name": "G. Koutsias", "pos": "FW"},
-    ],
-    "Turkey": [
-        {"name": "H. Çalhanoğlu", "pos": "MF"}, {"name": "O. Kökçü", "pos": "MF"},
-        {"name": "E. Ünal", "pos": "FW"}, {"name": "U. Çakır", "pos": "GK"},
-        {"name": "S. Özcan", "pos": "MF"}, {"name": "C. Ünder", "pos": "MF"},
-        {"name": "K.Aktürkoğlu", "pos": "FW"}, {"name": "A. Bardakçı", "pos": "DF"},
-        {"name": "M. Demiral", "pos": "DF"}, {"name": "A. Güler", "pos": "MF"},
-    ],
-    "Brazil": [
-        {"name": "Neymar Jr", "pos": "FW"}, {"name": "Vini Jr.", "pos": "FW"},
-        {"name": "Casemiro", "pos": "MF"}, {"name": "Allison", "pos": "GK"},
-        {"name": "Thiago Silva", "pos": "DF"}, {"name": "Marquinhos", "pos": "DF"},
-        {"name": "Gabriel Jesús", "pos": "FW"}, {"name": "Gabriel Martinelli", "pos": "FW"},
-        {"name": "Rodrygo", "pos": "FW"}, {"name": "Matheus Martins", "pos": "FW"},
-    ],
-    "Ecuador": [
-        {"name": "M. Caicedo", "pos": "MF"}, {"name": "A. Obando", "pos": "MF"},
-        {"name": "P. Estupiñán", "pos": "DF"}, {"name": "P. Hincapié", "pos": "DF"},
-        {"name": "A. Alvarado", "pos": "GK"}, {"name": "J. Sornoza", "pos": "MF"},
-        {"name": "D. Díaz", "pos": "FW"}, {"name": "C. Ramírez", "pos": "MF"},
-        {"name": "M. Ramírez", "pos": "FW"}, {"name": "K. Páez", "pos": "MF"},
-    ],
-    "Paraguay": [
-        {"name": "M. Almirón", "pos": "MF"}, {"name": "Kaku", "pos": "MF"},
-        {"name": "A. Sanabria", "pos": "FW"}, {"name": "O. Alderete", "pos": "DF"},
-        {"name": "G. Ávalos", "pos": "MF"}, {"name": "D. González", "pos": "MF"},
-        {"name": "A. Bareiro", "pos": "FW"}, {"name": "A. Cubas", "pos": "MF"},
-        {"name": "J. Espínola", "pos": "MF"}, {"name": "J. Enciso", "pos": "MF"},
-    ],
-    "Mexico": [
-        {"name": "G. Ochoa", "pos": "GK"}, {"name": "H. Lozano", "pos": "FW"},
-        {"name": "S. Giménez", "pos": "FW"}, {"name": "R. Jiménez", "pos": "FW"},
-        {"name": "E. Álvarez", "pos": "MF"}, {"name": "E. Sánchez", "pos": "DF"},
-        {"name": "H. Herrera", "pos": "MF"}, {"name": "L. Chávez", "pos": "MF"},
-        {"name": "C. Montes", "pos": "DF"}, {"name": "J. Quiñones", "pos": "FW"},
-    ],
-    "Panama": [
-        {"name": "A. Murillo", "pos": "DF"}, {"name": "A. Godoy", "pos": "MF"},
-        {"name": "A. Carrasquilla", "pos": "MF"}, {"name": "A. Andrade", "pos": "DF"},
-        {"name": "I. Díaz", "pos": "FW"}, {"name": "J. Rodríguez", "pos": "MF"},
-        {"name": "C. Waterman", "pos": "FW"}, {"name": "L. Mejía", "pos": "DF"},
-        {"name": "J. Fajardo", "pos": "FW"}, {"name": "E. Zorrilla", "pos": "MF"},
-    ],
-    "Italy": [
-        {"name": "G. Donnarumma", "pos": "GK"}, {"name": "L. Pellegrini", "pos": "MF"},
-        {"name": "F. Dimarco", "pos": "DF"}, {"name": "N. Barella", "pos": "MF"},
-        {"name": "G. Di Lorenzo", "pos": "DF"}, {"name": "F. Chiesa", "pos": "FW"},
-        {"name": "A. Bastoni", "pos": "DF"}, {"name": "C. Immobile", "pos": "FW"},
-        {"name": "Jorginho", "pos": "MF"}, {"name": "S. Pafundi", "pos": "FW"},
-    ],
-    "Portugal": [
-        {"name": "Cristiano Ronaldo", "pos": "FW"}, {"name": "Rafael Leão", "pos": "FW"},
-        {"name": "Rui Patricio", "pos": "GK"}, {"name": "Rúben Dias", "pos": "DF"},
-        {"name": "Bernardo Silva", "pos": "MF"}, {"name": "João Cancelo", "pos": "DF"},
-        {"name": "Diogo Jota", "pos": "FW"}, {"name": "João Félix", "pos": "FW"},
-        {"name": "Nuno Mendes", "pos": "DF"}, {"name": "João Neves", "pos": "MF"},
-    ],
-    "Spain": [
-        {"name": "Morata", "pos": "FW"}, {"name": "Gavi", "pos": "MF"},
-        {"name": "Pedri", "pos": "MF"}, {"name": "Carvajal", "pos": "DF"},
-        {"name": "U. Simón", "pos": "GK"}, {"name": "Rodri", "pos": "MF"},
-        {"name": "Thiago", "pos": "MF"}, {"name": "A. Grimaldo", "pos": "DF"},
-        {"name": "Koke", "pos": "MF"}, {"name": "Stefan Bajcetic", "pos": "MF"},
-    ],
-    "Korea": [
-        {"name": "H. Son", "pos": "FW"}, {"name": "Hyeon Woo", "pos": "GK"},
-        {"name": "Kim Min jae", "pos": "DF"}, {"name": "Lee Kang In", "pos": "MF"},
-        {"name": "Hwang Hee Chan", "pos": "FW"}, {"name": "Lee Jae Sung", "pos": "MF"},
-        {"name": "Hong Hyeon Seok", "pos": "MF"}, {"name": "Joo Min Kyu", "pos": "FW"},
-        {"name": "Um Won Sang", "pos": "GK"}, {"name": "Kim Young Gwon", "pos": "DF"},
-    ],
-    "Saudi Arabia": [
-        {"name": "A. Al Mayoof", "pos": "GK"}, {"name": "S. Al Faraj", "pos": "MF"},
-        {"name": "S. Al Dawsari", "pos": "FW"}, {"name": "A. Sharahili", "pos": "DF"},
-        {"name": "S. Abdulhamid", "pos": "DF"}, {"name": "H. Tombakti", "pos": "MF"},
-        {"name": "F. Al Birekan", "pos": "MF"}, {"name": "A. Al Bulayhi", "pos": "DF"},
-        {"name": "Y. Al Shahrani", "pos": "DF"}, {"name": "A. Al Ayeri", "pos": "FW"},
-    ],
-    "South Africa": [
-        {"name": "J. Barr", "pos": "DF"}, {"name": "Foster", "pos": "FW"},
-        {"name": "Mothiba", "pos": "FW"}, {"name": "Hlongwane", "pos": "FW"},
-        {"name": "Links", "pos": "MF"}, {"name": "Cafú Phete", "pos": "MF"},
-        {"name": "Kodisang", "pos": "FW"}, {"name": "Blom", "pos": "MF"},
-        {"name": "Ngezana", "pos": "DF"}, {"name": "Mailula", "pos": "FW"},
-    ],
-    "Tunisia": [
-        {"name": "Dahmen", "pos": "GK"}, {"name": "Skhiri", "pos": "MF"},
-        {"name": "Laïdouni", "pos": "MF"}, {"name": "Talbi", "pos": "FW"},
-        {"name": "Khazri", "pos": "FW"}, {"name": "Bguir", "pos": "MF"},
-        {"name": "Layouni", "pos": "MF"}, {"name": "Valery", "pos": "DF"},
-        {"name": "Abdi", "pos": "DF"}, {"name": "Bronn", "pos": "DF"},
-    ],
-    "Ghana": [
-        {"name": "T. Partey", "pos": "MF"}, {"name": "Iñaki williams", "pos": "FW"},
-        {"name": "L. Zigi", "pos": "GK"}, {"name": "Kudus", "pos": "MF"},
-        {"name": "Aidoo", "pos": "DF"}, {"name": "Lamptey", "pos": "DF"},
-        {"name": "Abdul Samed", "pos": "MF"}, {"name": "Djiku", "pos": "DF"},
-        {"name": "Paintsil", "pos": "FW"}, {"name": "Semenyo", "pos": "FW"},
-    ],
-    "New Zealand": [
-        {"name": "C. Wood", "pos": "FW"}, {"name": "J. Bell", "pos": "DF"},
-        {"name": "L. Cacace", "pos": "DF"}, {"name": "M. Stamenić", "pos": "MF"},
-        {"name": "A. Paulsen", "pos": "GK"}, {"name": "A. Rufer", "pos": "FW"},
-        {"name": "T. Bindon", "pos": "MF"}, {"name": "M. Boxall", "pos": "DF"},
-        {"name": "K. Barbarouses", "pos": "FW"}, {"name": "B. Old", "pos": "MF"},
-    ],
-    "Switzerland": [
-        {"name": "G. Kobel", "pos": "GK"}, {"name": "G. Xhaka", "pos": "MF"},
-        {"name": "M. Akanji", "pos": "DF"}, {"name": "F. Schär", "pos": "DF"},
-        {"name": "R. Freuler", "pos": "MF"}, {"name": "D. Zakaria", "pos": "MF"},
-        {"name": "N. Elvedi", "pos": "DF"}, {"name": "R. Rodríguez", "pos": "DF"},
-        {"name": "B. Embolo", "pos": "FW"}, {"name": "N. Okafor", "pos": "FW"},
-    ],
-    "Denmark": [
-        {"name": "K. Schmeichel", "pos": "GK"}, {"name": "A. Christensen", "pos": "DF"},
-        {"name": "P. Højbjerg", "pos": "MF"}, {"name": "S. Kjær", "pos": "DF"},
-        {"name": "M. Hjulmand", "pos": "MF"}, {"name": "C. Eriksen", "pos": "MF"},
-        {"name": "M. O'Riley", "pos": "MF"}, {"name": "J. Andersen", "pos": "DF"},
-        {"name": "A. Bah", "pos": "DF"}, {"name": "R. Højlund", "pos": "FW"},
-    ],
-    "Poland": [
-        {"name": "W. Szczęsny", "pos": "GK"}, {"name": "R. Lewandowski", "pos": "FW"},
-        {"name": "P. Zieliński", "pos": "MF"}, {"name": "A. Milik", "pos": "FW"},
-        {"name": "M. Cash", "pos": "DF"}, {"name": "S. Szymański", "pos": "MF"},
-        {"name": "P. Frankowski", "pos": "DF"}, {"name": "J. Kiwior", "pos": "DF"},
-        {"name": "N. Zalewski", "pos": "MF"}, {"name": "J. Bednarek", "pos": "DF"},
-    ],
-    "Austria": [
-        {"name": "C. Stankovic", "pos": "GK"}, {"name": "D. Alaba", "pos": "DF"},
-        {"name": "K. Laimer", "pos": "MF"}, {"name": "M. Sabitzer", "pos": "MF"},
-        {"name": "X. Schlager", "pos": "MF"}, {"name": "Arnautovic", "pos": "FW"},
-        {"name": "K. Danso", "pos": "DF"}, {"name": "C. Baumgartner", "pos": "MF"},
-        {"name": "G. Trauner", "pos": "DF"}, {"name": "M. Gregoritsch", "pos": "FW"},
-    ],
-    "Croatia": [
-        {"name": "D. Livaković", "pos": "GK"}, {"name": "L. Modrić", "pos": "MF"},
-        {"name": "M. Brozović", "pos": "MF"}, {"name": "M. Kovačić", "pos": "MF"},
-        {"name": "J. Gvardiol", "pos": "DF"}, {"name": "A. Kramarić", "pos": "FW"},
-        {"name": "I. Rakitić", "pos": "MF"}, {"name": "M. Pasalic", "pos": "MF"},
-        {"name": "N. Vlasic", "pos": "MF"}, {"name": "L. Majer", "pos": "MF"},
-    ],
-    "Uruguay": [
-        {"name": "F. Muslera", "pos": "GK"}, {"name": "L. Suárez", "pos": "FW"},
-        {"name": "F. Valverde", "pos": "MF"}, {"name": "R. Araujo", "pos": "DF"},
-        {"name": "J. Giménez", "pos": "DF"}, {"name": "D. Núñez", "pos": "FW"},
-        {"name": "R. Bentancur", "pos": "MF"}, {"name": "L. Torreira", "pos": "MF"},
-        {"name": "S. Coates", "pos": "DF"}, {"name": "M. Ugarte", "pos": "MF"},
-    ],
-    "Argentina": [
-        {"name": "E. Martínez", "pos": "GK"}, {"name": "L. Messi", "pos": "FW"},
-        {"name": "L. Martínez", "pos": "FW"}, {"name": "P. Dybala", "pos": "FW"},
-        {"name": "J. Álvarez", "pos": "FW"}, {"name": "M. Acuña", "pos": "DF"},
-        {"name": "A. Mac Allister", "pos": "MF"}, {"name": "C. Romero", "pos": "DF"},
-        {"name": "Á. Di María", "pos": "FW"}, {"name": "R. De Paul", "pos": "MF"},
-    ],
-    "Venezuela": [
-        {"name": "R. Romo", "pos": "GK"}, {"name": "Y. Herrera", "pos": "MF"},
-        {"name": "D. Machís", "pos": "FW"}, {"name": "J. Martinez", "pos": "MF"},
-        {"name": "C. Cásseres Jr", "pos": "MF"}, {"name": "M. Villanueva", "pos": "MF"},
-        {"name": "J. Cádiz", "pos": "DF"}, {"name": "L. Gonzalez", "pos": "DF"},
-        {"name": "J. Moreno", "pos": "FW"}, {"name": "S. Rondón", "pos": "FW"},
-    ],
-    "Bolivia": [
-        {"name": "C. Lampe", "pos": "GK"}, {"name": "S. Galindo", "pos": "DF"},
-        {"name": "M. Enoumba", "pos": "DF"}, {"name": "H. Vaca", "pos": "MF"},
-        {"name": "A. Jusino", "pos": "DF"}, {"name": "J. Arrascaita", "pos": "MF"},
-        {"name": "A. Quiroga", "pos": "MF"}, {"name": "D. Mancilla", "pos": "FW"},
-        {"name": "J. Chura", "pos": "FW"}, {"name": "J. Sagredo", "pos": "MF"},
-    ],
-    "Germany": [
-        {"name": "M. ter Stegen", "pos": "GK"}, {"name": "K. Havertz", "pos": "MF"},
-        {"name": "J. Musiala", "pos": "MF"}, {"name": "İ. Gündoğan", "pos": "MF"},
-        {"name": "F. Wirtz", "pos": "MF"}, {"name": "J. Kimmich", "pos": "MF"},
-        {"name": "S. Gnabry", "pos": "FW"}, {"name": "L. Sané", "pos": "FW"},
-        {"name": "A. Rüdiger", "pos": "DF"}, {"name": "J. Brandt", "pos": "MF"},
-    ],
-    "England": [
-        {"name": "N. Pope", "pos": "GK"}, {"name": "P. Foden", "pos": "MF"},
-        {"name": "M. Rashford", "pos": "FW"}, {"name": "J. Bellingham", "pos": "MF"},
-        {"name": "T. Alexander-Arnold", "pos": "DF"}, {"name": "B. Saka", "pos": "FW"},
-        {"name": "D. Rice", "pos": "MF"}, {"name": "H. Kane", "pos": "FW"},
-        {"name": "C. Palmer", "pos": "MF"}, {"name": "R. Sterling", "pos": "FW"},
-    ],
-    "Norway": [
-        {"name": "Ø. Nyland", "pos": "GK"}, {"name": "E. Haaland", "pos": "FW"},
-        {"name": "M. Ødegaard", "pos": "MF"}, {"name": "F. Aursnes", "pos": "MF"},
-        {"name": "A. Sørloth", "pos": "FW"}, {"name": "J. Ryerson", "pos": "DF"},
-        {"name": "K. Ajer", "pos": "DF"}, {"name": "P. Berg", "pos": "MF"},
-        {"name": "A. Pellegrino", "pos": "DF"}, {"name": "J. Svensson", "pos": "DF"},
-    ],
-    "USA": [
-        {"name": "M. Turner", "pos": "GK"}, {"name": "C. Pulisic", "pos": "MF"},
-        {"name": "G. Reyna", "pos": "MF"}, {"name": "W. McKennie", "pos": "MF"},
-        {"name": "S. Dest", "pos": "DF"}, {"name": "F. Balogun", "pos": "FW"},
-        {"name": "A. Robinson", "pos": "DF"}, {"name": "T. Adams", "pos": "MF"},
-        {"name": "C. Carter-Vickers", "pos": "DF"}, {"name": "J. Brooks", "pos": "DF"},
-    ],
-    "Costa Rica": [
-        {"name": "K. Navas", "pos": "GK"}, {"name": "J. Vargas", "pos": "MF"},
-        {"name": "O. Duarte", "pos": "DF"}, {"name": "C. Gamboa", "pos": "DF"},
-        {"name": "R. Leal", "pos": "FW"}, {"name": "F. Brown Forbes", "pos": "MF"},
-        {"name": "J. Cascante", "pos": "DF"}, {"name": "K. Vargas", "pos": "FW"},
-        {"name": "D. Chacón", "pos": "MF"}, {"name": "A. Martínez", "pos": "MF"},
-    ],
-    "Qatar": [
-        {"name": "M. Barsham", "pos": "GK"}, {"name": "A. Afif", "pos": "FW"},
-        {"name": "A. Ali", "pos": "MF"}, {"name": "K. Boudiaf", "pos": "MF"},
-        {"name": "H. Al Haydos", "pos": "MF"}, {"name": "A. Hatem", "pos": "MF"},
-        {"name": "B. Khoukhi", "pos": "DF"}, {"name": "Lucas Mendes", "pos": "DF"},
-        {"name": "A. Asad", "pos": "DF"}, {"name": "H. Ahmed", "pos": "MF"},
-    ],
-    "Australia": [
-        {"name": "M. Ryan", "pos": "GK"}, {"name": "C. Goodwin", "pos": "MF"},
-        {"name": "J. Irvine", "pos": "MF"}, {"name": "M. Leckie", "pos": "FW"},
-        {"name": "R. McGree", "pos": "MF"}, {"name": "A. Grant", "pos": "MF"},
-        {"name": "H. Souttar", "pos": "DF"}, {"name": "M. Luongo", "pos": "MF"},
-        {"name": "C. Devlin", "pos": "MF"}, {"name": "J. Maclaren", "pos": "FW"},
-    ],
-    "Morocco": [
-        {"name": "Y. Bounou", "pos": "GK"}, {"name": "A. Hakimi", "pos": "DF"},
-        {"name": "Y. En-Nesyri", "pos": "FW"}, {"name": "Brahim", "pos": "MF"},
-        {"name": "N. Mazraoui", "pos": "DF"}, {"name": "H. Ziyech", "pos": "MF"},
-        {"name": "S. Amrabat", "pos": "MF"}, {"name": "Munir", "pos": "FW"},
-        {"name": "A. Adli", "pos": "MF"}, {"name": "A. Ezzalzouli", "pos": "FW"},
-    ],
-    "Egypt": [
-        {"name": "K. Eissa", "pos": "GK"}, {"name": "M. Salah", "pos": "FW"},
-        {"name": "Marmoush", "pos": "FW"}, {"name": "A. Hegazi", "pos": "DF"},
-        {"name": "Trezeguet", "pos": "FW"}, {"name": "M. Mohamed", "pos": "MF"},
-        {"name": "T. Hamed", "pos": "MF"}, {"name": "M. Elneny", "pos": "MF"},
-        {"name": "M. Morsy", "pos": "MF"}, {"name": "A. Hassan", "pos": "MF"},
-    ],
-    "Senegal": [
-        {"name": "É. Mendy", "pos": "GK"}, {"name": "S. Mané", "pos": "FW"},
-        {"name": "K. Koulibaly", "pos": "DF"}, {"name": "B. Dia", "pos": "FW"},
-        {"name": "P. Sarr", "pos": "MF"}, {"name": "M. Niakhaté", "pos": "DF"},
-        {"name": "N. Jackson", "pos": "FW"}, {"name": "Y. Sabaly", "pos": "DF"},
-        {"name": "I. Gueye", "pos": "MF"}, {"name": "I. Sarr", "pos": "FW"},
-    ],
-    "Sweden": [
-        {"name": "R. Olsen", "pos": "GK"}, {"name": "A. Isak", "pos": "FW"},
-        {"name": "D. Kulusevski", "pos": "FW"}, {"name": "V. Gyökeres", "pos": "FW"},
-        {"name": "E. Forsberg", "pos": "MF"}, {"name": "V. Lindelöf", "pos": "DF"},
-        {"name": "M. Svanberg", "pos": "MF"}, {"name": "J. Karlsson", "pos": "MF"},
-        {"name": "K. Olsson", "pos": "DF"}, {"name": "H. Larsson", "pos": "FW"},
-    ],
-    "Serbia": [
-        {"name": "V. Milinković-Savić", "pos": "GK"},
-        {"name": "S. Milinković-Savić", "pos": "MF"},
-        {"name": "D. Vlahović", "pos": "FW"}, {"name": "F. Kostić", "pos": "MF"},
-        {"name": "D. Tadić", "pos": "MF"}, {"name": "A. Mitrović", "pos": "FW"},
-        {"name": "N. Gudelj", "pos": "MF"}, {"name": "N. Matić", "pos": "MF"},
-        {"name": "N. Milenković", "pos": "DF"}, {"name": "M. Milovanović", "pos": "MF"},
-    ],
-    "Wales": [
-        {"name": "W. Hennessey", "pos": "GK"}, {"name": "B. Johnson", "pos": "DF"},
-        {"name": "B. Davies", "pos": "DF"}, {"name": "J. Rodon", "pos": "DF"},
-        {"name": "E. Ampadu", "pos": "MF"}, {"name": "D. Brooks", "pos": "MF"},
-        {"name": "H. Wilson", "pos": "MF"}, {"name": "C. Roberts", "pos": "MF"},
-        {"name": "D. James", "pos": "FW"}, {"name": "L. Harris", "pos": "MF"},
-    ],
-    "Scotland": [
-        {"name": "A. Gunn", "pos": "GK"}, {"name": "A. Robertson", "pos": "DF"},
-        {"name": "K. Tierney", "pos": "DF"}, {"name": "J. McGinn", "pos": "MF"},
-        {"name": "C. McGregor", "pos": "MF"}, {"name": "S. McTominay", "pos": "MF"},
-        {"name": "R. Gauld", "pos": "MF"}, {"name": "L. Ferguson", "pos": "MF"},
-        {"name": "T. Cairney", "pos": "MF"}, {"name": "B. Doak", "pos": "FW"},
-    ],
-    "Belgium": [
-        {"name": "T. Courtois", "pos": "GK"}, {"name": "K. De Bruyne", "pos": "MF"},
-        {"name": "Y. Carrasco", "pos": "MF"}, {"name": "R. Lukaku", "pos": "FW"},
-        {"name": "L. Openda", "pos": "FW"}, {"name": "L. Trossard", "pos": "FW"},
-        {"name": "J. Doku", "pos": "FW"}, {"name": "Y. Tielemans", "pos": "MF"},
-        {"name": "A. Witsel", "pos": "MF"}, {"name": "A. Vermeeren", "pos": "MF"},
-    ],
-    "Colombia": [
-        {"name": "Á. Montero", "pos": "GK"}, {"name": "L. Díaz", "pos": "FW"},
-        {"name": "D. Muñoz", "pos": "DF"}, {"name": "L. Muriel", "pos": "FW"},
-        {"name": "L. Sinisterra", "pos": "FW"}, {"name": "J. Quintero", "pos": "MF"},
-        {"name": "J. Mojica", "pos": "DF"}, {"name": "D. Silva", "pos": "MF"},
-        {"name": "D. Cataño", "pos": "MF"}, {"name": "Y. Asprilla", "pos": "FW"},
-    ],
-    "Chile": [
-        {"name": "C. Bravo", "pos": "GK"}, {"name": "A. Sánchez", "pos": "FW"},
-        {"name": "G. Maripán", "pos": "DF"}, {"name": "A. Vidal", "pos": "MF"},
-        {"name": "P. Díaz", "pos": "DF"}, {"name": "B. Brereton Díaz", "pos": "FW"},
-        {"name": "E. Bolindos", "pos": "MF"}, {"name": "R. Echeverría", "pos": "MF"},
-        {"name": "C. Palacios", "pos": "MF"}, {"name": "D. Pizarro", "pos": "MF"},
-    ],
-    "Peru": [
-        {"name": "P. Gallese", "pos": "GK"}, {"name": "R. Tapia", "pos": "MF"},
-        {"name": "L. Advíncula", "pos": "DF"}, {"name": "R. Ruidíaz", "pos": "FW"},
-        {"name": "A. Callens", "pos": "DF"}, {"name": "G. Lapadula", "pos": "FW"},
-        {"name": "C. Cueva", "pos": "MF"}, {"name": "P. Guerrero", "pos": "FW"},
-        {"name": "A. Polo", "pos": "MF"}, {"name": "A. Valera", "pos": "DF"},
-    ],
-    "Jamaica": [
-        {"name": "A. Blake", "pos": "GK"}, {"name": "L. Bailey", "pos": "FW"},
-        {"name": "E. Pinnock", "pos": "DF"}, {"name": "M. Antonio", "pos": "FW"},
-        {"name": "D. Gray", "pos": "DF"}, {"name": "B. Cordova", "pos": "MF"},
-        {"name": "K. Roofe", "pos": "FW"}, {"name": "S. Nicholson", "pos": "FW"},
-        {"name": "A. Bell", "pos": "DF"}, {"name": "O. Hutchinson", "pos": "FW"},
-    ],
-    "Canada": [
-        {"name": "M. Crépeau", "pos": "GK"}, {"name": "A. Davies", "pos": "DF"},
-        {"name": "J. David", "pos": "FW"}, {"name": "S. Eustáquio", "pos": "MF"},
-        {"name": "C. Larin", "pos": "FW"}, {"name": "A. Johnston", "pos": "MF"},
-        {"name": "J. Osorio", "pos": "MF"}, {"name": "T. Buchanan", "pos": "MF"},
-        {"name": "L. Millar", "pos": "MF"}, {"name": "N. Saliba", "pos": "DF"},
-    ],
-    "Hungary": [
-        {"name": "P. Gulácsi", "pos": "GK"}, {"name": "W. Orban", "pos": "DF"},
-        {"name": "D. Szoboszlai", "pos": "MF"}, {"name": "R. Sallai", "pos": "FW"},
-        {"name": "M. Kerkez", "pos": "DF"}, {"name": "D. Gazdag", "pos": "MF"},
-        {"name": "B. Varga", "pos": "FW"}, {"name": "Z. Kalmár", "pos": "MF"},
-        {"name": "D. Sallói", "pos": "FW"}, {"name": "K. Lisztes", "pos": "MF"},
-    ],
-    "Netherlands": [
-        {"name": "M. Flekken", "pos": "GK"}, {"name": "V. van Dijk", "pos": "DF"},
-        {"name": "F. de Jong", "pos": "MF"}, {"name": "J. Frimpong", "pos": "DF"},
-        {"name": "M. de Ligt", "pos": "DF"}, {"name": "D. Malen", "pos": "FW"},
-        {"name": "M. Depay", "pos": "FW"}, {"name": "C. Gakpo", "pos": "FW"},
-        {"name": "X. Simons", "pos": "MF"}, {"name": "J. Hato", "pos": "DF"},
-    ],
-    "France": [
-        {"name": "M. Maignan", "pos": "GK"}, {"name": "K. Mbappé", "pos": "FW"},
-        {"name": "K. Benzema", "pos": "FW"}, {"name": "A. Griezmann", "pos": "FW"},
-        {"name": "J. Koundé", "pos": "DF"}, {"name": "K. Coman", "pos": "FW"},
-        {"name": "N. Kanté", "pos": "MF"}, {"name": "T. Hernández", "pos": "DF"},
-        {"name": "C. Nkunku", "pos": "FW"}, {"name": "W. Zaïre-Emery", "pos": "MF"},
-    ],
-    "Japan": [
-        {"name": "K. Nakamura", "pos": "GK"}, {"name": "D. Kamada", "pos": "MF"},
-        {"name": "K. Mitoma", "pos": "FW"}, {"name": "T. Kubo", "pos": "FW"},
-        {"name": "W. Endo", "pos": "MF"}, {"name": "H. Morita", "pos": "MF"},
-        {"name": "T. Minamino", "pos": "FW"}, {"name": "J. Ito", "pos": "FW"},
-        {"name": "R. Doan", "pos": "MF"}, {"name": "K. Sano", "pos": "MF"},
-    ],
-    "Israel": [
-        {"name": "D. Peretz", "pos": "GK"}, {"name": "M. Solomon", "pos": "MF"},
-        {"name": "M. Abu Fani", "pos": "MF"}, {"name": "S. Weissman", "pos": "FW"},
-        {"name": "O. Gloukh", "pos": "MF"}, {"name": "L. Abada", "pos": "FW"},
-        {"name": "O. Atzili", "pos": "FW"}, {"name": "R. Safuri", "pos": "MF"},
-        {"name": "T. Baribo", "pos": "FW"}, {"name": "O. Gandelman", "pos": "FW"},
-    ],
-    "Nigeria": [
-        {"name": "M. Okoye", "pos": "GK"}, {"name": "V. Osimhen", "pos": "FW"},
-        {"name": "A. Lookman", "pos": "FW"}, {"name": "V. Boniface", "pos": "FW"},
-        {"name": "S. Chukwueze", "pos": "FW"}, {"name": "W. Ndidi", "pos": "MF"},
-        {"name": "T. Moffi", "pos": "FW"}, {"name": "T. Awoniyi", "pos": "FW"},
-        {"name": "A. Nwakaeme", "pos": "FW"}, {"name": "S. Nwankwo", "pos": "FW"},
-    ],
-    "Cameroon": [
-        {"name": "A. Onana", "pos": "GK"}, {"name": "A. Zambo Anguissa", "pos": "MF"},
-        {"name": "J. Matip", "pos": "DF"}, {"name": "B. Mbeumo", "pos": "FW"},
-        {"name": "V. Aboubakar", "pos": "FW"}, {"name": "E. Choupo-Moting", "pos": "FW"},
-        {"name": "G. Nkoudou", "pos": "FW"}, {"name": "H. Moukoudi", "pos": "DF"},
-        {"name": "K. Toko Ekambi", "pos": "FW"}, {"name": "C. Baleba", "pos": "MF"},
-    ],
-    "Ivory Coast": [
-        {"name": "Y. Fofana", "pos": "MF"}, {"name": "F. Kessié", "pos": "MF"},
-        {"name": "S. Fofana", "pos": "DF"}, {"name": "W. Zaha", "pos": "FW"},
-        {"name": "S. Haller", "pos": "FW"}, {"name": "I. Sangaré", "pos": "MF"},
-        {"name": "O. Kossounou", "pos": "DF"}, {"name": "N. Pépé", "pos": "FW"},
-        {"name": "C. Kouamé", "pos": "FW"}, {"name": "A. Diallo", "pos": "DF"},
-    ],
-    "Algeria": [
-        {"name": "A. Oukidja", "pos": "GK"}, {"name": "R. Mahrez", "pos": "FW"},
-        {"name": "I. Bennacer", "pos": "MF"}, {"name": "N. Bentaleb", "pos": "MF"},
-        {"name": "A. Gouiri", "pos": "FW"}, {"name": "R. Bensebaini", "pos": "DF"},
-        {"name": "S. Benrahma", "pos": "FW"}, {"name": "R. Ghezzal", "pos": "FW"},
-        {"name": "F. Chaïbi", "pos": "MF"}, {"name": "B. Bouanani", "pos": "FW"},
-    ],
-}
-
-# ============================================================
-# STATE
-# ============================================================
-from data import INITIAL_FIFA_RANKING, UEFA_TEAMS, CONMEBOL_TEAMS, CAF_TEAMS, CONCACAF_TEAMS, AFC_TEAMS, PLAYOFF_TEAMS
-
-# ---------------------------------------------------------------------------
-# ESTADO INICIAL
-# ---------------------------------------------------------------------------
-def get_initial_state():
-    return {
-        # Meta
-        "host": "Nigeria",
-        "edition": 1,
-
-        # Ranking FMMJ (puntos actualizados durante los torneos)
-        "ranking": dict(sorted(INITIAL_FIFA_RANKING.items(), key=lambda x: -x[1])),
-
-        # Clasificados al mundial
-        "world_cup_qualified": [],
-
-        # Repechaje
-        "playoff_teams": {
-            "conmebol_slot": None,   # 4to Copa América
-            "concacaf_slot": None,   # 3er Copa Oro
-            "afc_slot": None,        # 4to Copa Asia
-            "ofc_slot": "New Zealand",
-        },
-        "playoff_results": {},
-
-        # EUROCOPA
-        "euro": {
-            "phase": "grupos",  # grupos | eliminatorias_playoff | llaves | completado
-            "groups": {},       # {A: [equipos], B: [...], ...}
-            "group_results": {},   # resultados partidos de grupos
-            "group_standings": {}, # tabla por grupo
-            "best_thirds": [],      # mejores terceros
-            "knockout_bracket": {}, # octavos, cuartos, semis, final
-            "knockout_results": {},
-            "playoff_bracket": {},  # playoff UEFA (puestos 6-21)
-            "playoff_results": {},
-            "qualified": [],        # clasificados UEFA al mundial (13)
-            "top_scorers": {},
-            "setup_done": False,
-        },
-
-        # COPA AMÉRICA
-        "copa_america": {
-            "phase": "configuracion",  # configuracion | grupos | eliminatorias_playoff | llaves | completado
-            "guests": [],           # 6 invitadas elegidas
-            "groups": {},
-            "group_results": {},
-            "group_standings": {},
-            "knockout_bracket": {},
-            "knockout_results": {},
-            "playoff_bracket": {},
-            "playoff_results": {},
-            "qualified": [],        # clasificados CONMEBOL (4: 1 directo + 3 de playoff)
-            "top_scorers": {},
-            "setup_done": False,
-        },
-
-        # COPA ÁFRICA
-        "copa_africa": {
-            "phase": "grupos",
-            "groups": {},
-            "group_results": {},
-            "group_standings": {},
-            "knockout_bracket": {},
-            "knockout_results": {},
-            "playoff_bracket": {},
-            "playoff_results": {},
-            "qualified": [],        # clasificados CAF (5: 2 directos + 3 de playoff)
-            "top_scorers": {},
-            "setup_done": False,
-        },
-
-        # COPA ORO (CONCACAF)
-        "copa_oro": {
-            "phase": "grupos",
-            "groups": {},
-            "group_results": {},
-            "group_standings": {},
-            "knockout_bracket": {},
-            "knockout_results": {},
-            "playoff_bracket": {},
-            "playoff_results": {},
-            "qualified": [],        # clasificados CONCACAF (3: 1 directo + 2 de playoff)
-            "top_scorers": {},
-            "setup_done": False,
-        },
-
-        # COPA ASIA (AFC)
-        "copa_asia": {
-            "phase": "grupos",
-            "groups": {},
-            "group_results": {},
-            "group_standings": {},
-            "knockout_bracket": {},
-            "knockout_results": {},
-            "playoff_bracket": {},
-            "playoff_results": {},
-            "qualified": [],        # clasificados AFC (4: 1 directo + 3 de playoff)
-            "top_scorers": {},
-            "setup_done": False,
-        },
-
-        # MUNDIAL
-        "world_cup": {
-            "phase": "sorteo",  # sorteo | grupos | octavos | cuartos | semis | final | completado
-            "pots": {1: [], 2: [], 3: [], 4: []},
-            "groups": {},
-            "group_results": {},
-            "group_standings": {},
-            "knockout_bracket": {},
-            "knockout_results": {},
-            "champion": None,
-            "top_scorers": {},
-            "setup_done": False,
-        },
-
-        # Goleadores globales
-        "all_scorers": {},  # {jugador: {equipo, goles, torneo}}
-    }
-
-# ---------------------------------------------------------------------------
-# INICIALIZAR ESTADO EN SESIÓN
-# ---------------------------------------------------------------------------
-def init_state():
-    if "fmmj_state" not in st.session_state:
-        st.session_state.fmmj_state = get_initial_state()
-
-def get_state():
-    init_state()
-    return st.session_state.fmmj_state
-
-def save_state():
-    """No hace nada especial – streamlit ya persiste session_state"""
-    pass
-
-def reset_for_new_edition():
-    """Resetea torneos pero mantiene ranking"""
-    current_ranking = st.session_state.fmmj_state["ranking"].copy()
-    current_edition = st.session_state.fmmj_state["edition"]
-    new_state = get_initial_state()
-    new_state["ranking"] = current_ranking
-    new_state["edition"] = current_edition + 1
-    new_state["host"] = None  # Se elige nuevo anfitrión
-    st.session_state.fmmj_state = new_state
-
-# ---------------------------------------------------------------------------
-# HELPER: ACTUALIZAR RANKING DESPUÉS DE UN TORNEO
-# ---------------------------------------------------------------------------
-RANKING_POINTS = {
-    # victoria, empate, derrota en cada fase
-    "group_win": 3,
-    "group_draw": 1,
-    "group_loss": 0,
-    "knockout_win": 5,
-    "knockout_draw_win": 4,   # ganó en penales/prórroga
-    "knockout_loss": 1,
-    "champion_bonus": 20,
-    "finalist_bonus": 12,
-    "semifinal_bonus": 6,
-    "quarterfinal_bonus": 3,
-}
-
-def update_ranking(team, points, state=None):
-    if state is None:
-        state = get_state()
-    if team in state["ranking"]:
-        state["ranking"][team] = state["ranking"].get(team, 1000) + points
-    # Reordenar
-    state["ranking"] = dict(sorted(state["ranking"].items(), key=lambda x: -x[1]))
-
-def get_team_confederation(team):
-    if team in UEFA_TEAMS:
-        return "UEFA"
-    elif team in CONMEBOL_TEAMS:
-        return "CONMEBOL"
-    elif team in CAF_TEAMS:
-        return "CAF"
-    elif team in CONCACAF_TEAMS:
-        return "CONCACAF"
-    elif team in AFC_TEAMS:
-        return "AFC"
-    elif team in PLAYOFF_TEAMS:
-        return "OFC"
-    return "UNKNOWN"
-
-# ============================================================
-# TOURNAMENT UTILS
-# ============================================================
-from data import INITIAL_FIFA_RANKING, FLAG_MAP, TEAM_DISPLAY_NAMES, get_flag_url
-
-# ---------------------------------------------------------------------------
-# NOMBRE PARA MOSTRAR
-# ---------------------------------------------------------------------------
-def display_name(team):
-    return TEAM_DISPLAY_NAMES.get(team, team)
-
-def flag_img(team, w=20, h=15):
-    url = get_flag_url(team, w, h)
-    if url:
-        return f'<img src="{url}" style="height:{h}px;vertical-align:middle;margin-right:4px;border-radius:2px;">'
-    return ""
-
-def team_badge(team, size=20):
-    return f'{flag_img(team, size, int(size*0.75))}{display_name(team)}'
-
-# ---------------------------------------------------------------------------
-# SORTEO DE GRUPOS GENÉRICO
-# ---------------------------------------------------------------------------
-def draw_groups(teams, num_groups, seeded_teams=None, ranking=None):
-    """
-    Distribuye teams en num_groups grupos.
-    Si seeded_teams está dado, un cabeza de serie por grupo.
-    Resto aleatorio respetando confederaciones (máx 1 por grupo excepto UEFA: máx 2).
-    """
-    if ranking:
-        teams_sorted = sorted(teams, key=lambda t: -ranking.get(t, 0))
-    else:
-        teams_sorted = sorted(teams, key=lambda t: -INITIAL_FIFA_RANKING.get(t, 0))
-
-    groups = {chr(65+i): [] for i in range(num_groups)}
-
-    if seeded_teams:
-        seeds = seeded_teams[:num_groups]
-    else:
-        seeds = teams_sorted[:num_groups]
-
-    for i, seed in enumerate(seeds):
-        groups[chr(65+i)].append(seed)
-
-    remaining = [t for t in teams_sorted if t not in seeds]
-    random.shuffle(remaining)
-
-    for team in remaining:
-        # Buscar grupo disponible
-        placed = False
-        random_groups = list(groups.keys())
-        random.shuffle(random_groups)
-        for g in random_groups:
-            current = groups[g]
-            if len(current) < (len(teams) // num_groups):
-                groups[g].append(team)
-                placed = True
-                break
-        if not placed:
-            for g in groups:
-                groups[g].append(team)
-                break
-
-    return groups
-
-# ---------------------------------------------------------------------------
-# GENERAR CALENDARIO DE GRUPO (Round Robin)
-# ---------------------------------------------------------------------------
-def generate_group_fixtures(groups):
-    """Genera todos los partidos de grupos {grupo: [(t1, t2), ...]}"""
-    fixtures = {}
-    for g, teams in groups.items():
-        matches = []
-        for i in range(len(teams)):
-            for j in range(i+1, len(teams)):
-                matches.append((teams[i], teams[j]))
-        fixtures[g] = matches
-    return fixtures
-
-# ---------------------------------------------------------------------------
-# TABLA DE GRUPO
-# ---------------------------------------------------------------------------
-def calculate_standings(group_teams, results):
-    """
-    results: {match_key: {"home_goals": int, "away_goals": int, "home_scorers": [], "away_scorers": []}}
-    match_key: "T1 vs T2"
-    Retorna lista de dicts ordenada
-    """
-    table = {t: {"team": t, "pj": 0, "pg": 0, "pe": 0, "pp": 0,
-                 "gf": 0, "gc": 0, "dg": 0, "pts": 0} for t in group_teams}
-
-    for key, res in results.items():
-        parts = key.split(" vs ")
-        if len(parts) != 2:
-            continue
-        home, away = parts[0], parts[1]
-        if home not in table or away not in table:
-            continue
-        hg = res.get("home_goals", 0)
-        ag = res.get("away_goals", 0)
-
-        table[home]["pj"] += 1
-        table[away]["pj"] += 1
-        table[home]["gf"] += hg
-        table[home]["gc"] += ag
-        table[away]["gf"] += ag
-        table[away]["gc"] += hg
-
-        if hg > ag:
-            table[home]["pg"] += 1
-            table[home]["pts"] += 3
-            table[away]["pp"] += 1
-        elif hg < ag:
-            table[away]["pg"] += 1
-            table[away]["pts"] += 3
-            table[home]["pp"] += 1
-        else:
-            table[home]["pe"] += 1
-            table[home]["pts"] += 1
-            table[away]["pe"] += 1
-            table[away]["pts"] += 1
-
-    for t in table:
-        table[t]["dg"] = table[t]["gf"] - table[t]["gc"]
-
-    standings = sorted(table.values(),
-                       key=lambda x: (-x["pts"], -x["dg"], -x["gf"]))
-    for i, row in enumerate(standings):
-        row["pos"] = i + 1
-    return standings
-
-# ---------------------------------------------------------------------------
-# MATCH KEY
-# ---------------------------------------------------------------------------
-def match_key(t1, t2):
-    return f"{t1} vs {t2}"
-
-# ---------------------------------------------------------------------------
-# PARTIDO FORMATO DISPLAY
-# ---------------------------------------------------------------------------
-def format_result(home, away, hg, ag):
-    return f"{display_name(home)} {hg} - {ag} {display_name(away)}"
-
-# ---------------------------------------------------------------------------
-# COLORES DE CONFEDERACIÓN
-# ---------------------------------------------------------------------------
-CONF_COLORS = {
-    "UEFA":     "#003580",
-    "CONMEBOL": "#006b3c",
-    "CAF":      "#b8860b",
-    "CONCACAF": "#8b0000",
-    "AFC":      "#4a0080",
-    "OFC":      "#006080",
-    "FMMJ":     "#c8a000",
-}
-
-def conf_color(team):
-    from state import get_team_confederation
-    conf = get_team_confederation(team)
-    return CONF_COLORS.get(conf, "#333")
-
-# ---------------------------------------------------------------------------
-# GOLEADORES
-# ---------------------------------------------------------------------------
-def _scorer_input(team, num_goals, existing_scorers, widget_key, state, torneo):
-    """
-    Muestra la lista de jugadores del equipo para marcar goleadores.
-    Usa multiselect con los jugadores reales + número de goles por jugador.
-    Retorna lista de strings "Nombre N" para compatibilidad con register_scorers.
-    """
-    players = PLAYERS.get(team, [])
-    if not players:
-        # Fallback: text input si no hay jugadores
-        val = st.text_input(
-            f"⚽ Goleadores {display_name(team)}",
-            value=", ".join(existing_scorers),
-            key=widget_key,
-            placeholder="Jugador 1, Jugador 2"
-        )
-        return [s.strip() for s in val.split(",") if s.strip()]
-
-    # Separar jugadores por posición para mejor UX
-    fw = [p["name"] for p in players if p["pos"] == "FW"]
-    mf = [p["name"] for p in players if p["pos"] == "MF"]
-    df_gk = [p["name"] for p in players if p["pos"] in ("DF", "GK")]
-    player_names = fw + mf + df_gk  # FW primero
-
-    # Reconstruir selección existente
-    existing_names = []
-    existing_counts = {}
-    for entry in existing_scorers:
-        parts = entry.rsplit(" ", 1)
-        if len(parts) == 2:
-            try:
-                existing_counts[parts[0]] = int(parts[1])
-                existing_names.append(parts[0])
-            except ValueError:
-                existing_counts[entry] = 1
-                existing_names.append(entry)
-        else:
-            existing_counts[entry] = 1
-            existing_names.append(entry)
-
-    # Filtrar nombres válidos
-    valid_existing = [n for n in existing_names if n in player_names]
-
-    if num_goals == 0:
-        return []
-
-    st.markdown(f"<div style='font-size:0.8rem;color:#a0c0ff;font-weight:600;margin-bottom:4px;'>⚽ {display_name(team)}</div>", unsafe_allow_html=True)
-    
-    selected = st.multiselect(
-        f"Goleadores {display_name(team)}",
-        options=player_names,
-        default=valid_existing,
-        key=f"{widget_key}_ms",
-        label_visibility="collapsed",
-        placeholder="Selecciona goleadores..."
-    )
-
-    result = []
-    for player in selected:
-        default_g = existing_counts.get(player, 1)
-        goals = st.number_input(
-            f"Goles de {player}",
-            min_value=1,
-            max_value=num_goals,
-            value=min(default_g, num_goals),
-            key=f"{widget_key}_{player}_g",
-            label_visibility="collapsed"
-        )
-        result.append(f"{player} {goals}")
-
-    return result
-
-
-def register_scorers(scorers_list, team, state, torneo):
-    """
-    Registra goles en all_scorers global.
-    scorers_list: lista de "Nombre N" o string CSV.
-    """
-    if not scorers_list:
-        return
-    if isinstance(scorers_list, str):
-        entries = [s.strip() for s in scorers_list.split(",") if s.strip()]
-    else:
-        entries = list(scorers_list)
-
-    if "all_scorers" not in state:
-        state["all_scorers"] = {}
-
-    for entry in entries:
-        parts = entry.rsplit(" ", 1)
-        if len(parts) == 2:
-            name, goals_str = parts
-            try:
-                goals = int(goals_str)
-            except ValueError:
-                goals = 1
-        else:
-            name = entry
-            goals = 1
-
-        skey = f"{name}||{team}"
-        sc = state["all_scorers"]
-        if skey not in sc:
-            sc[skey] = {"name": name, "team": team, "goals": 0, "torneos": {}}
-        sc[skey]["goals"] += goals
-        sc[skey]["torneos"][torneo] = sc[skey]["torneos"].get(torneo, 0) + goals
-
-# ---------------------------------------------------------------------------
-# RENDER TABLA DE POSICIONES
-# ---------------------------------------------------------------------------
-def render_standings_table(standings, advancing=2, show_thirds=False):
-    """
-    Renderiza tabla de posiciones usando st.dataframe nativo.
-    No retorna HTML — llama directamente a st.dataframe.
-    """
-    import pandas as pd
-
-    rows = []
-    for row in standings:
-        pos = row["pos"]
-        dg = row["dg"]
-        dg_str = f"+{dg}" if dg > 0 else str(dg)
-
-        if pos <= advancing:
-            estado = "✅ Clasifica"
-        elif pos <= advancing + 2 and show_thirds:
-            estado = "🟡 Posible 3ro"
-        else:
-            estado = "❌ Eliminado"
-
-        rows.append({
-            "#": pos,
-            "Selección": display_name(row["team"]),
-            "PJ": row["pj"],
-            "PG": row["pg"],
-            "PE": row["pe"],
-            "PP": row["pp"],
-            "GF": row["gf"],
-            "GC": row["gc"],
-            "DG": dg_str,
-            "PTS": row["pts"],
-            "Estado": estado,
-        })
-
-    df = pd.DataFrame(rows)
-
-    def color_row(row):
-        estado = row["Estado"]
-        if "✅" in estado:
-            bg = "background-color: #0d3a1e; color: #4eff91"
-        elif "🟡" in estado:
-            bg = "background-color: #2a3a00; color: #ccff44"
-        else:
-            bg = "background-color: #1a1a2e; color: #888899"
-        return [bg] * len(row)
-
-    styled = df.style.apply(color_row, axis=1)
-    st.dataframe(
-        styled,
-        use_container_width=True,
-        hide_index=True,
-        column_config={
-            "#": st.column_config.NumberColumn(width="small"),
-            "PJ": st.column_config.NumberColumn(width="small"),
-            "PG": st.column_config.NumberColumn(width="small"),
-            "PE": st.column_config.NumberColumn(width="small"),
-            "PP": st.column_config.NumberColumn(width="small"),
-            "GF": st.column_config.NumberColumn(width="small"),
-            "GC": st.column_config.NumberColumn(width="small"),
-            "DG": st.column_config.TextColumn(width="small"),
-            "PTS": st.column_config.NumberColumn(width="small"),
-            "Estado": st.column_config.TextColumn(width="medium"),
-        }
-    )
-    # Retornar string vacío para compatibilidad con llamadas que hacen st.markdown(...)
-    return ""
-
-
-
-# ---------------------------------------------------------------------------
-# ARMADO MANUAL DE GRUPOS (función genérica para todos los torneos)
-# ---------------------------------------------------------------------------
-
-
-def _show_jornada_groups(state, tour, torneo_name, results_key="group_results",
-                          groups_key="groups", standings_key="group_standings",
-                          advancing=2, show_thirds=False, caption_text=""):
-    """
-    Muestra los partidos de grupos organizados por jornadas para cualquier torneo.
-    """
-    groups = tour.get(groups_key, {})
-    results = tour.get(results_key, {})
-    all_complete = True
-
-    for g, teams in groups.items():
-        jornadas = get_jornadas(list(teams))
-        all_fixtures = [(h, a) for j in jornadas for h, a in j]
-
-        with st.expander(f"📋 GRUPO {g}", expanded=True):
-            tab_labels = [f"🗓 J{i+1}" for i in range(len(jornadas))] + ["📊 Tabla"]
-            j_tabs = st.tabs(tab_labels)
-
-            for ji, jornada_matches in enumerate(jornadas):
-                with j_tabs[ji]:
-                    st.markdown(f"**Jornada {ji+1}**")
-                    for home, away in jornada_matches:
-                        mk = match_key(home, away)
-                        res = results.get(mk, {})
-                        played = res.get("played", False)
-                        icon = "✅" if played else "⏳"
-
-                        col1, col2, col3, col4, col5 = st.columns([3, 1, 1, 3, 1])
-                        with col1:
-                            st.markdown(f"**{display_name(home)}**")
-                        with col2:
-                            hg = st.number_input("", 0, 20, res.get("home_goals", 0),
-                                                key=f"{torneo_name[:4]}_{g}_{home}_{away}_hg",
-                                                label_visibility="collapsed")
-                        with col3:
-                            ag = st.number_input("", 0, 20, res.get("away_goals", 0),
-                                                key=f"{torneo_name[:4]}_{g}_{home}_{away}_ag",
-                                                label_visibility="collapsed")
-                        with col4:
-                            st.markdown(f"**{display_name(away)}**")
-                        with col5:
-                            save = st.button(icon, key=f"{torneo_name[:4]}_{g}_{home}_{away}_sv",
-                                           help="Guardar resultado")
-
-                        col_s1, col_s2 = st.columns(2)
-                        with col_s1:
-                            hs = _scorer_input(home, hg, res.get("home_scorers", []),
-                                               f"{torneo_name[:4]}_{g}_{home}_{away}_hs",
-                                               state, torneo_name)
-                        with col_s2:
-                            as_ = _scorer_input(away, ag, res.get("away_scorers", []),
-                                                f"{torneo_name[:4]}_{g}_{home}_{away}_as",
-                                                state, torneo_name)
-
-                        if save:
-                            tour[results_key][mk] = {
-                                "home_goals": hg, "away_goals": ag,
-                                "home_scorers": hs, "away_scorers": as_, "played": True
-                            }
-                            register_scorers(hs, home, state, torneo_name)
-                            register_scorers(as_, away, state, torneo_name)
-                            st.rerun()
-
-            # Tab tabla
-            with j_tabs[-1]:
-                standings = calculate_standings(teams, {k: v for k, v in results.items()
-                                                         if any(t in k for t in teams)})
-                tour[standings_key][g] = standings
-                render_standings_table(standings, advancing=advancing, show_thirds=show_thirds)
-                if caption_text:
-                    st.caption(caption_text)
-
-        for home, away in all_fixtures:
-            if not results.get(match_key(home, away), {}).get("played"):
-                all_complete = False
-
-    return all_complete
-
-def get_jornadas(teams):
-    """
-    Genera el calendario de jornadas usando round-robin.
-    Con N equipos produce N-1 jornadas (o N si N es impar).
-    Cada jornada: todos los equipos juegan exactamente 1 partido.
-    """
-    n = len(teams)
-    t = list(teams)
-    if n % 2 != 0:
-        t.append(None)  # bye
-    rounds = []
-    num_rounds = len(t) - 1
-    half = len(t) // 2
-    rotation = t[1:]
-    for r in range(num_rounds):
-        pairs = []
-        circle = [t[0]] + rotation
-        for i in range(half):
-            h = circle[i]
-            a = circle[-(i+1)]
-            if h is not None and a is not None:
-                pairs.append((h, a))
-        rounds.append(pairs)
-        rotation = [rotation[-1]] + rotation[:-1]
-    return rounds
-
-def _manual_group_setup(state, tour_key, teams, num_groups, teams_per_group, confirm_label="Confirmar grupos"):
-    """
-    Interfaz manual para armar grupos: selectbox con texto plano (sin HTML).
-    """
-    tour = state[tour_key]
-    group_labels = [chr(65+i) for i in range(num_groups)]
-    ranking = state["ranking"]
-    teams_sorted = sorted(teams, key=lambda t: -ranking.get(t, 0))
-
-    st.markdown("#### 📋 Asigna cada equipo a su grupo:")
-    st.caption(f"{len(teams)} equipos → {num_groups} grupos de {teams_per_group}")
-
-    group_opts = ["— Sin asignar —"] + [f"Grupo {g}" for g in group_labels]
-
-    key_prefix = f"manual_{tour_key}"
-    if f"{key_prefix}_assignments" not in state:
-        state[f"{key_prefix}_assignments"] = {}
-    assignments = state[f"{key_prefix}_assignments"]
-
-    # Mostrar en columnas con TEXTO PLANO (sin HTML en labels)
-    cols = st.columns(3)
-    for idx, team in enumerate(teams_sorted):
-        with cols[idx % 3]:
-            current_val = assignments.get(team, "— Sin asignar —")
-            current_idx = group_opts.index(current_val) if current_val in group_opts else 0
-            # Label con bandera emoji o solo texto — sin HTML
-            code = FLAG_MAP.get(team, "")
-            label = f"{display_name(team)}"
-            sel = st.selectbox(
-                label,
-                group_opts,
-                index=current_idx,
-                key=f"{key_prefix}_{team}",
-            )
-            assignments[team] = sel
-    state[f"{key_prefix}_assignments"] = assignments
-
-    # Preview de grupos
-    preview = {g: [] for g in group_labels}
-    for team, grp in assignments.items():
-        if grp != "— Sin asignar —":
-            g = grp.replace("Grupo ", "")
-            if g in preview:
-                preview[g].append(team)
-
-    st.markdown("---")
-    st.markdown("**Vista previa de grupos:**")
-    ncols = min(num_groups, 8)
-    pcols = st.columns(ncols)
-    all_valid = True
-    for i, g in enumerate(group_labels):
-        with pcols[i % ncols]:
-            teams_in = preview[g]
-            color = "#00cc66" if len(teams_in) == teams_per_group else ("#ffd700" if len(teams_in) > 0 else "#6080aa")
-            st.markdown(
-                f"<div style='background:#0a1020;border:1px solid {color};border-radius:8px;padding:10px;margin-bottom:8px;'>"
-                f"<div style='font-weight:700;color:{color};margin-bottom:6px;'>GRUPO {g} ({len(teams_in)}/{teams_per_group})</div>"
-                + "".join([f"<div style='font-size:0.85rem;padding:2px 0;'>• {display_name(t)}</div>" for t in teams_in])
-                + "</div>",
-                unsafe_allow_html=True
-            )
-            if len(teams_in) != teams_per_group:
-                all_valid = False
-
-    unassigned = [t for t in teams if assignments.get(t, "— Sin asignar —") == "— Sin asignar —"]
-    if unassigned:
-        st.warning(f"⚠️ Sin asignar ({len(unassigned)}): {', '.join([display_name(t) for t in unassigned])}")
-
-    if all_valid:
-        if st.button(f"✅ {confirm_label}", type="primary", use_container_width=True):
-            tour["groups"] = preview
-            tour["group_results"] = {}
-            tour["group_standings"] = {}
-            tour["phase"] = "grupos"
-            tour["setup_done"] = True
-            if f"{key_prefix}_assignments" in state:
-                del state[f"{key_prefix}_assignments"]
-            st.rerun()
-            return True
-    else:
-        st.info(f"Asigna exactamente {teams_per_group} equipos a cada grupo para continuar.")
-    return False
-
-# ============================================================
-# EUROCOPA UEFA
-# ============================================================
-TOURNAMENT_KEY_EURO = 'euro'
-TORNEO_NAME_EURO = 'Eurocopa FMMJ'
-# ---------------------------------------------------------------------------
-# SORTEO DE GRUPOS EUROCOPA (con restricción de confederación = todos UEFA)
-# ---------------------------------------------------------------------------
-def setup_euro_groups(state):
-    """
-    24 equipos UEFA → 6 grupos de 4.
-    Se forman 4 bombos de 6 (por ranking). De cada bombo se extrae
-    1 equipo por grupo (6 grupos), igual que en la Eurocopa real.
-    """
-    ranking = state["ranking"]
-    teams_sorted = sorted(UEFA_TEAMS, key=lambda t: -ranking.get(t, 0))
-    # 4 bombos de 6 equipos (4 bombos × 6 = 24)
-    pots = [teams_sorted[i*6:(i+1)*6] for i in range(4)]
-    groups = {chr(65+i): [] for i in range(6)}
-    group_keys = list(groups.keys())  # ['A','B','C','D','E','F']
-    # De cada bombo, repartir 1 equipo a cada grupo
-    for pot in pots:
-        shuffled = pot[:]
-        random.shuffle(shuffled)
-        for i, team in enumerate(shuffled):
-            groups[group_keys[i]].append(team)
-    state["euro"]["groups"] = groups
-    state["euro"]["group_results"] = {}
-    state["euro"]["group_standings"] = {}
-    state["euro"]["phase"] = "grupos"
-    state["euro"]["setup_done"] = True
-
-# ---------------------------------------------------------------------------
-# PÁGINA PRINCIPAL
-# ---------------------------------------------------------------------------
-def show_eurocopa():
-    state = get_state()
-    euro = state["euro"]
-    host = state.get("host", "Nigeria")
-
-    st.markdown("""
-    <style>
-    .euro-header {
-        background: linear-gradient(135deg, #003580 0%, #0066cc 50%, #003580 100%);
-        border-radius: 16px; padding: 24px 32px; margin-bottom: 24px;
-        display: flex; align-items: center; gap: 20px;
-        box-shadow: 0 8px 32px rgba(0,53,128,0.4);
-    }
-    .euro-title {font-size: 2rem; font-weight: 800; color: #ffd700; margin: 0;}
-    .euro-subtitle {font-size: 0.9rem; color: #aaccff; margin: 4px 0 0 0;}
-    .group-card {
-        background: #0d1b3e; border: 1px solid #1a3a6e;
-        border-radius: 12px; padding: 16px; margin-bottom: 16px;
-    }
-    .group-title {
-        font-size: 1.1rem; font-weight: 700; color: #ffd700;
-        border-bottom: 2px solid #ffd700; padding-bottom: 8px; margin-bottom: 12px;
-    }
-    .match-input-row {
-        background: #111a35; border-radius: 8px; padding: 10px 14px;
-        margin-bottom: 8px; border: 1px solid #1e3055;
-    }
-    .match-label {font-size: 0.85rem; color: #8899cc; margin-bottom: 6px;}
-    .qualified-badge {
-        display: inline-block; padding: 4px 10px; border-radius: 20px;
-        font-size: 0.75rem; font-weight: 600; margin: 2px;
-    }
-    .direct { background: #0d4f2e; color: #4eff91; }
-    .playoff { background: #2a3d0d; color: #aaff44; }
-    .eliminated { background: #3d0d0d; color: #ff6666; }
-    .phase-badge {
-        display: inline-block; background: #003580; color: #ffd700;
-        padding: 4px 14px; border-radius: 20px; font-size: 0.8rem;
-        font-weight: 700; margin-bottom: 16px;
-    }
-    .knockout-match {
-        background: #0a1628; border: 1px solid #1a3a6e;
-        border-radius: 10px; padding: 14px; margin-bottom: 10px;
-    }
-    .match-teams {font-size: 1rem; color: #fff; font-weight: 600; margin-bottom: 8px;}
-    .winner-tag {color: #ffd700; font-weight: 700;}
-    </style>
-    """, unsafe_allow_html=True)
-
-    # Header
-    st.markdown(f"""
-    <div class='euro-header'>
-        <div>
-            <div class='euro-title'>🏆 {"Eurocopa FMMJ"}</div>
-            <div class='euro-subtitle'>24 selecciones UEFA · 6 grupos · 13 cupos al FMMJ World Cup</div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # Pestañas
-    tabs = st.tabs(["🎲 Sorteo", "📊 Fase de Grupos", "⚽ Llaves", "🔄 Playoff UEFA", "🌍 Clasificados"])
-
-    # ── TAB 1: ARMADO DE GRUPOS ────────────────────────────────────────────
-    with tabs[0]:
-        st.markdown("### 📋 Armado de Grupos — Eurocopa FMMJ")
-        if not euro["setup_done"]:
-            _manual_group_setup(state, "euro", UEFA_TEAMS, num_groups=6, teams_per_group=4,
-                                confirm_label="Confirmar grupos Eurocopa")
-        else:
-            st.success("✅ Grupos confirmados")
-            if st.button("✏️ Editar grupos", type="secondary"):
-                euro["setup_done"] = False
-                st.rerun()
-            _show_groups_draw(euro)
-
-    # ── TAB 2: FASE DE GRUPOS ──────────────────────────────────────────────
-    with tabs[1]:
-        if not euro["setup_done"]:
-            st.warning("Primero realiza el sorteo en la pestaña **Sorteo**.")
-        else:
-            _show_group_stage(state, euro)
-
-    # ── TAB 3: LLAVES (Knockout desde Octavos) ────────────────────────────
-    with tabs[2]:
-        if not euro["setup_done"]:
-            st.warning("Primero completa el sorteo.")
-        elif euro["phase"] not in ["llaves", "completado"]:
-            st.warning("Completa la fase de grupos primero.")
-        else:
-            _show_knockout(state, euro)
-
-    # ── TAB 4: PLAYOFF UEFA ───────────────────────────────────────────────
-    with tabs[3]:
-        _show_uefa_playoff(state, euro)
-
-    # ── TAB 5: CLASIFICADOS ───────────────────────────────────────────────
-    with tabs[4]:
-        _show_qualified(state, euro)
-
-
-# ---------------------------------------------------------------------------
-# SORTEO VISUAL
-# ---------------------------------------------------------------------------
-def _show_groups_draw(euro):
-    groups = euro["groups"]
-    cols = st.columns(3)
-    for idx, (g, teams) in enumerate(groups.items()):
-        with cols[idx % 3]:
-            st.markdown(f"<div class='group-card'><div class='group-title'>GRUPO {g}</div>", unsafe_allow_html=True)
-            for t in teams:
-                st.markdown(f"{flag_img(t,20,15)}&nbsp;**{display_name(t)}**", unsafe_allow_html=True)
-            st.markdown("</div>", unsafe_allow_html=True)
-
-
-# ---------------------------------------------------------------------------
-# FASE DE GRUPOS
-# ---------------------------------------------------------------------------
-def _show_group_stage(state, euro):
-    groups = euro["groups"]
-    results = euro.get("group_results", {})
-
-    st.markdown("### 📊 Fase de Grupos — Eurocopa FMMJ")
-    st.caption("Clasifican los **2 primeros** de cada grupo + los **4 mejores terceros**.")
-
-    all_groups_complete = True
-
-    for g, teams in groups.items():
-        jornadas = get_jornadas(teams)
-        all_fixtures = [(h, a) for j in jornadas for h, a in j]
-
-        with st.expander(f"📋 GRUPO {g}", expanded=True):
-            # Tabs por jornada
-            jornada_tabs = st.tabs([f"J{i+1}" for i in range(len(jornadas))] + ["📊 Tabla"])
-
-            for ji, jornada_matches in enumerate(jornadas):
-                with jornada_tabs[ji]:
-                    st.markdown(f"**Jornada {ji+1}**")
-                    for home, away in jornada_matches:
-                        key = match_key(home, away)
-                        res = results.get(key, {})
-                        played = res.get("played", False)
-                        played_icon = "✅" if played else "⏳"
-
-                        st.markdown(f"<div style='background:#0a1020;border:1px solid {'#1a4a2a' if played else '#1a2a5a'};border-radius:8px;padding:10px;margin-bottom:8px;'>", unsafe_allow_html=True)
-                        col1, col2, col3, col4, col5 = st.columns([3, 1, 1, 3, 1])
-                        with col1:
-                            st.markdown(f"**{display_name(home)}**")
-                        with col2:
-                            hg = st.number_input("", 0, 20, res.get("home_goals", 0),
-                                                key=f"euro_hg_{g}_{home}_{away}", label_visibility="collapsed")
-                        with col3:
-                            ag = st.number_input("", 0, 20, res.get("away_goals", 0),
-                                                key=f"euro_ag_{g}_{home}_{away}", label_visibility="collapsed")
-                        with col4:
-                            st.markdown(f"**{display_name(away)}**")
-                        with col5:
-                            save = st.button(f"{played_icon}", key=f"euro_save_{g}_{home}_{away}", help="Guardar")
-
-                        col_sc1, col_sc2 = st.columns(2)
-                        with col_sc1:
-                            hs = _scorer_input(home, hg, res.get("home_scorers", []),
-                                               f"euro_sc_{g}_{home}_{away}_h", state, "Eurocopa FMMJ")
-                        with col_sc2:
-                            as_ = _scorer_input(away, ag, res.get("away_scorers", []),
-                                                f"euro_sc_{g}_{home}_{away}_a", state, "Eurocopa FMMJ")
-
-                        if save:
-                            euro["group_results"][key] = {
-                                "home_goals": hg, "away_goals": ag,
-                                "home_scorers": hs, "away_scorers": as_, "played": True
-                            }
-                            register_scorers(hs, home, state, "Eurocopa FMMJ")
-                            register_scorers(as_, away, state, "Eurocopa FMMJ")
-                            st.rerun()
-                        st.markdown("</div>", unsafe_allow_html=True)
-
-            # Tab tabla
-            with jornada_tabs[-1]:
-                standings = calculate_standings(teams, {k: v for k, v in results.items()
-                                                         if any(t in k for t in teams)})
-                euro["group_standings"][g] = standings
-                render_standings_table(standings, advancing=2, show_thirds=True)
-                st.caption("✅ Clasifica directo | 🟡 Posible mejor tercero")
-
-        # Verificar si todos los partidos del grupo están jugados
-        for home, away in all_fixtures:
-            if not results.get(match_key(home, away), {}).get("played"):
-                all_groups_complete = False
-
-    # Botón para avanzar a llaves
-    if all_groups_complete or st.checkbox("🔓 Forzar avance a llaves (aunque falten resultados)"):
-        if euro["phase"] == "grupos":
-            if st.button("⚽ Generar Llaves — Fase de Eliminación", type="primary", use_container_width=True):
-                _build_knockout_bracket(state, euro)
-                euro["phase"] = "llaves"
-                st.rerun()
-
-
-# ---------------------------------------------------------------------------
-# CONSTRUCCIÓN DEL CUADRO ELIMINATORIO
-# ---------------------------------------------------------------------------
-def _build_knockout_bracket(state, euro):
-    """
-    Top 2 de cada grupo (12) + 4 mejores terceros = 16 equipos
-    Formato UEFA Euro: Octavos definidos por tabla de mejores terceros
-    """
-    standings = euro.get("group_standings", {})
-    groups_order = sorted(standings.keys())
-
-    firsts = []
-    seconds = []
-    thirds = []
-
-    for g in groups_order:
-        s = standings[g]
-        if len(s) >= 1:
-            firsts.append(s[0]["team"])
-        if len(s) >= 2:
-            seconds.append(s[1]["team"])
-        if len(s) >= 3:
-            thirds.append(s[2])
-
-    # Mejores 4 terceros (por puntos, dg, gf)
-    best4_thirds = sorted(thirds, key=lambda x: (-x["pts"], -x["dg"], -x["gf"]))[:4]
-    best4_thirds_teams = [x["team"] for x in best4_thirds]
-    best4_thirds_groups = [g for g in groups_order
-                           if any(standings[g][2]["team"] == t for t in best4_thirds_teams
-                                  if len(standings.get(g, [])) > 2)]
-
-    # Emparejamiento octavos de final (simplificado por posición)
-    # 1A vs Mejor3(BCDEF), 1C vs 3(DEF), etc. (usamos orden estándar UEFA)
-    round_of_16 = []
-    # Emparejamiento estándar UEFA Euro 2024:
-    # 1A vs 2C, 1B vs 3(ADEF), 1C vs 3(DEF), 1D vs 2B
-    # 1E vs 3(ABC), 1F vs 3(ABCD), 2D vs 2E, 2A vs 2F
-    # Simplificado: top2 + best4thirds aleatoriamente
-    qualified_16 = firsts + seconds
-    random.shuffle(best4_thirds_teams)
-    qualified_16 = qualified_16[:12] + best4_thirds_teams
-
-    random.shuffle(qualified_16)
-    for i in range(0, 16, 2):
-        round_of_16.append((qualified_16[i], qualified_16[i+1]))
-
-    euro["knockout_bracket"] = {
-        "octavos": [{"home": m[0], "away": m[1], "winner": None} for m in round_of_16],
-        "cuartos": [],
-        "semis": [],
-        "tercer_puesto": [],
-        "final": [],
-    }
-    euro["knockout_results"] = {}
-
-
-# ---------------------------------------------------------------------------
-# LLAVES ELIMINATORIAS
-# ---------------------------------------------------------------------------
-def _show_knockout(state, euro):
-    st.markdown("### ⚽ Fase de Eliminación — Eurocopa FMMJ")
-    bracket = euro.get("knockout_bracket", {})
-    results = euro.get("knockout_results", {})
-
-    phases = [
-        ("octavos", "🔵 Octavos de Final", "cuartos"),
-        ("cuartos", "🟡 Cuartos de Final", "semis"),
-        ("semis", "🟠 Semifinales", "final"),
-        ("final", "🏆 Final", None),
-    ]
-
-    for phase_key, phase_name, next_phase in phases:
-        matches = bracket.get(phase_key, [])
-        if not matches:
-            continue
-
-        st.markdown(f"#### {phase_name}")
-        all_done = True
-
-        for idx, match in enumerate(matches):
-            home = match["home"]
-            away = match["away"]
-            if not home or not away:
-                st.markdown(f"*Pendiente de clasificación*")
-                all_done = False
-                continue
-
-            key = f"euro_{phase_key}_{idx}"
-            res = results.get(key, {})
-
-            with st.container():
-                st.markdown(f"<div class='knockout-match'>", unsafe_allow_html=True)
-                col1, col2, col3, col4, col5, col6 = st.columns([3,1,1,3,2,1])
-                with col1:
-                    st.markdown(f"{flag_img(home,22,16)}&nbsp;**{display_name(home)}**", unsafe_allow_html=True)
-                with col2:
-                    hg = st.number_input("", min_value=0, max_value=20,
-                                        value=res.get("home_goals", 0),
-                                        key=f"{key}_hg", label_visibility="collapsed")
-                with col3:
-                    ag = st.number_input("", min_value=0, max_value=20,
-                                        value=res.get("away_goals", 0),
-                                        key=f"{key}_ag", label_visibility="collapsed")
-                with col4:
-                    st.markdown(f"{flag_img(away,22,16)}&nbsp;**{display_name(away)}**", unsafe_allow_html=True)
-                with col5:
-                    if hg == ag:
-                        pen_opt = [None, home, away]
-                        pen_disp = ["— Penales —", display_name(home), display_name(away)]
-                        pen_idx = pen_opt.index(res.get("penalty_winner")) if res.get("penalty_winner") in pen_opt else 0
-                        pen_sel = st.selectbox("Penales", pen_disp, index=pen_idx, key=f"{key}_pen")
-                        pen_winner = pen_opt[pen_disp.index(pen_sel)]
-                    else:
-                        pen_winner = None
-                        st.markdown("")
-                with col6:
-                    save = st.button("💾", key=f"{key}_save", help="Guardar")
-
-                # Goleadores
-                col_s1, col_s2 = st.columns(2)
-                with col_s1:
-                    hs = _scorer_input(home, hg, res.get("home_scorers", []), f"{key}_hs", state, "Eurocopa FMMJ")
-                with col_s2:
-                    as_ = _scorer_input(away, ag, res.get("away_scorers", []), f"{key}_as", state, "Eurocopa FMMJ")
-
-                if save:
-                    winner = home if hg > ag else (away if ag > hg else pen_winner)
-                    results[key] = {
-                        "home_goals": hg, "away_goals": ag,
-                        "penalty_winner": pen_winner, "winner": winner,
-                        "home_scorers": hs, "away_scorers": as_,
-                    }
-                    euro["knockout_bracket"][phase_key][idx]["winner"] = winner
-                    register_scorers(hs, home, state, "Eurocopa FMMJ")
-                    register_scorers(as_, away, state, "Eurocopa FMMJ")
-                    st.rerun()
-
-                if res.get("winner"):
-                    st.markdown(f"<span class='winner-tag'>✅ Ganador: {flag_img(res['winner'],18,13)}{display_name(res['winner'])}</span>",
-                               unsafe_allow_html=True)
-                else:
-                    all_done = False
-
-                st.markdown("</div>", unsafe_allow_html=True)
-
-        # Avanzar a siguiente fase
-        if all_done and next_phase is not None and not bracket.get(next_phase):
-            winners = [results.get(f"euro_{phase_key}_{i}", {}).get("winner")
-                      for i in range(len(matches))]
-            winners = [w for w in winners if w]
-            if next_phase == "semis" and phase_key == "cuartos":
-                losers = [m.get("winner") for m in bracket.get("cuartos", []) if m.get("winner")]
-                # semis toma winners de cuartos
-            next_matches = [(winners[i], winners[i+1]) for i in range(0, len(winners)-1, 2)]
-            bracket[next_phase] = [{"home": m[0], "away": m[1], "winner": None} for m in next_matches]
-            if next_phase == "semis":
-                # También preparar el partido por el tercer puesto
-                bracket["tercer_puesto"] = []
-            euro["knockout_results"] = results
-            st.rerun()
-
-        if all_done and phase_key == "semis" and not bracket.get("tercer_puesto"):
-            losers = []
-            for i, match in enumerate(matches):
-                key = f"euro_semis_{i}"
-                res = results.get(key, {})
-                winner = res.get("winner")
-                loser = match["home"] if winner == match["away"] else match["away"]
-                if loser:
-                    losers.append(loser)
-            if len(losers) == 2:
-                bracket["tercer_puesto"] = [{"home": losers[0], "away": losers[1], "winner": None}]
-                st.rerun()
-
-        # Final y 3er puesto -> clasificados
-        if all_done and phase_key == "final":
-            _determine_euro_qualified(state, euro, results, bracket)
-
-
-def _determine_euro_qualified(state, euro, results, bracket):
-    if euro.get("qualified"):
-        return  # ya calculado
-
-    # Orden knockout: campeón=1, finalista=2, semifinalistas=3-4, cuartos=5-8...
-    champion = None
-    final_res = results.get("euro_final_0", {})
-    if final_res.get("winner"):
-        champion = final_res["winner"]
-
-    finalist = None
-    for m in bracket.get("final", []):
-        if m.get("winner"):
-            finalist = m["home"] if m["winner"] == m["away"] else m["away"]
-
-    semifinalists = []
-    for i, m in enumerate(bracket.get("semis", [])):
-        res_s = results.get(f"euro_semis_{i}", {})
-        loser = m["home"] if res_s.get("winner") == m["away"] else m["away"]
-        if loser:
-            semifinalists.append(loser)
-
-    quarter_losers = []
-    for i, m in enumerate(bracket.get("cuartos", [])):
-        res_q = results.get(f"euro_cuartos_{i}", {})
-        loser = m["home"] if res_q.get("winner") == m["away"] else m["away"]
-        if loser:
-            quarter_losers.append(loser)
-
-    # Top 5 van al mundial directo
-    direct = [champion, finalist] + semifinalists + quarter_losers[:1]
-    direct = [t for t in direct if t][:5]
-
-    # Puestos 6-21: van al playoff UEFA (16 equipos, 4 grupos, top2 van al mundial = 8 clasificados)
-    all_knockout = [champion, finalist] + semifinalists + quarter_losers
-    all_round16 = [m["home"] for m in bracket.get("octavos", [])] + \
-                  [m["away"] for m in bracket.get("octavos", [])]
-
-    group_teams_flat = [t for teams in euro["groups"].values() for t in teams]
-    # Eliminados en fase de grupos (puestos 3 y 4 sin ser mejores terceros)
-    best_thirds = []
-    fourth_placed = []
-    for g, standings in euro.get("group_standings", {}).items():
-        if len(standings) >= 3:
-            best_thirds.append(standings[2]["team"])
-        if len(standings) >= 4:
-            fourth_placed.append(standings[3]["team"])
-
-    playoff_candidates = [t for t in all_round16
-                         if t and t not in direct and t not in all_knockout[:6]]
-    # Completar con grupos
-    for t in fourth_placed + best_thirds:
-        if t and t not in direct and t not in playoff_candidates:
-            playoff_candidates.append(t)
-
-    playoff_candidates = list(dict.fromkeys(playoff_candidates))[:16]
-
-    euro["qualified_direct"] = direct
-    euro["playoff_candidates"] = playoff_candidates
-    euro["phase"] = "playoff_uefa"
-
-
-# ---------------------------------------------------------------------------
-# PLAYOFF UEFA (puestos 6-21 → 8 clasificados)
-# ---------------------------------------------------------------------------
-def _show_uefa_playoff(state, euro):
-    st.markdown("### 🔄 Playoff UEFA — 8 cupos al Mundial")
-    st.caption("16 equipos eliminados en llaves + mejores grupos compiten en 4 grupos de 4. Los 2 primeros de cada grupo clasifican.")
-
-    if euro["phase"] not in ["playoff_uefa", "completado"]:
-        st.info("Esta fase se habilita una vez concluya la Eurocopa.")
-        return
-
-    if not euro.get("playoff_bracket"):
-        candidates = euro.get("playoff_candidates", [])
-        if len(candidates) < 16:
-            st.warning(f"Solo hay {len(candidates)} candidatos al playoff. Se necesitan 16.")
-            return
-        # Sorteo 4 grupos de 4
-        random.shuffle(candidates)
-        playoff_groups = {f"P{i+1}": candidates[i*4:(i+1)*4] for i in range(4)}
-        euro["playoff_bracket"] = {
-            "groups": playoff_groups,
-            "results": {},
-            "standings": {},
-        }
-
-    pb = euro["playoff_bracket"]
-    playoff_results = pb.get("results", {})
-    all_complete = True
-
-    for g, teams in pb["groups"].items():
-        with st.expander(f"Grupo Playoff {g}", expanded=True):
-            fixtures = [(teams[i], teams[j]) for i in range(len(teams)) for j in range(i+1, len(teams))]
-            for home, away in fixtures:
-                key = match_key(home, away)
-                res = playoff_results.get(key, {})
-                col1, col2, col3, col4, col5 = st.columns([3,1,1,3,1])
-                with col1:
-                    st.markdown(f"{flag_img(home)}&nbsp;**{display_name(home)}**", unsafe_allow_html=True)
-                with col2:
-                    hg = st.number_input("", 0, 20, res.get("home_goals", 0), key=f"epo_hg_{g}_{home}_{away}", label_visibility="collapsed")
-                with col3:
-                    ag = st.number_input("", 0, 20, res.get("away_goals", 0), key=f"epo_ag_{g}_{home}_{away}", label_visibility="collapsed")
-                with col4:
-                    st.markdown(f"{flag_img(away)}&nbsp;**{display_name(away)}**", unsafe_allow_html=True)
-                with col5:
-                    if st.button("💾", key=f"epo_save_{g}_{home}_{away}"):
-                        playoff_results[key] = {"home_goals": hg, "away_goals": ag, "played": True}
-                        pb["results"] = playoff_results
-                        st.rerun()
-                if not playoff_results.get(key, {}).get("played"):
-                    all_complete = False
-
-            standings = calculate_standings(teams, {k: v for k, v in playoff_results.items()
-                                                     if any(t in k for t in teams)})
-            pb["standings"][g] = standings
-            render_standings_table(standings, advancing=2)
-
-    if all_complete:
-        qualified_playoff = []
-        for g, standings in pb["standings"].items():
-            for row in standings[:2]:
-                qualified_playoff.append(row["team"])
-
-        all_qualified = euro.get("qualified_direct", []) + qualified_playoff
-        euro["qualified"] = all_qualified
-        euro["phase"] = "completado"
-
-        st.success(f"✅ Playoff completado. {len(qualified_playoff)} equipos adicionales clasificados al Mundial.")
-
-
-# ---------------------------------------------------------------------------
-# CLASIFICADOS
-# ---------------------------------------------------------------------------
-def _show_qualified(state, euro):
-    st.markdown("### 🌍 Clasificados UEFA al Mundial FMMJ")
-
-    direct = euro.get("qualified_direct", [])
-    playoff_q = [t for t in euro.get("qualified", []) if t not in direct]
-
-    if direct:
-        st.markdown("#### ✅ Clasificados Directos (Top 5 Eurocopa)")
-        for i, t in enumerate(direct, 1):
-            st.markdown(f"{i}. {flag_img(t,22,16)}&nbsp;**{display_name(t)}**", unsafe_allow_html=True)
-
-    if playoff_q:
-        st.markdown("#### 🔄 Clasificados vía Playoff UEFA")
-        for i, t in enumerate(playoff_q, 1):
-            st.markdown(f"{i}. {flag_img(t,22,16)}&nbsp;**{display_name(t)}**", unsafe_allow_html=True)
-
-    total = euro.get("qualified", [])
-    if total:
-        st.info(f"**Total UEFA clasificados: {len(total)}/13**")
-        # Actualizar en estado global
-        state["world_cup_qualified"] = list(set(state["world_cup_qualified"] + total))
-    else:
-        st.info("Los clasificados aparecerán aquí una vez concluyan ambas fases.")
-
-# ============================================================
-# COPA AMERICA CONMEBOL
-# ============================================================
-TOURNAMENT_KEY_CA = 'copa_america'
-TORNEO_NAME_CA = 'Copa América FMMJ'
-GUEST_POOL_CA = CONCACAF_TEAMS + AFC_TEAMS + CAF_TEAMS + PLAYOFF_TEAMS
-def show_copa_america():
-    state = get_state()
-    ca = state["copa_america"]
-
-    st.markdown("""
-    <style>
-    .ca-header {
-        background: linear-gradient(135deg, #006b3c 0%, #009b4e 50%, #004d2a 100%);
-        border-radius:16px;padding:24px 32px;margin-bottom:24px;
-        box-shadow:0 8px 32px rgba(0,107,60,0.4);
-    }
-    .ca-title {font-size:2rem;font-weight:800;color:#ffd700;margin:0;}
-    .ca-subtitle {font-size:.9rem;color:#a0ffcc;margin:4px 0 0;}
-    .group-card {background:#0a1f12;border:1px solid #1a4a2a;border-radius:12px;padding:16px;margin-bottom:16px;}
-    .group-title {font-size:1.1rem;font-weight:700;color:#ffd700;border-bottom:2px solid #ffd700;padding-bottom:8px;margin-bottom:12px;}
-    .knockout-match {background:#071510;border:1px solid #1a4a2a;border-radius:10px;padding:14px;margin-bottom:10px;}
-    .winner-tag {color:#ffd700;font-weight:700;}
-    </style>
-    """, unsafe_allow_html=True)
-
-    st.markdown(f"""
-    <div class='ca-header'>
-        <div>
-            <div class='ca-title'>🏆 {"Copa América FMMJ"}</div>
-            <div class='ca-subtitle'>10 CONMEBOL + 6 invitadas · 4 grupos · 4 cupos al FMMJ World Cup</div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    tabs = st.tabs(["🌎 Invitadas", "🎲 Sorteo", "📊 Fase de Grupos", "⚽ Llaves", "🔄 Playoff", "🌍 Clasificados"])
-
-    # ── INVITADAS ──────────────────────────────────────────────────────────
-    with tabs[0]:
-        st.markdown("### 🌎 Selección de Equipos Invitados")
-        st.caption("Elige 6 invitadas de CONCACAF, AFC, CAF u OFC (no UEFA)")
-
-        if ca.get("guests"):
-            st.success(f"✅ Invitadas elegidas: {', '.join([display_name(g) for g in ca['guests']])}")
-            if st.button("Cambiar invitadas"):
-                ca["guests"] = []
-                ca["setup_done"] = False
-                st.rerun()
-        else:
-            st.markdown("**Selecciona 6 invitadas:**")
-
-            # Agrupar por confederación para mejor UX
-            conf_groups_pool = {
-                "⭐ CONCACAF": CONCACAF_TEAMS,
-                "🌏 AFC": AFC_TEAMS,
-                "🌍 CAF": CAF_TEAMS,
-                "🌐 OFC": PLAYOFF_TEAMS,
-            }
-            selected = []
-            for conf_label, conf_teams in conf_groups_pool.items():
-                st.markdown(f"**{conf_label}**")
-                cols = st.columns(3)
-                for idx, team in enumerate(conf_teams):
-                    with cols[idx % 3]:
-                        # Texto plano — sin HTML
-                        checked = st.checkbox(display_name(team), key=f"ca_guest_{team}")
-                        if checked:
-                            selected.append(team)
-
-            n = len(selected)
-            color = "#00cc66" if n == 6 else ("#ffd700" if n < 6 else "#ff4444")
-            st.markdown(f"<div style='padding:8px;border-radius:6px;background:#0a1020;margin-top:8px;'>"
-                        f"<span style='color:{color};font-weight:700;'>Seleccionadas: {n}/6</span>"
-                        + (f" — {', '.join([display_name(t) for t in selected])}" if selected else "")
-                        + "</div>", unsafe_allow_html=True)
-
-            if n == 6:
-                if st.button("✅ Confirmar invitadas", type="primary", use_container_width=True):
-                    ca["guests"] = selected
-                    st.rerun()
-            elif n > 6:
-                st.error(f"Máximo 6 invitadas — tienes {n}. Deselecciona {n-6}.")
-            else:
-                st.info(f"Faltan {6-n} por seleccionar.")
-
-    # ── SORTEO ─────────────────────────────────────────────────────────────
-    with tabs[1]:
-        st.markdown("### 🎲 Sorteo de Grupos")
-        if not ca.get("guests"):
-            st.warning("Primero selecciona las 6 invitadas.")
-        elif not ca.get("setup_done"):
-            all_teams_ca2 = CONMEBOL_TEAMS + ca["guests"]
-            _manual_group_setup(state, "copa_america", all_teams_ca2, num_groups=4, teams_per_group=4,
-                                confirm_label="Confirmar grupos Copa América")
-        else:
-            st.success("✅ Grupos confirmados")
-            if st.button("✏️ Editar grupos"):
-                ca["setup_done"] = False
-                st.rerun()
-            _show_groups_draw(ca)
-
-    # ── FASE DE GRUPOS ─────────────────────────────────────────────────────
-    with tabs[2]:
-        if not ca.get("setup_done"):
-            st.warning("Primero realiza el sorteo.")
-        else:
-            _show_group_stage(state, ca)
-
-    # ── LLAVES ─────────────────────────────────────────────────────────────
-    with tabs[3]:
-        if ca.get("phase") not in ["llaves", "completado"]:
-            st.warning("Completa la fase de grupos primero.")
-        else:
-            _show_knockout(state, ca)
-
-    # ── PLAYOFF ────────────────────────────────────────────────────────────
-    with tabs[4]:
-        _show_playoff(state, ca)
-
-    # ── CLASIFICADOS ───────────────────────────────────────────────────────
-    with tabs[5]:
-        _show_qualified(state, ca)
-
-
-def _setup_ca_groups(state, ca):
-    all_teams = CONMEBOL_TEAMS + ca["guests"]
-    ranking = state["ranking"]
-    teams_sorted = sorted(all_teams, key=lambda t: -ranking.get(t, 0))
-    # 4 bombos de 4
-    pots = [teams_sorted[i*4:(i+1)*4] for i in range(4)]
-    groups = {"A": [], "B": [], "C": [], "D": []}
-    group_keys = list(groups.keys())
-    for pot in pots:
-        shuffled = pot[:]
-        random.shuffle(shuffled)
-        for i, team in enumerate(shuffled):
-            groups[group_keys[i]].append(team)
-    ca["groups"] = groups
-    ca["group_results"] = {}
-    ca["group_standings"] = {}
-    ca["phase"] = "grupos"
-    ca["setup_done"] = True
-
-
-def _show_groups_draw(ca):
-    groups = ca["groups"]
-    cols = st.columns(2)
-    for idx, (g, teams) in enumerate(groups.items()):
-        with cols[idx % 2]:
-            st.markdown(f"<div class='group-card'><div class='group-title'>GRUPO {g}</div>", unsafe_allow_html=True)
-            for t in teams:
-                st.markdown(f"{flag_img(t,20,15)}&nbsp;**{display_name(t)}**", unsafe_allow_html=True)
-            st.markdown("</div>", unsafe_allow_html=True)
-
-
-def _show_group_stage(state, ca):
-    st.markdown("### 📊 Fase de Grupos — Copa América FMMJ")
-    st.caption("Clasifican **2 primeros** de cada grupo a cuartos de final.")
-    all_complete = _show_jornada_groups(
-        state, ca, "Copa América FMMJ",
-        results_key="group_results", groups_key="groups",
-        standings_key="group_standings", advancing=2,
-        caption_text="✅ Clasifica a cuartos | ❌ Eliminado"
-    )
-    if all_complete or st.checkbox("🔓 Forzar avance a llaves"):
-        if ca["phase"] == "grupos":
-            if st.button("⚽ Generar Cuartos de Final", type="primary", use_container_width=True):
-                _build_knockout(state, ca)
-                ca["phase"] = "llaves"
-                st.rerun()
-
-
-def _build_knockout(state, ca):
-    standings = ca.get("group_standings", {})
-    # Top 2 de cada grupo = 8 equipos → Cuartos
-    firsts = []
-    seconds = []
-    for g in sorted(standings.keys()):
-        s = standings[g]
-        if s: firsts.append(s[0]["team"])
-        if len(s) > 1: seconds.append(s[1]["team"])
-
-    # 1A vs 2B, 1B vs 2A, 1C vs 2D, 1D vs 2C
-    qf = [
-        (firsts[0], seconds[1]),
-        (firsts[1], seconds[0]),
-        (firsts[2], seconds[3]),
-        (firsts[3], seconds[2]),
-    ]
-    ca["knockout_bracket"] = {
-        "cuartos": [{"home": m[0], "away": m[1], "winner": None} for m in qf],
-        "semis": [],
-        "tercer_puesto": [],
-        "final": [],
-    }
-    ca["knockout_results"] = {}
-    # Para playoff: registrar 3ros y 4tos de grupo
-    thirds = []
-    fourths = []
-    for g in sorted(standings.keys()):
-        s = standings[g]
-        if len(s) > 2: thirds.append(s[2]["team"])
-        if len(s) > 3: fourths.append(s[3]["team"])
-    ca["group_thirds"] = thirds
-    ca["group_fourths"] = fourths
-
-
-def _show_knockout(state, ca):
-    st.markdown("### ⚽ Fase de Eliminación — Copa América FMMJ")
-    bracket = ca.get("knockout_bracket", {})
-    results = ca.get("knockout_results", {})
-    if not results:
-        ca["knockout_results"] = {}
-        results = ca["knockout_results"]
-
-    phases = [
-        ("cuartos", "🟡 Cuartos de Final", "semis"),
-        ("semis", "🟠 Semifinales", "final"),
-        ("final", "🏆 Final", None),
-    ]
-
-    for phase_key, phase_name, next_phase in phases:
-        matches = bracket.get(phase_key, [])
-        if not matches:
-            continue
-        st.markdown(f"#### {phase_name}")
-        all_done = True
-
-        for idx, match in enumerate(matches):
-            home, away = match["home"], match["away"]
-            if not home or not away:
-                all_done = False
-                continue
-            key = f"ca_{phase_key}_{idx}"
-            res = results.get(key, {})
-
-            with st.container():
-                col1,col2,col3,col4,col5,col6 = st.columns([3,1,1,3,2,1])
-                with col1:
-                    st.markdown(f"{flag_img(home)}&nbsp;**{display_name(home)}**", unsafe_allow_html=True)
-                with col2:
-                    hg = st.number_input("", 0, 20, res.get("home_goals", 0), key=f"{key}_hg", label_visibility="collapsed")
-                with col3:
-                    ag = st.number_input("", 0, 20, res.get("away_goals", 0), key=f"{key}_ag", label_visibility="collapsed")
-                with col4:
-                    st.markdown(f"{flag_img(away)}&nbsp;**{display_name(away)}**", unsafe_allow_html=True)
-                with col5:
-                    if hg == ag:
-                        pen_opt = [None, home, away]
-                        pen_disp = ["— Penales —", display_name(home), display_name(away)]
-                        pen_idx = pen_opt.index(res.get("penalty_winner")) if res.get("penalty_winner") in pen_opt else 0
-                        pen_sel = st.selectbox("Penales", pen_disp, index=pen_idx, key=f"{key}_pen")
-                        pen_winner = pen_opt[pen_disp.index(pen_sel)]
-                    else:
-                        pen_winner = None
-                        st.empty()
-                with col6:
-                    save = st.button("💾", key=f"{key}_save")
-
-                col_s1, col_s2 = st.columns(2)
-                with col_s1:
-                    hs = _scorer_input(home, hg, res.get("home_scorers", []), f"{key}_hs", state, torneo_name)
-                with col_s2:
-                    as_ = _scorer_input(away, ag, res.get("away_scorers", []), f"{key}_as", state, torneo_name)
-
-                if save:
-                    winner = home if hg > ag else (away if ag > hg else pen_winner)
-                    results[key] = {"home_goals": hg, "away_goals": ag, "winner": winner,
-                                    "penalty_winner": pen_winner,
-                                    "home_scorers": hs,
-                                    "away_scorers": as_}
-                    ca["knockout_bracket"][phase_key][idx]["winner"] = winner
-                    register_scorers(hs, home, state, "Copa América FMMJ")
-                    register_scorers(as_, away, state, "Copa América FMMJ")
-                    st.rerun()
-
-                if res.get("winner"):
-                    st.markdown(f"<span class='winner-tag'>✅ Ganador: {flag_img(res['winner'],18,13)}{display_name(res['winner'])}</span>", unsafe_allow_html=True)
-                else:
-                    all_done = False
-                st.markdown("---")
-
-        if all_done and next_phase and not bracket.get(next_phase):
-            winners = [results.get(f"ca_{phase_key}_{i}", {}).get("winner") for i in range(len(matches))]
-            winners = [w for w in winners if w]
-            if phase_key == "semis" and not bracket.get("tercer_puesto"):
-                losers = []
-                for i, m in enumerate(matches):
-                    r = results.get(f"ca_semis_{i}", {})
-                    loser = m["home"] if r.get("winner") == m["away"] else m["away"]
-                    if loser: losers.append(loser)
-                if len(losers) == 2:
-                    bracket["tercer_puesto"] = [{"home": losers[0], "away": losers[1], "winner": None}]
-            next_m = [(winners[i], winners[i+1]) for i in range(0, len(winners)-1, 2)]
-            bracket[next_phase] = [{"home": m[0], "away": m[1], "winner": None} for m in next_m]
-            ca["knockout_results"] = results
-            st.rerun()
-
-        if all_done and phase_key == "final":
-            _determine_ca_qualified(state, ca, results, bracket)
-
-    # Tercer puesto
-    if bracket.get("tercer_puesto"):
-        st.markdown("#### 🥉 Tercer Puesto")
-        for idx, match in enumerate(bracket["tercer_puesto"]):
-            home, away = match["home"], match["away"]
-            key = f"ca_tercer_{idx}"
-            res = results.get(key, {})
-            col1,col2,col3,col4,col5,col6 = st.columns([3,1,1,3,2,1])
-            with col1: st.markdown(f"{flag_img(home)}&nbsp;**{display_name(home)}**", unsafe_allow_html=True)
-            with col2:
-                hg = st.number_input("", 0, 20, res.get("home_goals", 0), key=f"{key}_hg", label_visibility="collapsed")
-            with col3:
-                ag = st.number_input("", 0, 20, res.get("away_goals", 0), key=f"{key}_ag", label_visibility="collapsed")
-            with col4: st.markdown(f"{flag_img(away)}&nbsp;**{display_name(away)}**", unsafe_allow_html=True)
-            with col5:
-                if hg == ag:
-                    pen_sel = st.selectbox("Penales", ["— —", display_name(home), display_name(away)], key=f"{key}_pen")
-                    pen_winner = home if pen_sel == display_name(home) else (away if pen_sel == display_name(away) else None)
-                else:
-                    pen_winner = None; st.empty()
-            with col6:
-                if st.button("💾", key=f"{key}_save"):
-                    winner = home if hg > ag else (away if ag > hg else pen_winner)
-                    results[key] = {"home_goals": hg, "away_goals": ag, "winner": winner}
-                    bracket["tercer_puesto"][idx]["winner"] = winner
-                    ca["knockout_results"] = results
-                    st.rerun()
-            if res.get("winner"):
-                st.markdown(f"**🥉 3er Lugar: {display_name(res['winner'])}**")
-
-
-def _determine_ca_qualified(state, ca, results, bracket):
-    if ca.get("qualified"): return
-    champion = results.get("ca_final_0", {}).get("winner")
-    finalist = None
-    for m in bracket.get("final", []):
-        if m.get("winner"):
-            finalist = m["home"] if m["winner"] == m["away"] else m["away"]
-    third = results.get("ca_tercer_0", {}).get("winner")
-    semis_losers = []
-    for i, m in enumerate(bracket.get("semis", [])):
-        r = results.get(f"ca_semis_{i}", {})
-        loser = m["home"] if r.get("winner") == m["away"] else m["away"]
-        if loser: semis_losers.append(loser)
-    qf_losers = []
-    for i, m in enumerate(bracket.get("cuartos", [])):
-        r = results.get(f"ca_cuartos_{i}", {})
-        loser = m["home"] if r.get("winner") == m["away"] else m["away"]
-        if loser: qf_losers.append(loser)
-
-    ca["champion"] = champion
-    ca["qualified_direct"] = [champion] if champion else []
-    # 2do-7mo van al playoff
-    playoff_candidates = []
-    for t in [finalist, third] + semis_losers + qf_losers:
-        if t and t not in playoff_candidates: playoff_candidates.append(t)
-    ca["playoff_candidates"] = playoff_candidates[:6]
-    ca["phase"] = "playoff"
-
-
-def _show_playoff(state, ca):
-    st.markdown("### 🔄 Playoff CONMEBOL — 3 cupos + 1 repechaje")
-    st.caption("Puestos 2do al 7mo de Copa América juegan todos contra todos. Top 3 → Mundial. 4to → Repechaje internacional.")
-    if ca.get("phase") not in ["playoff", "completado"]:
-        st.info("Esta fase se habilita al concluir la Copa América.")
-        return
-
-    candidates = ca.get("playoff_candidates", [])
-    if not candidates:
-        st.warning("No hay candidatos para el playoff.")
-        return
-
-    pb = ca.get("playoff_bracket", {})
-    if not pb:
-        pb = {"results": {}, "standings": {}}
-        ca["playoff_bracket"] = pb
-
-    results = pb.get("results", {})
-    fixtures = [(candidates[i], candidates[j]) for i in range(len(candidates)) for j in range(i+1, len(candidates))]
-    all_done = True
-
-    st.markdown("**Partidos (todos contra todos):**")
-    for home, away in fixtures:
-        key = match_key(home, away)
-        res = results.get(key, {})
-        col1,col2,col3,col4,col5 = st.columns([3,1,1,3,1])
-        with col1: st.markdown(f"{flag_img(home)}&nbsp;**{display_name(home)}**", unsafe_allow_html=True)
-        with col2:
-            hg = st.number_input("", 0, 20, res.get("home_goals", 0), key=f"cap_{home}_{away}_hg", label_visibility="collapsed")
-        with col3:
-            ag = st.number_input("", 0, 20, res.get("away_goals", 0), key=f"cap_{home}_{away}_ag", label_visibility="collapsed")
-        with col4: st.markdown(f"{flag_img(away)}&nbsp;**{display_name(away)}**", unsafe_allow_html=True)
-        with col5:
-            if st.button("💾", key=f"cap_{home}_{away}_save"):
-                results[key] = {"home_goals": hg, "away_goals": ag, "played": True}
-                pb["results"] = results
-                st.rerun()
-        if not results.get(key, {}).get("played"):
-            all_done = False
-
-    standings = calculate_standings(candidates, results)
-    pb["standings"] = standings
-    st.markdown("**Tabla Playoff CONMEBOL:**")
-    render_standings_table(standings, advancing=3)
-    st.caption("🟢 Top 3 → Mundial | 4to → Repechaje Internacional")
-
-    if all_done:
-        if st.button("✅ Confirmar Clasificados CONMEBOL", type="primary"):
-            top3 = [s["team"] for s in standings[:3]]
-            fourth = standings[3]["team"] if len(standings) > 3 else None
-            ca["qualified"] = ca.get("qualified_direct", []) + top3
-            if fourth:
-                state["playoff_teams"]["conmebol_slot"] = fourth
-                st.info(f"🔄 {display_name(fourth)} va al Repechaje Internacional.")
-            ca["phase"] = "completado"
-            state["world_cup_qualified"] = list(set(state["world_cup_qualified"] + ca["qualified"]))
-            st.rerun()
-
-
-def _show_qualified(state, ca):
-    st.markdown("### 🌍 Clasificados CONMEBOL al Mundial FMMJ")
-    direct = ca.get("qualified_direct", [])
-    playoff_q = [t for t in ca.get("qualified", []) if t not in direct]
-    repechaje = state["playoff_teams"].get("conmebol_slot")
-
-    if direct:
-        st.markdown("#### ✅ Campeón Copa América (Directo)")
-        for t in direct:
-            st.markdown(f"{flag_img(t,22,16)}&nbsp;**{display_name(t)}**", unsafe_allow_html=True)
-    if playoff_q:
-        st.markdown("#### 🔄 Clasificados vía Playoff CONMEBOL")
-        for i, t in enumerate(playoff_q, 1):
-            st.markdown(f"{i}. {flag_img(t,22,16)}&nbsp;**{display_name(t)}**", unsafe_allow_html=True)
-    if repechaje:
-        st.markdown(f"#### 🔁 Repechaje Internacional: **{display_name(repechaje)}**")
-
-    total = ca.get("qualified", [])
-    if total:
-        st.info(f"**Total CONMEBOL clasificados: {len(total)}/4**")
-
-# ============================================================
-# CONFEDERACIONES: CAF, CONCACAF, AFC
-# ============================================================
-# ---------------------------------------------------------------------------
-# FUNCIÓN GENÉRICA PARA TORNEOS DE 6 EQUIPOS (2 GRUPOS DE 3)
-# ---------------------------------------------------------------------------
-
-def _generic_6team_tournament(state, tournament_key, torneo_name, teams,
-                               direct_spots, playoff_spots, repechaje_slot_key):
-    """
-    6 equipos, 2 grupos de 3.
-    Campeón → directo.
-    2do-5to → playoff todos contra todos.
-    """
-    tour = state[tournament_key]
-
-    if not tour.get("setup_done"):
-        st.markdown("### 📋 Armado de Grupos")
-        _manual_group_setup(state, tournament_key, teams, num_groups=2, teams_per_group=3,
-                            confirm_label="Confirmar grupos")
-        return
-
-    tabs = st.tabs(["📊 Fase de Grupos", "⚽ Llaves", "🔄 Playoff", "🌍 Clasificados"])
-
-    with tabs[0]:
-        _show_6team_groups(state, tour, torneo_name)
-    with tabs[1]:
-        _show_6team_knockout(state, tour, torneo_name)
-    with tabs[2]:
-        _show_6team_playoff(state, tour, torneo_name, direct_spots, playoff_spots, repechaje_slot_key)
-    with tabs[3]:
-        _show_6team_qualified(state, tour, torneo_name, repechaje_slot_key)
-
-
-def _setup_6team_groups(state, tour, teams):
-    ranking = state["ranking"]
-    teams_sorted = sorted(teams, key=lambda t: -ranking.get(t, 0))
-    random.shuffle(teams_sorted)
-    groups = {"A": teams_sorted[:3], "B": teams_sorted[3:6]}
-    tour["groups"] = groups
-    tour["group_results"] = {}
-    tour["group_standings"] = {}
-    tour["phase"] = "grupos"
-    tour["setup_done"] = True
-
-
-def _show_6team_groups(state, tour, torneo_name):
-    st.markdown("### 📊 Fase de Grupos")
-    all_complete = _show_jornada_groups(
-        state, tour, torneo_name,
-        results_key="group_results", groups_key="groups",
-        standings_key="group_standings", advancing=1,
-        caption_text="✅ 1ro → Semifinales"
-    )
-    if all_complete or st.checkbox(f"🔓 Forzar avance ({torneo_name[:5]})", key=f"force_{torneo_name[:5]}"):
-        if tour["phase"] == "grupos":
-            if st.button("⚽ Generar Semifinales", type="primary", use_container_width=True, key=f"gen_sf_{torneo_name[:5]}"):
-                _build_6team_knockout(state, tour)
-                tour["phase"] = "llaves"
-                st.rerun()
-
-
-def _build_6team_knockout(state, tour):
-    standings = tour.get("group_standings", {})
-    groups = sorted(standings.keys())
-    first_A = standings[groups[0]][0]["team"] if standings.get(groups[0]) else None
-    second_A = standings[groups[0]][1]["team"] if len(standings.get(groups[0], [])) > 1 else None
-    first_B = standings[groups[1]][0]["team"] if standings.get(groups[1]) else None
-    second_B = standings[groups[1]][1]["team"] if len(standings.get(groups[1], [])) > 1 else None
-    third_A = standings[groups[0]][2]["team"] if len(standings.get(groups[0], [])) > 2 else None
-    third_B = standings[groups[1]][2]["team"] if len(standings.get(groups[1], [])) > 2 else None
-
-    # Semifinales: 1A vs 2B, 1B vs 2A
-    tour["knockout_bracket"] = {
-        "semis": [
-            {"home": first_A, "away": second_B, "winner": None},
-            {"home": first_B, "away": second_A, "winner": None},
-        ],
-        "tercer_puesto": [],
-        "final": [],
-    }
-    tour["knockout_results"] = {}
-    # Playoff: los eliminados en semis + 3ros de grupo
-    tour["playoff_pool"] = [second_A, second_B, third_A, third_B]
-    tour["playoff_pool"] = [t for t in tour["playoff_pool"] if t]
-
-
-def _show_6team_knockout(state, tour, torneo_name):
-    st.markdown("### ⚽ Fase de Eliminación")
-    bracket = tour.get("knockout_bracket", {})
-    if not bracket:
-        st.info("Completa la fase de grupos primero.")
-        return
-    results = tour.get("knockout_results", {})
-    if results is None:
-        tour["knockout_results"] = {}
-        results = tour["knockout_results"]
-
-    phases = [("semis", "🟠 Semifinales", "final"), ("final", "🏆 Final", None)]
-
-    for phase_key, phase_name, next_phase in phases:
-        matches = bracket.get(phase_key, [])
-        if not matches: continue
-        st.markdown(f"#### {phase_name}")
-        all_done = True
-
-        for idx, match in enumerate(matches):
-            home, away = match["home"], match["away"]
-            if not home or not away: continue
-            key = f"{torneo_name[:3]}_{phase_key}_{idx}"
-            res = results.get(key, {})
-
-            col1,col2,col3,col4,col5,col6 = st.columns([3,1,1,3,2,1])
-            with col1: st.markdown(f"{flag_img(home)}&nbsp;**{display_name(home)}**", unsafe_allow_html=True)
-            with col2:
-                hg = st.number_input("", 0, 20, res.get("home_goals", 0), key=f"{key}_hg", label_visibility="collapsed")
-            with col3:
-                ag = st.number_input("", 0, 20, res.get("away_goals", 0), key=f"{key}_ag", label_visibility="collapsed")
-            with col4: st.markdown(f"{flag_img(away)}&nbsp;**{display_name(away)}**", unsafe_allow_html=True)
-            with col5:
-                if hg == ag:
-                    pen_sel = st.selectbox("Penales", ["—", display_name(home), display_name(away)], key=f"{key}_pen")
-                    pen_winner = home if pen_sel == display_name(home) else (away if pen_sel == display_name(away) else None)
-                else:
-                    pen_winner = None; st.empty()
-            with col6:
-                save = st.button("💾", key=f"{key}_save")
-
-            col_s1, col_s2 = st.columns(2)
-            with col_s1:
-                hs = _scorer_input(home, hg, res.get("home_scorers", []), f"{key}_hs", state, torneo_name)
-            with col_s2:
-                as_ = _scorer_input(away, ag, res.get("away_scorers", []), f"{key}_as", state, torneo_name)
-
-            if save:
-                winner = home if hg > ag else (away if ag > hg else pen_winner)
-                results[key] = {"home_goals": hg, "away_goals": ag, "winner": winner, "penalty_winner": pen_winner,
-                                "home_scorers": hs,
-                                "away_scorers": as_}
-                tour["knockout_bracket"][phase_key][idx]["winner"] = winner
-                register_scorers(hs, home, state, torneo_name)
-                register_scorers(as_, away, state, torneo_name)
-                st.rerun()
-
-            if res.get("winner"):
-                st.markdown(f"**✅ Ganador: {flag_img(res['winner'],18,13)}{display_name(res['winner'])}**", unsafe_allow_html=True)
-            else:
-                all_done = False
-            st.markdown("---")
-
-        if all_done and next_phase and not bracket.get(next_phase):
-            winners = [results.get(f"{torneo_name[:3]}_{phase_key}_{i}", {}).get("winner") for i in range(len(matches))]
-            winners = [w for w in winners if w]
-            if phase_key == "semis":
-                losers = []
-                for i, m in enumerate(matches):
-                    r = results.get(f"{torneo_name[:3]}_semis_{i}", {})
-                    loser = m["home"] if r.get("winner") == m["away"] else m["away"]
-                    if loser: losers.append(loser)
-                bracket["tercer_puesto"] = [{"home": losers[0], "away": losers[1], "winner": None}] if len(losers) == 2 else []
-                # Agregar losers al playoff pool
-                existing = tour.get("playoff_pool", [])
-                for l in losers:
-                    if l and l not in existing:
-                        existing.append(l)
-                tour["playoff_pool"] = existing
-            bracket[next_phase] = [{"home": winners[i], "away": winners[i+1], "winner": None} for i in range(0, len(winners)-1, 2)]
-            tour["knockout_results"] = results
-            st.rerun()
-
-        if all_done and phase_key == "final":
-            champion = results.get(f"{torneo_name[:3]}_final_0", {}).get("winner")
-            if champion:
-                tour["champion"] = champion
-                tour["qualified_direct"] = [champion]
-                tour["phase"] = "playoff"
-
-    # Tercer puesto
-    if bracket.get("tercer_puesto"):
-        st.markdown("#### 🥉 Tercer Puesto")
-        for idx, m in enumerate(bracket["tercer_puesto"]):
-            home, away = m["home"], m["away"]
-            key = f"{torneo_name[:3]}_tercer_{idx}"
-            res = results.get(key, {})
-            col1,col2,col3,col4,col5,col6 = st.columns([3,1,1,3,2,1])
-            with col1: st.markdown(f"{flag_img(home)}&nbsp;**{display_name(home)}**", unsafe_allow_html=True)
-            with col2:
-                hg = st.number_input("", 0, 20, res.get("home_goals", 0), key=f"{key}_hg", label_visibility="collapsed")
-            with col3:
-                ag = st.number_input("", 0, 20, res.get("away_goals", 0), key=f"{key}_ag", label_visibility="collapsed")
-            with col4: st.markdown(f"{flag_img(away)}&nbsp;**{display_name(away)}**", unsafe_allow_html=True)
-            with col5:
-                if hg == ag:
-                    p = st.selectbox("Penales", ["—", display_name(home), display_name(away)], key=f"{key}_pen")
-                    pw = home if p == display_name(home) else (away if p == display_name(away) else None)
-                else:
-                    pw = None; st.empty()
-            with col6:
-                if st.button("💾", key=f"{key}_save"):
-                    winner = home if hg > ag else (away if ag > hg else pw)
-                    results[key] = {"home_goals": hg, "away_goals": ag, "winner": winner}
-                    bracket["tercer_puesto"][idx]["winner"] = winner
-                    tour["knockout_results"] = results
-                    st.rerun()
-            if res.get("winner"):
-                st.markdown(f"**🥉 3er Lugar: {display_name(res['winner'])}**")
-
-
-def _show_6team_playoff(state, tour, torneo_name, direct_spots, playoff_spots, repechaje_slot_key):
-    st.markdown("### 🔄 Playoff")
-    if tour.get("phase") not in ["playoff", "completado"]:
-        st.info("Esta fase se habilita al concluir las llaves.")
-        return
-
-    candidates = tour.get("playoff_pool", [])
-    if not candidates:
-        st.warning("No hay candidatos.")
-        return
-
-    pb = tour.get("playoff_bracket", {})
-    if not pb:
-        pb = {"results": {}, "standings": {}}
-        tour["playoff_bracket"] = pb
-
-    results = pb.get("results", {})
-    fixtures = [(candidates[i], candidates[j]) for i in range(len(candidates)) for j in range(i+1, len(candidates))]
-    all_done = True
-
-    for home, away in fixtures:
-        key = match_key(home, away)
-        res = results.get(key, {})
-        col1,col2,col3,col4,col5 = st.columns([3,1,1,3,1])
-        with col1: st.markdown(f"{flag_img(home)}&nbsp;**{display_name(home)}**", unsafe_allow_html=True)
-        with col2:
-            hg = st.number_input("", 0, 20, res.get("home_goals", 0), key=f"pb_{torneo_name[:3]}_{home}_{away}_hg", label_visibility="collapsed")
-        with col3:
-            ag = st.number_input("", 0, 20, res.get("away_goals", 0), key=f"pb_{torneo_name[:3]}_{home}_{away}_ag", label_visibility="collapsed")
-        with col4: st.markdown(f"{flag_img(away)}&nbsp;**{display_name(away)}**", unsafe_allow_html=True)
-        with col5:
-            if st.button("💾", key=f"pb_{torneo_name[:3]}_{home}_{away}_save"):
-                results[key] = {"home_goals": hg, "away_goals": ag, "played": True}
-                pb["results"] = results
-                st.rerun()
-        if not results.get(key, {}).get("played"):
-            all_done = False
-
-    standings = calculate_standings(candidates, results)
-    pb["standings"] = standings
-    render_standings_table(standings, advancing=playoff_spots)
-
-    if all_done:
-        repechaje_idx = playoff_spots
-        st.markdown(f"🟢 Top {playoff_spots} → Mundial | Pos {playoff_spots+1} → Repechaje")
-        if st.button(f"✅ Confirmar Clasificados {torneo_name[:10]}", type="primary", key=f"confirm_{torneo_name[:5]}"):
-            top_n = [s["team"] for s in standings[:playoff_spots]]
-            repechaje = standings[repechaje_idx]["team"] if len(standings) > repechaje_idx else None
-            tour["qualified"] = tour.get("qualified_direct", []) + top_n
-            if repechaje and repechaje_slot_key:
-                state["playoff_teams"][repechaje_slot_key] = repechaje
-            tour["phase"] = "completado"
-            state["world_cup_qualified"] = list(set(state["world_cup_qualified"] + tour["qualified"]))
-            st.rerun()
-
-
-def _show_6team_qualified(state, tour, torneo_name, repechaje_slot_key):
-    st.markdown(f"### 🌍 Clasificados al Mundial — {torneo_name}")
-    direct = tour.get("qualified_direct", [])
-    playoff_q = [t for t in tour.get("qualified", []) if t not in direct]
-    repechaje = state["playoff_teams"].get(repechaje_slot_key) if repechaje_slot_key else None
-
-    if direct:
-        st.markdown("#### ✅ Campeón (Directo)")
-        for t in direct:
-            st.markdown(f"{flag_img(t,22,16)}&nbsp;**{display_name(t)}**", unsafe_allow_html=True)
-    if playoff_q:
-        st.markdown("#### 🔄 Playoff")
-        for i, t in enumerate(playoff_q, 1):
-            st.markdown(f"{i}. {flag_img(t,22,16)}&nbsp;**{display_name(t)}**", unsafe_allow_html=True)
-    if repechaje:
-        st.markdown(f"#### 🔁 Repechaje: **{display_name(repechaje)}**")
-
-    total = tour.get("qualified", [])
-    if total:
-        st.info(f"**Clasificados: {len(total)}**")
-
-
-# ---------------------------------------------------------------------------
-# COPA ÁFRICA (CAF) - 10 equipos, 2 grupos de 5
-# ---------------------------------------------------------------------------
-def show_copa_africa():
-    state = get_state()
-    tour = state["copa_africa"]
-    host = state.get("host", "Nigeria")
-
-    st.markdown("""
-    <style>
-    .caf-header {background:linear-gradient(135deg,#b8860b 0%,#daa520 50%,#8b6914 100%);
-    border-radius:16px;padding:24px 32px;margin-bottom:24px;box-shadow:0 8px 32px rgba(184,134,11,.4);}
-    .caf-title {font-size:2rem;font-weight:800;color:#fff;margin:0;}
-    .caf-subtitle {font-size:.9rem;color:#fff3a0;margin:4px 0 0;}
-    </style>
-    """, unsafe_allow_html=True)
-    col_logo, col_title = st.columns([1, 6])
-    with col_logo:
-        st.image("caf.png", width=80)
-    with col_title:
-        st.markdown(f"""
-        <div class='caf-header' style='margin-bottom:0;'>
-            <div class='caf-title'>Copa África FMMJ</div>
-            <div class='caf-subtitle'>{len(CAF_TEAMS)} selecciones CAF · 2 grupos de 5 · 5 cupos al Mundial</div>
-        </div>""", unsafe_allow_html=True)
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    # El anfitrión participa normalmente pero si clasifica cede su cupo al siguiente
-    if host in CAF_TEAMS:
-        st.info(
-            f"🏠 **{display_name(host)}** es el anfitrión del Mundial y participa en la Copa África normalmente. "
-            f"Si clasifica entre los 5 primeros, su cupo pasa al siguiente en la tabla."
-        )
-
-    _show_10team_caf_tournament(state, tour, CAF_TEAMS)
-
-
-def _show_10team_caf_tournament(state, tour, teams):
-    """Copa África: 10 equipos, 2 grupos de 5"""
-    
-    if not tour.get("setup_done"):
-        st.markdown("### 📋 Armado de Grupos — Copa África FMMJ")
-        teams_per_g = 5 if len(teams) == 10 else (len(teams)+1)//2
-        _manual_group_setup(state, "copa_africa", teams, num_groups=2,
-                            teams_per_group=teams_per_g,
-                            confirm_label="Confirmar grupos Copa África")
-        return
-
-    _TORNEO_CAF = "Copa África FMMJ"
-    tabs = st.tabs(["📊 Grupos", "⚽ Llaves", "🔄 Playoff CAF", "🌍 Clasificados"])
-    with tabs[0]: _show_caf_groups(state, tour, _TORNEO_CAF)
-    with tabs[1]: _show_caf_knockout(state, tour, _TORNEO_CAF)
-    with tabs[2]: _show_caf_playoff(state, tour, _TORNEO_CAF)
-    with tabs[3]: _show_caf_qualified(state, tour)
-
-
-def _setup_caf_groups(state, tour, teams):
-    """
-    CAF puede tener 10 equipos (2 grupos de 5) o 9 equipos si el anfitrión
-    es de CAF (grupos de 5 y 4). El cuadro de llaves se arma con top 2 de
-    cada grupo en ambos casos.
-    """
-    ranking = state["ranking"]
-    teams_sorted = sorted(teams, key=lambda t: -ranking.get(t, 0))
-    random.shuffle(teams_sorted)
-    n = len(teams_sorted)
-    mid = (n + 1) // 2   # 5 si n=9 o 10; grupo A siempre igual o mayor
-    groups = {"A": teams_sorted[:mid], "B": teams_sorted[mid:n]}
-    tour["groups"] = groups
-    tour["group_results"] = {}
-    tour["group_standings"] = {}
-    tour["phase"] = "grupos"
-    tour["setup_done"] = True
-
-
-def _show_caf_groups(state, tour, torneo_name):
-    st.markdown("### 📊 Fase de Grupos — Copa África")
-    all_complete = _show_jornada_groups(
-        state, tour, torneo_name,
-        results_key="group_results", groups_key="groups",
-        standings_key="group_standings", advancing=2,
-        caption_text="✅ Top 2 → Cuartos de Final"
-    )
-    if all_complete or st.checkbox("🔓 Forzar avance Copa África"):
-        if tour["phase"] == "grupos":
-            if st.button("⚽ Generar Cuartos de Final CAF", type="primary", use_container_width=True):
-                _build_caf_knockout(state, tour)
-                tour["phase"] = "llaves"
-                st.rerun()
-
-
-def _build_caf_knockout(state, tour):
-    standings = tour.get("group_standings", {})
-    groups = sorted(standings.keys())
-    top4 = []
-    thirds = []
-    rest = []
-    for g in groups:
-        s = standings[g]
-        if len(s) >= 1: top4.append(s[0]["team"])
-        if len(s) >= 2: top4.append(s[1]["team"])
-        if len(s) >= 3: thirds.append(s[2]["team"])
-        for t in s[3:]:
-            rest.append(t["team"])
-
-    # Cuartos: 1A vs 2B, 1B vs 2A
-    qf = [(top4[0], top4[3]), (top4[1], top4[2])]
-    tour["knockout_bracket"] = {
-        "cuartos": [{"home": m[0], "away": m[1], "winner": None} for m in qf],
-        "semis": [],
-        "tercer_puesto": [],
-        "final": [],
-    }
-    tour["knockout_results"] = {}
-    tour["playoff_pool"] = thirds + rest
-
-
-def _show_caf_knockout(state, tour, torneo_name):
-    st.markdown("### ⚽ Fase de Eliminación — Copa África")
-    bracket = tour.get("knockout_bracket", {})
-    if not bracket:
-        st.info("Completa grupos primero.")
-        return
-    results = tour.get("knockout_results", {})
-    if results is None:
-        tour["knockout_results"] = {}
-        results = tour["knockout_results"]
-
-    phases = [("cuartos", "🟡 Cuartos de Final", "semis"), ("semis", "🟠 Semifinales", "final"), ("final", "🏆 Final", None)]
-
-    for phase_key, phase_name, next_phase in phases:
-        matches = bracket.get(phase_key, [])
-        if not matches: continue
-        st.markdown(f"#### {phase_name}")
-        all_done = True
-
-        for idx, match in enumerate(matches):
-            home, away = match["home"], match["away"]
-            if not home or not away: all_done = False; continue
-            key = f"caf_{phase_key}_{idx}"
-            res = results.get(key, {})
-
-            col1,col2,col3,col4,col5,col6 = st.columns([3,1,1,3,2,1])
-            with col1: st.markdown(f"{flag_img(home)}&nbsp;**{display_name(home)}**", unsafe_allow_html=True)
-            with col2:
-                hg = st.number_input("", 0, 20, res.get("home_goals", 0), key=f"{key}_hg", label_visibility="collapsed")
-            with col3:
-                ag = st.number_input("", 0, 20, res.get("away_goals", 0), key=f"{key}_ag", label_visibility="collapsed")
-            with col4: st.markdown(f"{flag_img(away)}&nbsp;**{display_name(away)}**", unsafe_allow_html=True)
-            with col5:
-                if hg == ag:
-                    ps = st.selectbox("Penales", ["—", display_name(home), display_name(away)], key=f"{key}_pen")
-                    pw = home if ps == display_name(home) else (away if ps == display_name(away) else None)
-                else:
-                    pw = None; st.empty()
-            with col6:
-                save = st.button("💾", key=f"{key}_save")
-
-            col_s1, col_s2 = st.columns(2)
-            with col_s1:
-                hs = _scorer_input(home, hg, res.get("home_scorers", []), f"{key}_hs", state, torneo_name)
-            with col_s2:
-                as_ = _scorer_input(away, ag, res.get("away_scorers", []), f"{key}_as", state, torneo_name)
-
-            if save:
-                winner = home if hg > ag else (away if ag > hg else pw)
-                results[key] = {"home_goals": hg, "away_goals": ag, "winner": winner, "penalty_winner": pw,
-                                "home_scorers": hs,
-                                "away_scorers": as_}
-                tour["knockout_bracket"][phase_key][idx]["winner"] = winner
-                register_scorers(hs, home, state, torneo_name)
-                register_scorers(as_, away, state, torneo_name)
-                st.rerun()
-
-            if res.get("winner"):
-                st.markdown(f"**✅ {display_name(res['winner'])}**")
-            else:
-                all_done = False
-            st.markdown("---")
-
-        if all_done and next_phase and not bracket.get(next_phase):
-            winners = [results.get(f"caf_{phase_key}_{i}", {}).get("winner") for i in range(len(matches))]
-            winners = [w for w in winners if w]
-            if phase_key == "semis":
-                losers = []
-                for i, m in enumerate(matches):
-                    r = results.get(f"caf_semis_{i}", {})
-                    loser = m["home"] if r.get("winner") == m["away"] else m["away"]
-                    if loser: losers.append(loser)
-                bracket["tercer_puesto"] = [{"home": losers[0], "away": losers[1], "winner": None}] if len(losers) == 2 else []
-                pool = tour.get("playoff_pool", [])
-                for l in losers:
-                    if l not in pool: pool.append(l)
-                tour["playoff_pool"] = pool
-            if phase_key == "cuartos":
-                losers_qf = []
-                for i, m in enumerate(matches):
-                    r = results.get(f"caf_cuartos_{i}", {})
-                    loser = m["home"] if r.get("winner") == m["away"] else m["away"]
-                    if loser: losers_qf.append(loser)
-                pool = tour.get("playoff_pool", [])
-                for l in losers_qf:
-                    if l not in pool: pool.append(l)
-                tour["playoff_pool"] = pool
-            nxt = [(winners[i], winners[i+1]) for i in range(0, len(winners)-1, 2)]
-            bracket[next_phase] = [{"home": m[0], "away": m[1], "winner": None} for m in nxt]
-            tour["knockout_results"] = results
-            st.rerun()
-
-        if all_done and phase_key == "final":
-            res_final = results.get("caf_final_0", {})
-            finalist_winner = res_final.get("winner")
-            finalist_loser = None
-            for m in bracket.get("final", []):
-                if m.get("winner"):
-                    finalist_loser = m["home"] if m["winner"] == m["away"] else m["away"]
-            if finalist_winner:
-                tour["champion"] = finalist_winner
-                tour["finalist"] = finalist_loser
-                tour["qualified_direct"] = [finalist_winner, finalist_loser] if finalist_loser else [finalist_winner]
-                tour["phase"] = "playoff"
-
-    # Tercer puesto
-    if bracket.get("tercer_puesto"):
-        st.markdown("#### 🥉 Tercer Puesto")
-        for idx, m in enumerate(bracket["tercer_puesto"]):
-            home, away = m["home"], m["away"]
-            key = f"caf_tercer_{idx}"
-            res = results.get(key, {})
-            col1,col2,col3,col4,col5,col6 = st.columns([3,1,1,3,2,1])
-            with col1: st.markdown(f"{flag_img(home)}&nbsp;**{display_name(home)}**", unsafe_allow_html=True)
-            with col2:
-                hg = st.number_input("", 0, 20, res.get("home_goals", 0), key=f"{key}_hg", label_visibility="collapsed")
-            with col3:
-                ag = st.number_input("", 0, 20, res.get("away_goals", 0), key=f"{key}_ag", label_visibility="collapsed")
-            with col4: st.markdown(f"{flag_img(away)}&nbsp;**{display_name(away)}**", unsafe_allow_html=True)
-            with col5:
-                if hg == ag:
-                    p = st.selectbox("Penales", ["—", display_name(home), display_name(away)], key=f"{key}_pen")
-                    pw = home if p == display_name(home) else (away if p == display_name(away) else None)
-                else:
-                    pw = None; st.empty()
-            with col6:
-                if st.button("💾", key=f"{key}_save"):
-                    winner = home if hg > ag else (away if ag > hg else pw)
-                    results[key] = {"home_goals": hg, "away_goals": ag, "winner": winner}
-                    bracket["tercer_puesto"][idx]["winner"] = winner
-                    tour["knockout_results"] = results
-                    st.rerun()
-            if res.get("winner"):
-                st.markdown(f"**🥉 3er Lugar: {display_name(res['winner'])}**")
-
-
-def _show_caf_playoff(state, tour, torneo_name):
-    st.markdown("### 🔄 Playoff CAF — 3 cupos adicionales")
-    st.caption("3ro-7mo Copa África: todos contra todos. Top 3 → Mundial.")
-    if tour.get("phase") not in ["playoff", "completado"]:
-        st.info("Se habilita al terminar las llaves.")
-        return
-
-    candidates = tour.get("playoff_pool", [])
-    if not candidates:
-        st.warning("No hay candidatos.")
-        return
-
-    pb = tour.get("playoff_bracket", {})
-    if not pb:
-        pb = {"results": {}, "standings": {}}
-        tour["playoff_bracket"] = pb
-
-    results = pb.get("results", {})
-    fixtures = [(candidates[i], candidates[j]) for i in range(len(candidates)) for j in range(i+1, len(candidates))]
-    all_done = True
-
-    for home, away in fixtures:
-        key = match_key(home, away)
-        res = results.get(key, {})
-        col1,col2,col3,col4,col5 = st.columns([3,1,1,3,1])
-        with col1: st.markdown(f"{flag_img(home)}&nbsp;**{display_name(home)}**", unsafe_allow_html=True)
-        with col2:
-            hg = st.number_input("", 0, 20, res.get("home_goals", 0), key=f"cafp_{home}_{away}_hg", label_visibility="collapsed")
-        with col3:
-            ag = st.number_input("", 0, 20, res.get("away_goals", 0), key=f"cafp_{home}_{away}_ag", label_visibility="collapsed")
-        with col4: st.markdown(f"{flag_img(away)}&nbsp;**{display_name(away)}**", unsafe_allow_html=True)
-        with col5:
-            if st.button("💾", key=f"cafp_{home}_{away}_save"):
-                results[key] = {"home_goals": hg, "away_goals": ag, "played": True}
-                pb["results"] = results
-                st.rerun()
-        if not results.get(key, {}).get("played"):
-            all_done = False
-
-    standings = calculate_standings(candidates, results)
-    pb["standings"] = standings
-    render_standings_table(standings, advancing=3)
-
-    if all_done:
-        if st.button("✅ Confirmar Clasificados CAF", type="primary"):
-            top3 = [s["team"] for s in standings[:3]]
-            tour["qualified"] = tour.get("qualified_direct", []) + top3
-            tour["phase"] = "completado"
-            state["world_cup_qualified"] = list(set(state["world_cup_qualified"] + tour["qualified"]))
-            st.rerun()
-
-
-def _show_caf_qualified(state, tour):
-    st.markdown("### 🌍 Clasificados CAF al Mundial FMMJ")
-    host = state.get("host", "Nigeria")
-    if host in CAF_TEAMS:
-        st.markdown(f"🏠 **{display_name(host)}** — Anfitrión (clasificado directo)")
-
-    direct = tour.get("qualified_direct", [])
-    playoff_q = [t for t in tour.get("qualified", []) if t not in direct]
-
-    if direct:
-        st.markdown("#### ✅ Campeón y Subcampeón (Directos)")
-        for t in direct:
-            st.markdown(f"{flag_img(t,22,16)}&nbsp;**{display_name(t)}**", unsafe_allow_html=True)
-    if playoff_q:
-        st.markdown("#### 🔄 Playoff CAF")
-        for i, t in enumerate(playoff_q, 1):
-            st.markdown(f"{i}. {flag_img(t,22,16)}&nbsp;**{display_name(t)}**", unsafe_allow_html=True)
-
-    total = tour.get("qualified", [])
-    host_count = 1 if host in CAF_TEAMS else 0
-    st.info(f"**Total CAF al Mundial: {len(total) + host_count}/5** (incluyendo anfitrión)" if host in CAF_TEAMS
-            else f"**Total CAF: {len(total)}/5**")
-
-
-# ---------------------------------------------------------------------------
-# COPA ORO — CONCACAF
-# ---------------------------------------------------------------------------
-def show_copa_oro():
-    state = get_state()
-    tour = state["copa_oro"]
-
-    st.markdown("""
-    <style>
-    .concacaf-header {background:linear-gradient(135deg,#8b0000 0%,#cc2200 50%,#6b0000 100%);
-    border-radius:16px;padding:24px 32px;margin-bottom:24px;box-shadow:0 8px 32px rgba(139,0,0,.4);}
-    .concacaf-title {font-size:2rem;font-weight:800;color:#ffd700;margin:0;}
-    .concacaf-subtitle {font-size:.9rem;color:#ffaaaa;margin:4px 0 0;}
-    </style>""", unsafe_allow_html=True)
-    col_logo, col_title = st.columns([1, 6])
-    with col_logo:
-        st.image("concacaf.png", width=80)
-    with col_title:
-        st.markdown("""
-        <div class='concacaf-header' style='margin-bottom:0;'>
-            <div class='concacaf-title'>Copa Oro FMMJ</div>
-            <div class='concacaf-subtitle'>6 selecciones CONCACAF · 2 grupos de 3 · 3 cupos al Mundial</div>
-        </div>""", unsafe_allow_html=True)
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    st.caption("Campeón → directo. 2do-5to → playoff todos contra todos. Top 2 playoff → Mundial. 3ro → Repechaje.")
-    _generic_6team_tournament(state, "copa_oro", "Copa Oro FMMJ", CONCACAF_TEAMS,
-                              direct_spots=1, playoff_spots=2, repechaje_slot_key="concacaf_slot")
-
-
-# ---------------------------------------------------------------------------
-# COPA ASIA — AFC
-# ---------------------------------------------------------------------------
-def show_copa_asia():
-    state = get_state()
-    tour = state["copa_asia"]
-
-    st.markdown("""
-    <style>
-    .afc-header {background:linear-gradient(135deg,#4a0080 0%,#7700cc 50%,#330060 100%);
-    border-radius:16px;padding:24px 32px;margin-bottom:24px;box-shadow:0 8px 32px rgba(74,0,128,.4);}
-    .afc-title {font-size:2rem;font-weight:800;color:#ffd700;margin:0;}
-    .afc-subtitle {font-size:.9rem;color:#ddaaff;margin:4px 0 0;}
-    </style>""", unsafe_allow_html=True)
-    col_logo, col_title = st.columns([1, 6])
-    with col_logo:
-        st.image("afc.png", width=80)
-    with col_title:
-        st.markdown("""
-        <div class='afc-header' style='margin-bottom:0;'>
-            <div class='afc-title'>Copa Asia FMMJ</div>
-            <div class='afc-subtitle'>6 selecciones AFC · 2 grupos de 3 · 4 cupos al Mundial</div>
-        </div>""", unsafe_allow_html=True)
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    st.caption("Campeón → directo. 2do-5to → playoff todos contra todos. Top 3 playoff → Mundial. 4to → Repechaje.")
-    _generic_6team_tournament(state, "copa_asia", "Copa Asia FMMJ", AFC_TEAMS,
-                              direct_spots=1, playoff_spots=3, repechaje_slot_key="afc_slot")
-
-# ============================================================
-# REPECHAJE + RANKING + MUNDIAL
-# ============================================================
-# ---------------------------------------------------------------------------
-# REPECHAJE INTERNACIONAL
-# ---------------------------------------------------------------------------
-def show_repechaje():
-    state = get_state()
-    playoff = state["playoff_teams"]
-
-    st.markdown("""
-    <style>
-    .rep-header {background:linear-gradient(135deg,#1a1a1a 0%,#333 50%,#1a1a1a 100%);
-    border:2px solid #ffd700;border-radius:16px;padding:24px 32px;margin-bottom:24px;}
-    .rep-title {font-size:1.8rem;font-weight:800;color:#ffd700;}
-    .rep-subtitle {color:#aaa;font-size:.9rem;}
-    .playoff-card {background:#111;border:1px solid #333;border-radius:12px;padding:16px;margin-bottom:12px;}
-    .playoff-title {font-size:1rem;font-weight:700;color:#ffd700;margin-bottom:10px;}
-    .winner-announce {background:#0d4f2e;border-radius:8px;padding:10px;color:#4eff91;font-weight:700;font-size:1rem;}
-    </style>
-    """, unsafe_allow_html=True)
-
-    st.markdown("""<div class='rep-header'>
-        <div class='rep-title'>🔁 Repechaje Internacional FMMJ</div>
-        <div class='rep-subtitle'>2 llaves de ida y vuelta · 2 cupos al Mundial</div>
-    </div>""", unsafe_allow_html=True)
-
-    st.markdown("""
-    **Sistema de Repechaje:**
-    - 🌎 **Llave 1:** CONMEBOL vs OFC (Nueva Zelanda)
-    - 🌏 **Llave 2:** CONCACAF vs AFC
-    - Partidos de ida y vuelta. El global define al clasificado.
-    """)
-
-    conmebol_team = playoff.get("conmebol_slot")
-    ofc_team = playoff.get("ofc_slot", "New Zealand")
-    concacaf_team = playoff.get("concacaf_slot")
-    afc_team = playoff.get("afc_slot")
-
-    tabs = st.tabs(["🌎 Llave 1: CONMEBOL vs OFC", "🌏 Llave 2: CONCACAF vs AFC", "✅ Resultados"])
-
-    # ── LLAVE 1 ────────────────────────────────────────────────────────────
-    with tabs[0]:
-        st.markdown("### 🌎 Llave 1: CONMEBOL vs OFC")
-        if not conmebol_team:
-            st.warning("⏳ Esperando clasificado CONMEBOL del Playoff Copa América (4to lugar).")
-            st.info(f"OFC: **{display_name(ofc_team)}** ✅")
-        else:
-            st.info(f"**{display_name(conmebol_team)}** (CONMEBOL) vs **{display_name(ofc_team)}** (OFC/Nueva Zelanda)")
-            _show_playoff_tie(state, "llave1", conmebol_team, ofc_team, "mundial_slot_1")
-
-    # ── LLAVE 2 ────────────────────────────────────────────────────────────
-    with tabs[1]:
-        st.markdown("### 🌏 Llave 2: CONCACAF vs AFC")
-        if not concacaf_team:
-            st.warning("⏳ Esperando clasificado CONCACAF del Playoff Copa Oro (3er lugar).")
-        elif not afc_team:
-            st.warning("⏳ Esperando clasificado AFC del Playoff Copa Asia (4to lugar).")
-        else:
-            st.info(f"**{display_name(concacaf_team)}** (CONCACAF) vs **{display_name(afc_team)}** (AFC)")
-            _show_playoff_tie(state, "llave2", concacaf_team, afc_team, "mundial_slot_2")
-
-    # ── RESULTADOS ─────────────────────────────────────────────────────────
-    with tabs[2]:
-        st.markdown("### ✅ Clasificados vía Repechaje")
-        slot1 = state["playoff_results"].get("mundial_slot_1")
-        slot2 = state["playoff_results"].get("mundial_slot_2")
-
-        if slot1:
-            st.markdown(f"<div class='winner-announce'>🎉 Clasificado Llave 1: {flag_img(slot1,24,18)}&nbsp;{display_name(slot1)}</div>", unsafe_allow_html=True)
-        else:
-            st.markdown("⏳ Llave 1 pendiente")
-
-        if slot2:
-            st.markdown(f"<div class='winner-announce'>🎉 Clasificado Llave 2: {flag_img(slot2,24,18)}&nbsp;{display_name(slot2)}</div>", unsafe_allow_html=True)
-        else:
-            st.markdown("⏳ Llave 2 pendiente")
-
-        if slot1 and slot2:
-            st.balloons()
-            st.success("✅ ¡Todos los clasificados al Mundial FMMJ están definidos!")
-            # Añadir a clasificados
-            for t in [slot1, slot2]:
-                if t and t not in state["world_cup_qualified"]:
-                    state["world_cup_qualified"].append(t)
-
-
-def _show_playoff_tie(state, tie_key, home_team, away_team, slot_key):
-    """Partidos de ida y vuelta"""
-    pr = state.get("playoff_results", {})
-    if not pr:
-        state["playoff_results"] = {}
-        pr = state["playoff_results"]
-
-    for leg, leg_name in [("ida", "⚽ Partido de Ida"), ("vuelta", "⚽ Partido de Vuelta")]:
-        st.markdown(f"#### {leg_name}")
-        if leg == "ida":
-            h, a = home_team, away_team
-        else:
-            h, a = away_team, home_team
-
-        key = f"{tie_key}_{leg}"
-        res = pr.get(key, {})
-
-        col1,col2,col3,col4,col5 = st.columns([3,1,1,3,1])
-        with col1: st.markdown(f"{flag_img(h)}&nbsp;**{display_name(h)}**", unsafe_allow_html=True)
-        with col2:
-            hg = st.number_input("", 0, 20, res.get("home_goals", 0), key=f"rep_{key}_hg", label_visibility="collapsed")
-        with col3:
-            ag = st.number_input("", 0, 20, res.get("away_goals", 0), key=f"rep_{key}_ag", label_visibility="collapsed")
-        with col4: st.markdown(f"{flag_img(a)}&nbsp;**{display_name(a)}**", unsafe_allow_html=True)
-        with col5:
-            save = st.button("💾", key=f"rep_{key}_save")
-
-        col_s1, col_s2 = st.columns(2)
-        with col_s1:
-            hs_v = st.text_input(f"⚽ {display_name(h)}", value=", ".join(res.get("home_scorers", [])), key=f"rep_{key}_hs")
-        with col_s2:
-            as_v = st.text_input(f"⚽ {display_name(a)}", value=", ".join(res.get("away_scorers", [])), key=f"rep_{key}_as")
-
-        if save:
-            pr[key] = {
-                "home": h, "away": a,
-                "home_goals": hg, "away_goals": ag, "played": True,
-                "home_scorers": [s.strip() for s in hs_v.split(",") if s.strip()],
-                "away_scorers": [s.strip() for s in as_v.split(",") if s.strip()],
-            }
-            state["playoff_results"] = pr
-            st.rerun()
-
-        if res.get("played"):
-            st.markdown(f"*Resultado: {display_name(h)} {res['home_goals']} - {res['away_goals']} {display_name(a)}*")
-
-    # Calcular global
-    ida = pr.get(f"{tie_key}_ida", {})
-    vuelta = pr.get(f"{tie_key}_vuelta", {})
-
-    if ida.get("played") and vuelta.get("played"):
-        # home_team goles totales
-        home_total = ida.get("home_goals", 0) + vuelta.get("away_goals", 0)
-        away_total = ida.get("away_goals", 0) + vuelta.get("home_goals", 0)
-
-        st.markdown(f"""
-        ---
-        **Global:** {flag_img(home_team)}{display_name(home_team)} **{home_total}** - **{away_total}** {display_name(away_team)}{flag_img(away_team)}
-        """, unsafe_allow_html=True)
-
-        if home_total != away_total:
-            winner = home_team if home_total > away_total else away_team
-            st.success(f"🎉 **Clasificado: {display_name(winner)}**")
-            pr[slot_key] = winner
-            state["playoff_results"] = pr
-        else:
-            # Penales
-            st.warning("⚠️ Empate en el global → Penales en la vuelta")
-            pen_opts = ["— Elegir —", display_name(home_team), display_name(away_team)]
-            pen_sel = st.selectbox("Ganador en penales:", pen_opts, key=f"rep_{tie_key}_pen_global")
-            if pen_sel != "— Elegir —":
-                winner = home_team if pen_sel == display_name(home_team) else away_team
-                if st.button(f"✅ Confirmar: {display_name(winner)}", key=f"rep_{tie_key}_pen_confirm"):
-                    pr[slot_key] = winner
-                    state["playoff_results"] = pr
-                    st.rerun()
-
-
-# ---------------------------------------------------------------------------
-# RANKING FMMJ
-# ---------------------------------------------------------------------------
-def show_ranking():
-    state = get_state()
-
-    st.markdown("""
-    <style>
-    .ranking-header {background:linear-gradient(135deg,#0a0a1a 0%,#1a1a3e 100%);
-    border:2px solid #c8a000;border-radius:16px;padding:20px 28px;margin-bottom:24px;}
-    .ranking-title {font-size:1.8rem;font-weight:800;color:#c8a000;}
-    .ranking-row {display:flex;align-items:center;padding:8px 12px;border-radius:8px;margin-bottom:4px;}
-    .ranking-pos {width:40px;font-weight:700;color:#888;}
-    .ranking-team {flex:1;font-weight:600;}
-    .ranking-pts {color:#ffd700;font-weight:700;font-size:0.9rem;}
-    .conf-badge {display:inline-block;padding:2px 8px;border-radius:10px;font-size:0.7rem;font-weight:700;margin-left:8px;}
-    </style>
-    """, unsafe_allow_html=True)
-
-    st.markdown("""<div class='ranking-header'>
-        <div class='ranking-title'>🏅 Ranking FMMJ</div>
-        <div style='color:#888;font-size:.85rem;'>Ranking actualizado con puntos de los torneos clasificatorios</div>
-    </div>""", unsafe_allow_html=True)
-
-    ranking = state["ranking"]
-    sorted_ranking = sorted(ranking.items(), key=lambda x: -x[1])
-
-    # Filtros
-    col1, col2 = st.columns([1, 3])
-    with col1:
-        conf_filter = st.selectbox("Confederación", ["Todas", "UEFA", "CONMEBOL", "CAF", "CONCACAF", "AFC", "OFC"])
-    with col2:
-        search = st.text_input("🔍 Buscar selección", placeholder="Escribe el nombre...")
-
-    # Construir tabla de datos filtrada
-    rows = []
-    for pos, (team, pts) in enumerate(sorted_ranking, 1):
-        conf = get_team_confederation(team)
-        if conf_filter != "Todas" and conf != conf_filter:
-            continue
-        if search and search.lower() not in display_name(team).lower() and search.lower() not in team.lower():
-            continue
-        rows.append({
-            "#": pos,
-            "Selección": display_name(team),
-            "Confederación": conf,
-            "Puntos": pts,
-        })
-
-    if rows:
-        import pandas as pd
-        df = pd.DataFrame(rows)
-        st.dataframe(
-            df,
-            use_container_width=True,
-            hide_index=True,
-            column_config={
-                "#": st.column_config.NumberColumn(width="small"),
-                "Selección": st.column_config.TextColumn(width="medium"),
-                "Confederación": st.column_config.TextColumn(width="small"),
-                "Puntos": st.column_config.NumberColumn(width="small"),
-            }
-        )
-    else:
-        st.info("No hay resultados para el filtro seleccionado.")
-
-
-# ---------------------------------------------------------------------------
-# SORTEO MUNDIAL
-# ---------------------------------------------------------------------------
-def show_world_cup_draw():
-    state = get_state()
-    wc = state["world_cup"]
-    qualified = state["world_cup_qualified"]
-    host = state.get("host", "Nigeria")
-
-    st.markdown("""
-    <style>
-    .wc-header {
-        background:linear-gradient(135deg,#c8a000 0%,#ffd700 40%,#c8a000 100%);
-        border-radius:16px;padding:24px 32px;margin-bottom:24px;
-        box-shadow:0 8px 32px rgba(200,160,0,.4);
-    }
-    .wc-title {font-size:2rem;font-weight:800;color:#0a0a1a;margin:0;}
-    .wc-subtitle {font-size:.9rem;color:#333;margin:4px 0 0;}
-    .pot-card {border-radius:12px;padding:16px;margin-bottom:16px;}
-    .pot1 {background:#1a1500;border:2px solid #ffd700;}
-    .pot2 {background:#001a0d;border:2px solid #00cc66;}
-    .pot3 {background:#00001a;border:2px solid #3388ff;}
-    .pot4 {background:#1a000d;border:2px solid #ff6699;}
-    .pot-title {font-weight:800;font-size:1rem;margin-bottom:10px;}
-    .group-wc {background:#0a1020;border:1px solid #1a3060;border-radius:10px;padding:14px;}
-    .group-wc-title {color:#ffd700;font-weight:700;font-size:1.1rem;border-bottom:1px solid #ffd700;margin-bottom:8px;padding-bottom:4px;}
-    </style>
-    """, unsafe_allow_html=True)
-
-    st.markdown(f"""<div class='wc-header'>
-        <div><div class='wc-title'>🌍 FMMJ World Cup</div>
-        <div class='wc-subtitle'>32 selecciones · 8 grupos de 4 · Anfitrión: {display_name(host)}</div></div>
-    </div>""", unsafe_allow_html=True)
-
-    # Asegurar que el anfitrión esté en clasificados
-    if host and host not in qualified:
-        qualified.insert(0, host)
-        state["world_cup_qualified"] = qualified
-
-    tabs = st.tabs(["🏅 Clasificados", "🎲 Bombos", "🎯 Sorteo Grupos", "📊 Fase de Grupos", "⚽ Llaves Mundial"])
-
-    with tabs[0]:
-        _show_qualified_32(state, qualified)
-    with tabs[1]:
-        _show_pots(state, wc, qualified)
-    with tabs[2]:
-        _show_draw(state, wc)
-    with tabs[3]:
-        _show_wc_groups(state, wc)
-    with tabs[4]:
-        _show_wc_knockout(state, wc)
-
-
-def _show_qualified_32(state, qualified):
-    st.markdown("### 🏅 Las 32 Selecciones del FMMJ World Cup")
-    host = state.get("host")
-
-    conf_groups = {}
-    for t in qualified:
-        conf = get_team_confederation(t)
-        if conf not in conf_groups:
-            conf_groups[conf] = []
-        conf_groups[conf].append(t)
-
-    conf_order = ["UEFA", "CONMEBOL", "CAF", "CONCACAF", "AFC", "OFC"]
-    cupos = {"UEFA": 13, "CONMEBOL": 4, "CAF": 5, "CONCACAF": 3, "AFC": 4, "OFC": 1}
-
-    for conf in conf_order:
-        teams_conf = conf_groups.get(conf, [])
-        total = cupos.get(conf, 0)
-        with st.expander(f"{conf} — {len(teams_conf)}/{total}", expanded=True):
-            for t in teams_conf:
-                host_tag = "🏠 **ANFITRIÓN**" if t == host else ""
-                st.markdown(f"{flag_img(t,22,16)}&nbsp;**{display_name(t)}** {host_tag}", unsafe_allow_html=True)
-
-    st.info(f"**Total clasificados: {len(qualified)}/32**")
-    if len(qualified) < 32:
-        st.warning(f"Faltan {32 - len(qualified)} equipos por clasificar.")
-
-
-def _show_pots(state, wc, qualified):
-    st.markdown("### 🏅 Bombos para el Sorteo")
-    st.caption("Los equipos se distribuyen en 4 bombos de 8 según ranking FMMJ. El anfitrión es cabeza de serie en Bombo 1.")
-
-    if len(qualified) < 32:
-        st.warning(f"Aún no están los 32 clasificados. Hay {len(qualified)} equipos.")
-    
-    host = state.get("host")
-    ranking = state["ranking"]
-    teams_sorted = sorted(qualified, key=lambda t: -ranking.get(t, 0))
-
-    # Anfitrión siempre en bombo 1
-    if host in teams_sorted:
-        teams_sorted.remove(host)
-        teams_sorted.insert(0, host)
-
-    pot_size = 8
-    pots = {i+1: teams_sorted[i*pot_size:(i+1)*pot_size] for i in range(4)}
-    wc["pots"] = pots
-
-    pot_styles = ["pot1", "pot2", "pot3", "pot4"]
-    pot_colors = ["🟡", "🟢", "🔵", "🔴"]
-    cols = st.columns(2)
-    for pot_num, teams in pots.items():
-        with cols[(pot_num-1) % 2]:
-            st.markdown(f"<div class='{pot_styles[pot_num-1]}'><div class='pot-title'>{pot_colors[pot_num-1]} BOMBO {pot_num}</div>", unsafe_allow_html=True)
-            for t in teams:
-                h_tag = "🏠" if t == host else ""
-                st.markdown(f"{flag_img(t,18,13)}&nbsp;{display_name(t)} {h_tag}", unsafe_allow_html=True)
-            st.markdown("</div>", unsafe_allow_html=True)
-
-
-def _show_draw(state, wc):
-    st.markdown("### 🎯 Sorteo del Mundial FMMJ")
-    st.caption("Regla: máx. 2 equipos UEFA por grupo. No puede haber 2 equipos de misma confederación excepto UEFA.")
-
-    pots = wc.get("pots", {})
-    if not pots or not pots.get(1):
-        st.warning("Primero genera los bombos en la pestaña anterior.")
-        return
-
-    if wc.get("groups") and wc["phase"] != "sorteo":
-        st.success("✅ Sorteo ya realizado.")
-        _display_wc_groups_draw(wc)
-        if st.button("🔄 Repetir Sorteo", type="secondary"):
-            wc["groups"] = {}
-            wc["phase"] = "sorteo"
-            st.rerun()
-        return
-
-    if not wc.get("groups"):
-        st.info("Asigna cada selección clasificada a uno de los 8 grupos (4 equipos por grupo).")
-        _manual_group_setup(state, "world_cup", qualified, num_groups=8, teams_per_group=4,
-                            confirm_label="Confirmar grupos del Mundial")
-    else:
-        st.success("✅ Grupos confirmados")
-        if st.button("✏️ Editar grupos", type="secondary"):
-            wc["groups"] = {}
-            wc["phase"] = "sorteo"
-            st.rerun()
-        _display_wc_groups_draw(wc)
-
-
-def _do_world_cup_draw(pots, state):
-    """Sorteo con restricción de confederaciones"""
-    groups = {chr(65+i): [] for i in range(8)}
-    host = state.get("host")
-
-    # Pot 1: un equipo por grupo (anfitrión al Grupo A)
-    pot1 = list(pots[1])
-    if host in pot1:
-        pot1.remove(host)
-        groups["A"].append(host)
-        random.shuffle(pot1)
-        for i, t in enumerate(pot1):
-            key = chr(65 + i + 1)
-            groups[key].append(t)
-    else:
-        random.shuffle(pot1)
-        for i, t in enumerate(pot1):
-            groups[chr(65+i)].append(t)
-
-    # Pots 2-4: respetar restricciones de confederación
-    for pot_num in [2, 3, 4]:
-        pot = list(pots.get(pot_num, []))
-        random.shuffle(pot)
-        for team in pot:
-            conf = get_team_confederation(team)
-            placed = False
-            group_order = list(groups.keys())
-            random.shuffle(group_order)
-            for g in group_order:
-                current = groups[g]
-                if len(current) >= 4:
-                    continue
-                conf_count = sum(1 for t in current if get_team_confederation(t) == conf)
-                if conf == "UEFA" and conf_count >= 2:
-                    continue
-                elif conf != "UEFA" and conf_count >= 1:
-                    continue
-                groups[g].append(team)
-                placed = True
-                break
-            if not placed:
-                # Forzar colocación ignorando restricción de confederación
-                for g in groups:
-                    if len(groups[g]) < 4:
-                        groups[g].append(team)
-                        break
-    return groups
-
-
-def _display_wc_groups_draw(wc):
-    groups = wc.get("groups", {})
-    cols = st.columns(4)
-    for idx, (g, teams) in enumerate(groups.items()):
-        with cols[idx % 4]:
-            st.markdown(f"<div class='group-wc'><div class='group-wc-title'>GRUPO {g}</div>", unsafe_allow_html=True)
-            for t in teams:
-                st.markdown(f"{flag_img(t,20,15)}&nbsp;**{display_name(t)}**", unsafe_allow_html=True)
-            st.markdown("</div>", unsafe_allow_html=True)
-
-
-def _show_wc_groups(state, wc):
-    if not wc.get("groups"):
-        st.warning("Realiza el sorteo primero.")
-        return
-    st.markdown("### 📊 Fase de Grupos — FMMJ World Cup")
-    all_complete = _show_jornada_groups(
-        state, wc, "FMMJ World Cup",
-        results_key="group_results", groups_key="groups",
-        standings_key="group_standings", advancing=2,
-        caption_text="✅ Top 2 → Octavos de Final"
-    )
-    if all_complete or st.checkbox("🔓 Forzar avance a octavos"):
-        if wc["phase"] == "grupos":
-            if st.button("⚽ Generar Octavos de Final", type="primary", use_container_width=True):
-                _build_wc_knockout(state, wc)
-                wc["phase"] = "octavos"
-                st.rerun()
-
-
-def _build_wc_knockout(state, wc):
-    standings = wc.get("group_standings", {})
-    groups = sorted(standings.keys())
-    # Octavos: 1A vs 2B, 1B vs 2A, etc.
-    pairs = [
-        (groups[0], groups[1]),
-        (groups[2], groups[3]),
-        (groups[4], groups[5]),
-        (groups[6], groups[7]),
-    ]
-    octavos = []
-    for ga, gb in pairs:
-        first_a = standings[ga][0]["team"] if standings.get(ga) else None
-        second_b = standings[gb][1]["team"] if len(standings.get(gb, [])) > 1 else None
-        first_b = standings[gb][0]["team"] if standings.get(gb) else None
-        second_a = standings[ga][1]["team"] if len(standings.get(ga, [])) > 1 else None
-        octavos.append({"home": first_a, "away": second_b, "winner": None})
-        octavos.append({"home": first_b, "away": second_a, "winner": None})
-
-    wc["knockout_bracket"] = {
-        "octavos": octavos,
-        "cuartos": [],
-        "semis": [],
-        "tercer_puesto": [],
-        "final": [],
-    }
-    wc["knockout_results"] = {}
-
-
-def _show_wc_knockout(state, wc):
-    st.markdown("### ⚽ Fase de Eliminación — FMMJ World Cup")
-    bracket = wc.get("knockout_bracket", {})
-    if not bracket:
-        st.info("Completa la fase de grupos primero.")
-        return
-    results = wc.get("knockout_results", {})
-    if results is None:
-        wc["knockout_results"] = {}
-        results = wc["knockout_results"]
-
-    phases = [
-        ("octavos", "🔵 Octavos de Final", "cuartos"),
-        ("cuartos", "🟡 Cuartos de Final", "semis"),
-        ("semis", "🟠 Semifinales", "final"),
-        ("final", "🏆 GRAN FINAL", None),
-    ]
-
-    for phase_key, phase_name, next_phase in phases:
-        matches = bracket.get(phase_key, [])
-        if not matches: continue
-        st.markdown(f"#### {phase_name}")
-        all_done = True
-
-        for idx, match in enumerate(matches):
-            home, away = match.get("home"), match.get("away")
-            if not home or not away:
-                st.markdown("*Pendiente*"); all_done = False; continue
-
-            key = f"wc_{phase_key}_{idx}"
-            res = results.get(key, {})
-
-            col1,col2,col3,col4,col5,col6 = st.columns([3,1,1,3,2,1])
-            with col1: st.markdown(f"{flag_img(home)}&nbsp;**{display_name(home)}**", unsafe_allow_html=True)
-            with col2:
-                hg = st.number_input("", 0, 20, res.get("home_goals", 0), key=f"{key}_hg", label_visibility="collapsed")
-            with col3:
-                ag = st.number_input("", 0, 20, res.get("away_goals", 0), key=f"{key}_ag", label_visibility="collapsed")
-            with col4: st.markdown(f"{flag_img(away)}&nbsp;**{display_name(away)}**", unsafe_allow_html=True)
-            with col5:
-                if hg == ag:
-                    ps = st.selectbox("Penales", ["—", display_name(home), display_name(away)], key=f"{key}_pen")
-                    pw = home if ps == display_name(home) else (away if ps == display_name(away) else None)
-                else:
-                    pw = None; st.empty()
-            with col6:
-                save = st.button("💾", key=f"{key}_save")
-
-            col_s1, col_s2 = st.columns(2)
-            with col_s1:
-                hs = _scorer_input(home, hg, res.get("home_scorers", []), f"{key}_hs", state, torneo_name)
-            with col_s2:
-                as_ = _scorer_input(away, ag, res.get("away_scorers", []), f"{key}_as", state, torneo_name)
-
-            if save:
-                winner = home if hg > ag else (away if ag > hg else pw)
-                results[key] = {"home_goals": hg, "away_goals": ag, "winner": winner, "penalty_winner": pw,
-                                "home_scorers": hs,
-                                "away_scorers": as_}
-                wc["knockout_bracket"][phase_key][idx]["winner"] = winner
-                register_scorers(hs, home, state, "FMMJ World Cup")
-                register_scorers(as_, away, state, "FMMJ World Cup")
-                st.rerun()
-
-            if res.get("winner"):
-                st.markdown(f"**✅ {display_name(res['winner'])}** avanza")
-            else:
-                all_done = False
-            st.markdown("---")
-
-        if all_done and next_phase and not bracket.get(next_phase):
-            winners = [results.get(f"wc_{phase_key}_{i}", {}).get("winner") for i in range(len(matches))]
-            winners = [w for w in winners if w]
-            if phase_key == "semis":
-                losers = []
-                for i, m in enumerate(matches):
-                    r = results.get(f"wc_semis_{i}", {})
-                    loser = m["home"] if r.get("winner") == m["away"] else m["away"]
-                    if loser: losers.append(loser)
-                bracket["tercer_puesto"] = [{"home": losers[0], "away": losers[1], "winner": None}] if len(losers) == 2 else []
-            nxt = [(winners[i], winners[i+1]) for i in range(0, len(winners)-1, 2)]
-            bracket[next_phase] = [{"home": m[0], "away": m[1], "winner": None} for m in nxt]
-            wc["knockout_results"] = results
-            st.rerun()
-
-        if all_done and phase_key == "final":
-            champion = results.get("wc_final_0", {}).get("winner")
-            if champion:
-                wc["champion"] = champion
-                wc["phase"] = "completado"
-                st.balloons()
-                st.markdown(f"""
-                <div style='background:linear-gradient(135deg,#ffd700,#c8a000);border-radius:16px;
-                padding:24px;text-align:center;margin-top:20px;'>
-                <div style='font-size:2.5rem;'>🏆</div>
-                <div style='font-size:1.8rem;font-weight:900;color:#0a0a1a;'>{display_name(champion)}</div>
-                <div style='font-size:1rem;color:#333;'>¡CAMPEÓN DEL FMMJ WORLD CUP!</div>
-                </div>
-                """, unsafe_allow_html=True)
-
-    # 3er puesto
-    if bracket.get("tercer_puesto"):
-        st.markdown("#### 🥉 Tercer Puesto")
-        for idx, m in enumerate(bracket["tercer_puesto"]):
-            home, away = m["home"], m["away"]
-            key = f"wc_tercer_{idx}"
-            res = results.get(key, {})
-            col1,col2,col3,col4,col5,col6 = st.columns([3,1,1,3,2,1])
-            with col1: st.markdown(f"{flag_img(home)}&nbsp;**{display_name(home)}**", unsafe_allow_html=True)
-            with col2:
-                hg = st.number_input("", 0, 20, res.get("home_goals", 0), key=f"{key}_hg", label_visibility="collapsed")
-            with col3:
-                ag = st.number_input("", 0, 20, res.get("away_goals", 0), key=f"{key}_ag", label_visibility="collapsed")
-            with col4: st.markdown(f"{flag_img(away)}&nbsp;**{display_name(away)}**", unsafe_allow_html=True)
-            with col5:
-                if hg == ag:
-                    p = st.selectbox("Penales", ["—", display_name(home), display_name(away)], key=f"{key}_pen")
-                    pw = home if p == display_name(home) else (away if p == display_name(away) else None)
-                else:
-                    pw = None; st.empty()
-            with col6:
-                if st.button("💾", key=f"{key}_save"):
-                    winner = home if hg > ag else (away if ag > hg else pw)
-                    results[key] = {"home_goals": hg, "away_goals": ag, "winner": winner}
-                    bracket["tercer_puesto"][idx]["winner"] = winner
-                    wc["knockout_results"] = results
-                    st.rerun()
-            if res.get("winner"):
-                st.markdown(f"**🥉 3er Puesto: {display_name(res['winner'])}**")
-
-
-# ============================================================
-# TABLA DE GOLEADORES
-# ============================================================
-def show_goleadores():
-    state = get_state()
-    st.markdown("""
-    <style>
-    .gol-header {background:linear-gradient(135deg,#1a0030 0%,#3a0060 50%,#1a0030 100%);
-    border:2px solid #ffd700;border-radius:16px;padding:20px 28px;margin-bottom:24px;}
-    </style>
-    """, unsafe_allow_html=True)
-    st.markdown("""<div class='gol-header'>
-        <div style='font-size:1.8rem;font-weight:800;color:#ffd700;'>⚽ Tabla de Goleadores FMMJ</div>
-        <div style='color:#aaa;font-size:.85rem;'>Goles acumulados en todos los torneos clasificatorios y el Mundial</div>
-    </div>""", unsafe_allow_html=True)
-
-    all_scorers = state.get("all_scorers", {})
-    if not all_scorers:
-        st.info("Aún no hay goles registrados. Comienza a ingresar resultados en los torneos.")
-        return
-
-    # Construir lista de goleadores
-    rows = []
-    for skey, data in all_scorers.items():
-        name = data.get("name", skey.split("||")[0])
-        team = data.get("team", "")
-        goals = data.get("goals", 0)
-        torneos = data.get("torneos", {})
-        if goals > 0:
-            rows.append({
-                "name": name,
-                "team": team,
-                "goals": goals,
-                "torneos": torneos,
-            })
-
-    rows.sort(key=lambda x: -x["goals"])
-
-    # ── FILTROS ──────────────────────────────────────────────────────────────
-    col_f1, col_f2, col_f3 = st.columns(3)
-    with col_f1:
-        torneos_list = sorted(set(t for r in rows for t in r["torneos"].keys()))
-        torneo_filter = st.selectbox("🏆 Torneo", ["Todos"] + torneos_list)
-    with col_f2:
-        conf_filter_g = st.selectbox("🌍 Confederación", ["Todas", "UEFA", "CONMEBOL", "CAF", "CONCACAF", "AFC", "OFC"])
-    with col_f3:
-        top_n = st.selectbox("Mostrar", [10, 20, 50, "Todos"], index=0)
-
-    # Filtrar
-    filtered = []
-    for r in rows:
-        if torneo_filter != "Todos" and torneo_filter not in r["torneos"]:
-            continue
-        conf = get_team_confederation(r["team"])
-        if conf_filter_g != "Todas" and conf != conf_filter_g:
-            continue
-        goles = r["torneos"].get(torneo_filter, 0) if torneo_filter != "Todos" else r["goals"]
-        if goles > 0:
-            filtered.append({**r, "goles_filtro": goles})
-
-    filtered.sort(key=lambda x: -x["goles_filtro"])
-    if top_n != "Todos":
-        filtered = filtered[:int(top_n)]
-
-    if not filtered:
-        st.info("No hay goleadores con ese filtro.")
-        return
-
-    # ── PODIO TOP 3 ──────────────────────────────────────────────────────────
-    if len(filtered) >= 3:
-        st.markdown("### 🥇 Podio")
-        podio_cols = st.columns(3)
-        medals = ["🥇", "🥈", "🥉"]
-        colors = ["#ffd700", "#c0c0c0", "#cd7f32"]
-        for i, (col, medal, color) in enumerate(zip(podio_cols, medals, colors)):
-            if i < len(filtered):
-                r = filtered[i]
-                with col:
-                    st.markdown(f"""
-                    <div style='background:#0a1020;border:2px solid {color};border-radius:12px;
-                    padding:16px;text-align:center;'>
-                        <div style='font-size:2rem;'>{medal}</div>
-                        <div style='font-size:1rem;font-weight:700;color:#fff;margin:4px 0;'>{r["name"]}</div>
-                        <div style='font-size:0.8rem;color:#aaa;'>{flag_img(r["team"],18,13)}&nbsp;{display_name(r["team"])}</div>
-                        <div style='font-size:2rem;font-weight:900;color:{color};margin-top:8px;'>{r["goles_filtro"]}</div>
-                        <div style='font-size:0.7rem;color:#888;'>goles</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-
-    # ── TABLA COMPLETA ────────────────────────────────────────────────────────
-    st.markdown("### 📊 Tabla Completa")
-    import pandas as pd
-    table_rows = []
-    for pos, r in enumerate(filtered, 1):
-        torneos_str = ", ".join([f"{t}: {g}" for t, g in sorted(r["torneos"].items(), key=lambda x: -x[1])])
-        table_rows.append({
-            "#": pos,
-            "Jugador": r["name"],
-            "Selección": display_name(r["team"]),
-            "Goles": r["goles_filtro"],
-            "Torneos": torneos_str,
-        })
-    df = pd.DataFrame(table_rows)
-    st.dataframe(df, use_container_width=True, hide_index=True,
-                 column_config={
-                     "#": st.column_config.NumberColumn(width="small"),
-                     "Goles": st.column_config.NumberColumn(width="small"),
-                 })
-
-    # ── GOLEADORES POR EQUIPO ─────────────────────────────────────────────────
-    st.markdown("### 🏳️ Por Selección")
-    teams_in_table = sorted(set(r["team"] for r in filtered))
-    sel_team = st.selectbox("Ver equipo:", ["— Selecciona —"] + [display_name(t) for t in teams_in_table])
-    if sel_team != "— Selecciona —":
-        team_key = next((t for t in teams_in_table if display_name(t) == sel_team), None)
-        if team_key:
-            team_rows = [r for r in filtered if r["team"] == team_key]
-            for r in team_rows:
-                torneos_str = " · ".join([f"{t}: {g}⚽" for t, g in r["torneos"].items()])
-                st.markdown(
-                    f"<div style='padding:6px 12px;background:#0a1020;border-radius:6px;margin-bottom:4px;'>"
-                    f"<span style='font-weight:700;color:#fff;'>{r['name']}</span>"
-                    f"&nbsp;<span style='color:#ffd700;font-weight:900;'>{r['goles_filtro']} ⚽</span>"
-                    f"&nbsp;<span style='color:#888;font-size:0.8rem;'>{torneos_str}</span></div>",
-                    unsafe_allow_html=True
-                )
-
-# ============================================================
-# APP PRINCIPAL — LAYOUT Y ROUTING
-# ============================================================
-
+import os
+
+from data import (
+    UEFA_TEAMS, CONMEBOL_TEAMS, CAF_TEAMS, CONCACAF_TEAMS, AFC_TEAMS,
+    PLAYOFF_TEAMS, COPA_AMERICA_GUESTS_POOL, CONFEDERATIONS,
+    INITIAL_FIFA_RANKING, FLAG_MAP, TEAM_DISPLAY_NAMES, get_flag_url, CONF_LOGOS
+)
+from state import (
+    get_state, save_state, init_state, get_initial_state,
+    reset_for_new_edition, update_ranking, get_team_confederation, RANKING_POINTS
+)
+from utils import (
+    display_name, flag_img, get_team_confederation, get_jornadas,
+    match_key, calculate_standings, render_standings_table,
+    manual_group_setup, _scorer_input, register_scorers
+)
+
+# ─────────────────────────────────────────────
+# PAGE CONFIG
+# ─────────────────────────────────────────────
 st.set_page_config(
     page_title="FMMJ World Cup Simulator",
     page_icon="🏆",
@@ -3713,180 +34,1578 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&family=Source+Sans+3:wght@400;600&display=swap');
-.stApp { background: #060b18; color: #e0e8ff; font-family: 'Source Sans 3', sans-serif; }
-[data-testid="stSidebar"] { background: linear-gradient(180deg, #080d1e 0%, #0a1228 100%) !important; border-right: 1px solid #1a2a5a; }
-[data-testid="stSidebar"] * { color: #c0cce0 !important; }
-[data-testid="stSidebar"] .stRadio label { padding: 8px 12px !important; border-radius: 8px !important; cursor: pointer !important; display: block; }
-[data-testid="stSidebar"] .stRadio label:hover { background: #1a2a5a !important; }
-.stSelectbox > div > div, .stTextInput > div > input, .stNumberInput > div > input { background: #111a35 !important; border-color: #1e3055 !important; color: #e0e8ff !important; }
-.stTabs [data-baseweb="tab-list"] { background: #0a1020 !important; border-radius: 10px !important; padding: 4px !important; }
-.stTabs [data-baseweb="tab"] { background: transparent !important; color: #7090c0 !important; border-radius: 8px !important; font-weight: 600 !important; }
-.stTabs [aria-selected="true"] { background: #1a3a80 !important; color: #ffd700 !important; }
-.stButton > button[kind="primary"] { background: linear-gradient(135deg, #1a4aff, #0033cc) !important; color: white !important; border: none !important; font-weight: 700 !important; font-family: 'Oswald', sans-serif !important; border-radius: 8px !important; }
-.stButton > button { background: #111a35 !important; color: #c0d0f0 !important; border: 1px solid #1e3055 !important; border-radius: 8px !important; }
-[data-testid="stExpander"] { background: #0a1020 !important; border: 1px solid #1a2a5a !important; border-radius: 10px !important; }
-[data-testid="stExpander"] summary { color: #c8d8f0 !important; font-weight: 600 !important; }
-h1, h2, h3 { font-family: 'Oswald', sans-serif !important; }
-h1 { color: #ffd700 !important; } h2 { color: #c8d8ff !important; } h3 { color: #a0c0ff !important; }
-hr { border-color: #1a2a5a !important; }
-::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: #0a1020; } ::-webkit-scrollbar-thumb { background: #1a3a6a; border-radius: 3px; }
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow:wght@400;500;600;700;800&display=swap');
+.stApp { background: #06101e; color: #dce8ff; font-family: 'Barlow', sans-serif; }
+[data-testid="stSidebar"] { background: linear-gradient(180deg,#040d18 0%,#06101e 100%) !important; border-right:1px solid #142038; }
+[data-testid="stSidebar"] * { color:#b0c8ee !important; }
+.stTabs [data-baseweb="tab-list"] { background:#091525 !important; border-radius:10px !important; padding:4px !important; }
+.stTabs [data-baseweb="tab"] { background:transparent !important; color:#4070a0 !important; border-radius:8px !important; font-weight:600 !important; }
+.stTabs [aria-selected="true"] { background:#163070 !important; color:#ffd700 !important; }
+.stButton > button[kind="primary"] { background:linear-gradient(135deg,#1a4aff,#0033cc) !important; color:white !important; border:none !important; font-weight:700 !important; border-radius:8px !important; }
+.stButton > button { background:#0b1830 !important; color:#a0c0f0 !important; border:1px solid #1a3055 !important; border-radius:8px !important; }
+.stSelectbox > div > div, .stTextInput > div > input, .stNumberInput > div > input { background:#0c1a30 !important; border-color:#1c2e50 !important; color:#dce8ff !important; }
+[data-testid="stExpander"] { background:#091525 !important; border:1px solid #18285a !important; border-radius:10px !important; }
+h1,h2,h3 { font-family:'Bebas Neue',sans-serif !important; letter-spacing:1px; }
+h1 { color:#ffd700 !important; } h2 { color:#c0d0ff !important; } h3 { color:#90b0f0 !important; }
+hr { border-color:#182848 !important; }
+::-webkit-scrollbar { width:5px; } ::-webkit-scrollbar-track { background:#06101e; } ::-webkit-scrollbar-thumb { background:#183868;border-radius:3px; }
+.conf-chip { display:inline-block;padding:2px 8px;border-radius:12px;font-size:0.7rem;font-weight:700;margin-left:6px; }
 </style>
 """, unsafe_allow_html=True)
 
 init_state()
 state = get_state()
 
+# ─────────────────────────────────────────────
+# HELPER GLOBAL: FILA DE PARTIDO
+# ─────────────────────────────────────────────
+def show_match_row(home, away, prefix_key, results_dict, torneo_name, state, show_scorers=True):
+    res = results_dict.get(prefix_key, {})
+    c1, c2, c3, c4, c5, c6 = st.columns([3, 1, 1, 3, 2, 1])
+    with c1: st.markdown(f"{flag_img(home)}&nbsp;**{display_name(home)}**", unsafe_allow_html=True)
+    with c2:
+        hg = st.number_input("", 0, 20, int(res.get("home_goals", 0)), key=f"{prefix_key}_hg", label_visibility="collapsed")
+    with c3:
+        ag = st.number_input("", 0, 20, int(res.get("away_goals", 0)), key=f"{prefix_key}_ag", label_visibility="collapsed")
+    with c4: st.markdown(f"{flag_img(away)}&nbsp;**{display_name(away)}**", unsafe_allow_html=True)
+    with c5:
+        if hg == ag:
+            ps = st.selectbox("Penales", ["—", display_name(home), display_name(away)], key=f"{prefix_key}_pen")
+            pw = home if ps == display_name(home) else (away if ps == display_name(away) else None)
+        else:
+            pw = None
+            st.empty()
+    with c6:
+        save = st.button("💾", key=f"{prefix_key}_save")
 
-def _show_home(state):
+    hs, as_ = [], []
+    if show_scorers:
+        cs1, cs2 = st.columns(2)
+        with cs1: hs = _scorer_input(home, hg, res.get("home_scorers", []), f"{prefix_key}_hs", state, torneo_name)
+        with cs2: as_ = _scorer_input(away, ag, res.get("away_scorers", []), f"{prefix_key}_as", state, torneo_name)
+
+    if save:
+        winner = home if hg > ag else (away if ag > hg else pw)
+        results_dict[prefix_key] = {
+            "home_goals": hg, "away_goals": ag, "winner": winner,
+            "penalty_winner": pw, "home_scorers": hs, "away_scorers": as_, "played": True
+        }
+        if show_scorers:
+            register_scorers(hs, home, state, torneo_name)
+            register_scorers(as_, away, state, torneo_name)
+        save_state()
+        st.rerun()
+
+    if res.get("played"):
+        pw_tag = f" (pen. {display_name(res.get('penalty_winner',''))})" if res.get("penalty_winner") else ""
+        st.markdown(
+            f"<small style='color:#507090'>✅ {display_name(home)} **{res.get('home_goals',0)}** - **{res.get('away_goals',0)}** {display_name(away)}{pw_tag}</small>",
+            unsafe_allow_html=True
+        )
+    return res.get("played", False)
+
+
+def _render_groups_grid(groups, cols_n=3):
+    col_list = st.columns(cols_n)
+    for idx, (g, teams) in enumerate(groups.items()):
+        with col_list[idx % cols_n]:
+            html = f"<div style='background:#0b1a35;border:1px solid #1a3560;border-radius:10px;padding:14px;margin-bottom:12px;'>"
+            html += f"<div style='font-size:1rem;font-weight:700;color:#ffd700;border-bottom:2px solid #ffd700;padding-bottom:6px;margin-bottom:10px;font-family:Bebas Neue,sans-serif;'>GRUPO {g}</div>"
+            for t in teams:
+                html += f"<div style='padding:3px 0;'>{flag_img(t,18,13)}&nbsp;{display_name(t)}</div>"
+            html += "</div>"
+            st.markdown(html, unsafe_allow_html=True)
+
+
+def show_group_jornadas(state, tour, torneo_name, advancing=2):
+    groups = tour.get("groups", {})
+    results = tour.setdefault("group_results", {})
+    standings_all = tour.setdefault("group_standings", {})
+    if not groups:
+        st.warning("No hay grupos configurados.")
+        return False
+
+    all_complete = True
+    for g, teams in groups.items():
+        with st.expander(f"**GRUPO {g}** — {' · '.join([display_name(t) for t in teams])}", expanded=False):
+            jornadas = get_jornadas(teams)
+            tab_labels = [f"J{i+1}" for i in range(len(jornadas))] + ["📊 Tabla"]
+            jtabs = st.tabs(tab_labels)
+            for ji, jornada in enumerate(jornadas):
+                with jtabs[ji]:
+                    for home, away in jornada:
+                        mk = match_key(home, away)
+                        prefix = f"{torneo_name[:4]}_{g}_{mk}"
+                        played = show_match_row(home, away, prefix, results, torneo_name, state)
+                        # normalise to match_key for standings
+                        if results.get(prefix, {}).get("played"):
+                            results[mk] = results[prefix]
+                        st.markdown("<hr style='margin:4px 0;border-color:#0f2040;'>", unsafe_allow_html=True)
+            with jtabs[-1]:
+                standings = calculate_standings(teams, results)
+                standings_all[g] = standings
+                render_standings_table(standings, advancing=advancing)
+
+    for g, teams in groups.items():
+        for i in range(len(teams)):
+            for j in range(i+1, len(teams)):
+                mk = match_key(teams[i], teams[j])
+                prefix = f"{torneo_name[:4]}_{g}_{mk}"
+                if not results.get(mk, {}).get("played") and not results.get(prefix, {}).get("played"):
+                    all_complete = False
+    return all_complete
+
+
+def show_knockout_generic(state, tour, torneo_name, phase_configs, pfx):
+    bracket = tour.setdefault("knockout_bracket", {})
+    results = tour.setdefault("knockout_results", {})
+
+    final_done = False
+    for phase_key, phase_name, next_phase in phase_configs:
+        matches = bracket.get(phase_key, [])
+        if not matches:
+            continue
+        st.markdown(f"#### {phase_name}")
+        all_done = True
+        for idx, match in enumerate(matches):
+            home, away = match.get("home"), match.get("away")
+            if not home or not away:
+                st.markdown("*Pendiente de definir*")
+                all_done = False
+                continue
+            key = f"{pfx}_{phase_key}_{idx}"
+            show_match_row(home, away, key, results, torneo_name, state)
+            res = results.get(key, {})
+            if res.get("winner"):
+                bracket[phase_key][idx]["winner"] = res["winner"]
+            else:
+                all_done = False
+            st.markdown("<hr style='margin:4px 0;border-color:#0f2040;'>", unsafe_allow_html=True)
+
+        if all_done and next_phase is not None and not bracket.get(next_phase):
+            winners = [results.get(f"{pfx}_{phase_key}_{i}", {}).get("winner") for i in range(len(matches))]
+            winners = [w for w in winners if w]
+            # semis → tercer puesto
+            if phase_key == "semis" and len(winners) == 2:
+                losers = []
+                for i, m in enumerate(matches):
+                    r = results.get(f"{pfx}_semis_{i}", {})
+                    if r.get("winner"):
+                        loser = m["home"] if r["winner"] == m["away"] else m["away"]
+                        if loser: losers.append(loser)
+                if len(losers) == 2:
+                    bracket["tercer_puesto"] = [{"home": losers[0], "away": losers[1], "winner": None}]
+                    # Add semis losers to playoff pool if applicable
+                    pool = tour.get("playoff_pool", [])
+                    for l in losers:
+                        if l not in pool: pool.append(l)
+                    tour["playoff_pool"] = pool
+            if phase_key == "cuartos":
+                losers = []
+                for i, m in enumerate(matches):
+                    r = results.get(f"{pfx}_cuartos_{i}", {})
+                    if r.get("winner"):
+                        loser = m["home"] if r["winner"] == m["away"] else m["away"]
+                        if loser: losers.append(loser)
+                pool = tour.get("playoff_pool", [])
+                for l in losers:
+                    if l not in pool: pool.append(l)
+                tour["playoff_pool"] = pool
+            nxt = [(winners[i], winners[i+1]) for i in range(0, len(winners)-1, 2)]
+            bracket[next_phase] = [{"home": a, "away": b, "winner": None} for a, b in nxt]
+            save_state()
+            st.rerun()
+
+        if all_done and next_phase is None:
+            final_done = True
+
+    # Tercer puesto
+    if bracket.get("tercer_puesto"):
+        st.markdown("#### 🥉 Tercer Puesto")
+        for idx, m in enumerate(bracket["tercer_puesto"]):
+            home, away = m["home"], m["away"]
+            key = f"{pfx}_tercer_{idx}"
+            show_match_row(home, away, key, results, torneo_name, state)
+            res = results.get(key, {})
+            if res.get("winner"):
+                bracket["tercer_puesto"][idx]["winner"] = res["winner"]
+
+    return final_done
+
+
+# ══════════════════════════════════════════════════════════════
+# EUROCOPA UEFA — 24 equipos, 6 grupos de 4
+# Cupos: top 5 directos, 6-21 → playoff 4 grupos → 8 más
+# Total UEFA = 13
+# ══════════════════════════════════════════════════════════════
+def show_eurocopa():
+    state = get_state()
+    euro = state["euro"]
+
+    col_logo, col_title = st.columns([1, 9])
+    with col_logo:
+        try: st.image("uefa.png", width=72)
+        except: st.markdown("🏆")
+    with col_title:
+        st.markdown("""<div style='background:linear-gradient(135deg,#002060 0%,#0044cc 60%,#002060 100%);
+            border-radius:16px;padding:20px 28px;margin-bottom:20px;box-shadow:0 6px 24px rgba(0,68,204,.4);'>
+            <div style='font-size:1.9rem;font-weight:900;color:#ffd700;font-family:Bebas Neue,sans-serif;letter-spacing:2px;'>EUROCOPA FMMJ</div>
+            <div style='color:#a0c4ff;font-size:.9rem;'>24 selecciones UEFA · 6 grupos de 4 · Top 5 directo + Playoff 4 grupos → 13 cupos al Mundial</div>
+        </div>""", unsafe_allow_html=True)
+
+    tabs = st.tabs(["🎲 Grupos", "📊 Fase Grupos", "⚽ Llaves", "🔄 Playoff UEFA", "🌍 Clasificados"])
+
+    with tabs[0]:
+        st.markdown("### Armado de Grupos — Eurocopa FMMJ")
+        if not euro.get("setup_done"):
+            manual_group_setup(state, "euro", UEFA_TEAMS, num_groups=6, teams_per_group=4,
+                               confirm_label="Confirmar Grupos Eurocopa")
+        else:
+            st.success("✅ Grupos confirmados")
+            c1, c2 = st.columns(2)
+            with c1:
+                if st.button("✏️ Editar Grupos", type="secondary"):
+                    euro["setup_done"] = False
+                    if "draft_euro" in st.session_state: del st.session_state["draft_euro"]
+                    save_state(); st.rerun()
+            _render_groups_grid(euro["groups"], cols_n=3)
+
+    with tabs[1]:
+        if not euro.get("setup_done"):
+            st.info("Primero confirma los grupos.")
+        else:
+            all_done = show_group_jornadas(state, euro, "Euro", advancing=2)
+            if all_done or st.checkbox("🔓 Forzar avance a llaves", key="euro_force"):
+                if euro["phase"] == "grupos":
+                    if st.button("⚽ Generar Llaves Eurocopa", type="primary"):
+                        _build_euro_knockout(state, euro)
+                        save_state(); st.rerun()
+
+    with tabs[2]:
+        if euro["phase"] not in ["llaves", "playoff_uefa", "completado"]:
+            st.info("Completa la fase de grupos primero.")
+        else:
+            _show_euro_knockout(state, euro)
+
+    with tabs[3]:
+        _show_euro_playoff(state, euro)
+
+    with tabs[4]:
+        _show_euro_classified(state, euro)
+
+
+def _build_euro_knockout(state, euro):
+    standings = euro.get("group_standings", {})
+    groups = sorted(standings.keys())
+    if len(groups) < 6:
+        st.error("Faltan standings de grupos.")
+        return
+
+    firsts  = [standings[g][0]["team"] for g in groups if standings.get(g)]
+    seconds = [standings[g][1]["team"] for g in groups if len(standings.get(g,[])) > 1]
+    thirds  = [{"team": standings[g][2]["team"], **{k: standings[g][2][k] for k in ["pts","gd","gf"]}}
+               for g in groups if len(standings.get(g,[])) > 2]
+    fourths = [standings[g][3]["team"] for g in groups if len(standings.get(g,[])) > 3]
+
+    thirds_sorted = sorted(thirds, key=lambda x: (-x["pts"], -x["gd"], -x["gf"]))
+    best4_thirds  = [t["team"] for t in thirds_sorted[:4]]
+    worst2_thirds = [t["team"] for t in thirds_sorted[4:]]
+
+    euro["best_thirds"] = best4_thirds
+    # R16: 6 primeros + 6 segundos + 4 mejores terceros
+    r16 = firsts + seconds + best4_thirds
+    random.shuffle(r16)
+    octavos = [{"home": r16[i], "away": r16[i+1], "winner": None} for i in range(0, 16, 2)]
+
+    euro["knockout_bracket"] = {
+        "octavos": octavos, "cuartos": [], "semis": [], "tercer_puesto": [], "final": []
+    }
+    euro["knockout_results"] = {}
+    euro["playoff_pool"] = []
+    euro["phase"] = "llaves"
+    # 4tos y 2 peores terceros → playoff pool (se amplia al eliminar equipos)
+    euro["_fourths"] = fourths
+    euro["_worst_thirds"] = worst2_thirds
+
+
+def _show_euro_knockout(state, euro):
+    bracket = euro.setdefault("knockout_bracket", {})
+    results = euro.setdefault("knockout_results", {})
+    phases = [
+        ("octavos",  "🔵 Octavos de Final", "cuartos"),
+        ("cuartos",  "🟡 Cuartos de Final",  "semis"),
+        ("semis",    "🟠 Semifinales",        "final"),
+        ("final",    "🏆 GRAN FINAL",         None),
+    ]
+    final_done = show_knockout_generic(state, euro, "Eurocopa FMMJ", phases, "euro")
+    if final_done:
+        _determine_euro_classified(state, euro, results, bracket)
+
+
+def _determine_euro_classified(state, euro, results, bracket):
+    if euro.get("direct_qualified"):
+        return  # already computed
+
+    champion = results.get("euro_final_0", {}).get("winner")
+    runner_up = None
+    for m in bracket.get("final", []):
+        if m.get("winner"):
+            runner_up = m["home"] if m["winner"] == m["away"] else m["away"]
+
+    semi_losers = []
+    for i, m in enumerate(bracket.get("semis", [])):
+        r = results.get(f"euro_semis_{i}", {})
+        if r.get("winner"):
+            loser = m["home"] if r["winner"] == m["away"] else m["away"]
+            if loser and loser not in semi_losers: semi_losers.append(loser)
+
+    third = results.get("euro_tercer_0", {}).get("winner")
+
+    direct = [t for t in [champion, runner_up, third] + semi_losers if t]
+    direct = list(dict.fromkeys(direct))[:5]
+    euro["direct_qualified"] = direct
+
+    # Build playoff pool: cuartos losers + octavos losers + 4tos de grupo + 2 peores terceros
+    cuartos_losers = []
+    for i, m in enumerate(bracket.get("cuartos", [])):
+        r = results.get(f"euro_cuartos_{i}", {})
+        if r.get("winner"):
+            loser = m["home"] if r["winner"] == m["away"] else m["away"]
+            if loser: cuartos_losers.append(loser)
+
+    octavos_losers = []
+    for i, m in enumerate(bracket.get("octavos", [])):
+        r = results.get(f"euro_octavos_{i}", {})
+        if r.get("winner"):
+            loser = m["home"] if r["winner"] == m["away"] else m["away"]
+            if loser: octavos_losers.append(loser)
+
+    fourths = euro.get("_fourths", [])
+    worst_thirds = euro.get("_worst_thirds", [])
+
+    pool = cuartos_losers + octavos_losers + worst_thirds + fourths
+    pool = [t for t in pool if t and t not in direct]
+    pool = list(dict.fromkeys(pool))[:16]
+    euro["playoff_pool"] = pool
+    euro["phase"] = "playoff_uefa"
+
+    if champion: update_ranking(champion, RANKING_POINTS["champion"], state)
+    if runner_up: update_ranking(runner_up, RANKING_POINTS["runner_up"], state)
+    if third: update_ranking(third, RANKING_POINTS["third"], state)
+    save_state()
+    st.rerun()
+
+
+def _show_euro_playoff(state, euro):
+    st.markdown("### 🔄 Playoff UEFA — 8 cupos adicionales")
+    st.caption("Puestos 6–21: 4 grupos de 4, todos contra todos. Top 2 de cada grupo → Mundial.")
+
+    if euro["phase"] not in ["playoff_uefa", "completado"]:
+        st.info("Se habilita al finalizar las llaves de la Eurocopa.")
+        return
+
+    pb = euro.setdefault("playoff_bracket", {})
+    pool = euro.get("playoff_pool", [])
+
+    if not pool:
+        st.warning("No hay equipos para el playoff.")
+        return
+
+    if not pb.get("groups"):
+        st.markdown("#### Sorteo Playoff UEFA (4 grupos de 4)")
+        manual_group_setup(state, "_euro_playoff_tmp", pool[:16], num_groups=4, teams_per_group=4,
+                           confirm_label="Confirmar Grupos Playoff UEFA")
+        tmp = state.get("_euro_playoff_tmp", {})
+        if tmp.get("setup_done"):
+            pb["groups"] = tmp["groups"]
+            del state["_euro_playoff_tmp"]
+            if "_euro_playoff_tmp" in st.session_state:
+                del st.session_state["_euro_playoff_tmp"]
+            save_state(); st.rerun()
+        return
+
+    groups = pb["groups"]
+    results = pb.setdefault("results", {})
+    standings_all = pb.setdefault("standings", {})
+    all_complete = True
+
+    for g, teams in groups.items():
+        with st.expander(f"Grupo Playoff {g} — {' · '.join([display_name(t) for t in teams])}", expanded=False):
+            jornadas = get_jornadas(teams)
+            jtabs = st.tabs([f"J{i+1}" for i in range(len(jornadas))] + ["📊 Tabla"])
+            for ji, jornada in enumerate(jornadas):
+                with jtabs[ji]:
+                    for home, away in jornada:
+                        mk = match_key(home, away)
+                        pkey = f"eupb_{g}_{mk}"
+                        show_match_row(home, away, pkey, results, "Playoff UEFA", state, show_scorers=False)
+                        if results.get(pkey, {}).get("played"):
+                            results[mk] = results[pkey]
+                        elif not results.get(mk, {}).get("played"):
+                            all_complete = False
+            with jtabs[-1]:
+                standings = calculate_standings(teams, results)
+                standings_all[g] = standings
+                render_standings_table(standings, advancing=2)
+
+    if all_complete or st.checkbox("🔓 Forzar clasificados playoff UEFA"):
+        if st.button("✅ Confirmar Clasificados Playoff UEFA", type="primary"):
+            top2 = []
+            for g, stds in standings_all.items():
+                top2 += [s["team"] for s in stds[:2]]
+            euro["qualified"] = list(dict.fromkeys(euro.get("direct_qualified", []) + top2))[:13]
+            euro["phase"] = "completado"
+            for t in euro["qualified"]:
+                if t not in state["world_cup_qualified"]:
+                    state["world_cup_qualified"].append(t)
+            save_state(); st.rerun()
+
+
+def _show_euro_classified(state, euro):
+    st.markdown("### 🌍 Clasificados UEFA al Mundial FMMJ")
+    direct = euro.get("direct_qualified", [])
+    qualified = euro.get("qualified", [])
+    playoff_q = [t for t in qualified if t not in direct]
+
+    medals = ["🥇","🥈","🥉","4️⃣","5️⃣"]
+    if direct:
+        st.markdown("#### ✅ Cupos Directos (Top 5)")
+        for i, t in enumerate(direct):
+            st.markdown(f"{medals[i] if i < 5 else '✅'} {flag_img(t,22,16)}&nbsp;**{display_name(t)}**", unsafe_allow_html=True)
+    if playoff_q:
+        st.markdown("#### 🔄 Vía Playoff UEFA (8 cupos)")
+        for t in playoff_q:
+            st.markdown(f"✅ {flag_img(t,22,16)}&nbsp;**{display_name(t)}**", unsafe_allow_html=True)
+    st.info(f"**Total UEFA: {len(qualified)}/13**")
+
+
+# ══════════════════════════════════════════════════════════════
+# COPA AMERICA — 10 CONMEBOL + 6 invitadas
+# 4 grupos de 4 → Cuartos → Semis → Final
+# Campeón directo. 2do-7mo → playoff todos contra todos.
+# Top 3 → mundial. 4to → repechaje.
+# ══════════════════════════════════════════════════════════════
+def show_copa_america():
+    state = get_state()
+    ca = state["copa_america"]
+
+    col_logo, col_title = st.columns([1, 9])
+    with col_logo:
+        try: st.image("conmebol.png", width=72)
+        except: st.markdown("🌎")
+    with col_title:
+        st.markdown("""<div style='background:linear-gradient(135deg,#004020 0%,#008844 60%,#004020 100%);
+            border-radius:16px;padding:20px 28px;margin-bottom:20px;'>
+            <div style='font-size:1.9rem;font-weight:900;color:#ffd700;font-family:Bebas Neue,sans-serif;letter-spacing:2px;'>COPA AMÉRICA FMMJ</div>
+            <div style='color:#90ffcc;font-size:.9rem;'>10 CONMEBOL + 6 invitadas · 4 grupos de 4 · Campeón directo + Playoff → 4 cupos al Mundial</div>
+        </div>""", unsafe_allow_html=True)
+
+    tabs = st.tabs(["🌎 Invitadas", "🎲 Sorteo", "📊 Grupos", "⚽ Llaves", "🔄 Playoff", "🌍 Clasificados"])
+
+    with tabs[0]:
+        _ca_guest_selection(state, ca)
+
+    with tabs[1]:
+        if not ca.get("guests"):
+            st.info("Primero selecciona las 6 invitadas.")
+        elif not ca.get("setup_done"):
+            all_teams = CONMEBOL_TEAMS + ca["guests"]
+            manual_group_setup(state, "copa_america", all_teams, num_groups=4, teams_per_group=4,
+                               confirm_label="Confirmar Grupos Copa América")
+        else:
+            st.success("✅ Grupos confirmados")
+            if st.button("✏️ Editar Grupos", type="secondary"):
+                ca["setup_done"] = False
+                if "draft_copa_america" in st.session_state: del st.session_state["draft_copa_america"]
+                save_state(); st.rerun()
+            _render_groups_grid(ca["groups"], cols_n=2)
+
+    with tabs[2]:
+        if not ca.get("setup_done"):
+            st.info("Confirma los grupos primero.")
+        else:
+            all_done = show_group_jornadas(state, ca, "Copa", advancing=2)
+            if all_done or st.checkbox("🔓 Forzar avance", key="ca_force"):
+                if ca["phase"] == "grupos":
+                    if st.button("⚽ Generar Llaves Copa América", type="primary"):
+                        _build_ca_knockout(state, ca)
+                        save_state(); st.rerun()
+
+    with tabs[3]:
+        if ca["phase"] not in ["llaves", "playoff", "completado"]:
+            st.info("Completa la fase de grupos primero.")
+        else:
+            _show_ca_knockout(state, ca)
+
+    with tabs[4]:
+        _show_ca_playoff(state, ca)
+
+    with tabs[5]:
+        _show_ca_classified(state, ca)
+
+
+def _ca_guest_selection(state, ca):
+    st.markdown("### 🌎 Selección de Equipos Invitados")
+    st.caption("Elige exactamente 6 selecciones de CONCACAF, AFC, CAF u OFC (no UEFA)")
+
+    if ca.get("guests"):
+        st.success(f"✅ Invitadas: {', '.join([display_name(g) for g in ca['guests']])}")
+        if st.button("🔄 Cambiar invitadas"):
+            ca["guests"] = []
+            ca["setup_done"] = False
+            save_state(); st.rerun()
+        return
+
+    available = COPA_AMERICA_GUESTS_POOL
+    selected = []
+    cols = st.columns(3)
+    for idx, team in enumerate(available):
+        with cols[idx % 3]:
+            if st.checkbox(f"{display_name(team)}", key=f"ca_guest_{team}"):
+                selected.append(team)
+
+    st.markdown(f"**Seleccionadas: {len(selected)}/6**")
+    if len(selected) > 6:
+        st.error("Máximo 6 invitadas.")
+    elif len(selected) == 6:
+        if st.button("✅ Confirmar Invitadas", type="primary"):
+            ca["guests"] = selected
+            save_state(); st.rerun()
+
+
+def _build_ca_knockout(state, ca):
+    standings = ca.get("group_standings", {})
+    groups = sorted(standings.keys())
+    firsts  = [standings[g][0]["team"] for g in groups if standings.get(g)]
+    seconds = [standings[g][1]["team"] for g in groups if len(standings.get(g,[])) > 1]
+    thirds  = [standings[g][2]["team"] for g in groups if len(standings.get(g,[])) > 2]
+    fourths = [standings[g][3]["team"] for g in groups if len(standings.get(g,[])) > 3]
+
+    qf = [
+        (firsts[0], seconds[1]),
+        (firsts[1], seconds[0]),
+        (firsts[2], seconds[3]) if len(firsts)>2 and len(seconds)>3 else (firsts[2], seconds[2]),
+        (firsts[3], seconds[2]) if len(firsts)>3 else (seconds[3], thirds[0] if thirds else ""),
+    ]
+    ca["knockout_bracket"] = {
+        "cuartos": [{"home": a, "away": b, "winner": None} for a, b in qf if a and b],
+        "semis": [], "tercer_puesto": [], "final": []
+    }
+    ca["knockout_results"] = {}
+    ca["playoff_pool"] = thirds + fourths
+    ca["phase"] = "llaves"
+
+
+def _show_ca_knockout(state, ca):
+    bracket = ca.setdefault("knockout_bracket", {})
+    results = ca.setdefault("knockout_results", {})
+    phases = [
+        ("cuartos", "🟡 Cuartos de Final", "semis"),
+        ("semis",   "🟠 Semifinales",       "final"),
+        ("final",   "🏆 GRAN FINAL Copa América", None),
+    ]
+    final_done = show_knockout_generic(state, ca, "Copa América FMMJ", phases, "ca")
+    if final_done:
+        champion = results.get("ca_final_0", {}).get("winner")
+        if champion and not ca.get("champion"):
+            ca["champion"] = champion
+            ca["qualified_direct"] = [champion]
+            # Add finalist + semi losers to playoff pool
+            for m in bracket.get("final", []):
+                if m.get("winner"):
+                    runner = m["home"] if m["winner"] == m["away"] else m["away"]
+                    pool = ca.get("playoff_pool", [])
+                    if runner and runner not in pool: pool.insert(0, runner)
+                    ca["playoff_pool"] = pool
+            ca["phase"] = "playoff"
+            update_ranking(champion, RANKING_POINTS["champion"], state)
+            save_state(); st.rerun()
+
+
+def _show_ca_playoff(state, ca):
+    st.markdown("### 🔄 Playoff CONMEBOL — 3 cupos + 1 repechaje")
+    st.caption("2do–7mo Copa América: todos contra todos. Top 3 → Mundial. 4to → Repechaje Internacional.")
+
+    if ca["phase"] not in ["playoff", "completado"]:
+        st.info("Se habilita al terminar las llaves.")
+        return
+
+    pool = ca.get("playoff_pool", [])
+    if not pool:
+        st.warning("No hay candidatos.")
+        return
+
+    pb = ca.setdefault("playoff_bracket", {})
+    results = pb.setdefault("results", {})
+    all_done = True
+    pfx = "capb"
+
+    fixtures = [(pool[i], pool[j]) for i in range(len(pool)) for j in range(i+1, len(pool))]
+    st.markdown(f"**Participantes:** {', '.join([display_name(t) for t in pool])}")
+    for home, away in fixtures:
+        mk = match_key(home, away)
+        key = f"{pfx}_{mk}"
+        show_match_row(home, away, key, results, "Playoff CONMEBOL", state, show_scorers=False)
+        if results.get(key, {}).get("played"):
+            results[mk] = results[key]
+        elif not results.get(mk, {}).get("played"):
+            all_done = False
+
+    standings = calculate_standings(pool, results)
+    pb["standings"] = standings
+    render_standings_table(standings, advancing=3, show_thirds=True)
+
+    if all_done or st.checkbox("🔓 Forzar clasificados CONMEBOL"):
+        if st.button("✅ Confirmar Clasificados CONMEBOL", type="primary"):
+            champion = ca.get("champion")
+            top3 = [s["team"] for s in standings[:3]]
+            repechaje = standings[3]["team"] if len(standings) > 3 else None
+            ca["qualified"] = ([champion] if champion else []) + top3
+            ca["phase"] = "completado"
+            if repechaje:
+                state["playoff_teams"]["conmebol_slot"] = repechaje
+            for t in ca["qualified"]:
+                if t not in state["world_cup_qualified"]:
+                    state["world_cup_qualified"].append(t)
+            save_state(); st.rerun()
+
+
+def _show_ca_classified(state, ca):
+    st.markdown("### 🌍 Clasificados CONMEBOL al Mundial FMMJ")
+    champion = ca.get("champion")
+    if champion:
+        st.markdown(f"🏆 **Campeón (Directo):** {flag_img(champion,24,18)}&nbsp;**{display_name(champion)}**", unsafe_allow_html=True)
+    for t in ca.get("qualified", []):
+        if t != champion:
+            st.markdown(f"✅ {flag_img(t,22,16)}&nbsp;**{display_name(t)}**", unsafe_allow_html=True)
+    rep = state["playoff_teams"].get("conmebol_slot")
+    if rep:
+        st.markdown(f"🔁 **Repechaje:** {flag_img(rep,22,16)}&nbsp;**{display_name(rep)}**", unsafe_allow_html=True)
+    st.info(f"**Total CONMEBOL: {len(ca.get('qualified',[]))}/4**")
+
+
+# ══════════════════════════════════════════════════════════════
+# COPA AFRICA — CAF 10 equipos, 2 grupos de 5
+# Campeón + Subcampeón directos.
+# 3ro-7mo → playoff todos contra todos → top 3 → mundial.
+# ══════════════════════════════════════════════════════════════
+def show_copa_africa():
+    state = get_state()
+    tour = state["copa_africa"]
+
+    col_logo, col_title = st.columns([1, 9])
+    with col_logo:
+        try: st.image("caf.png", width=72)
+        except: st.markdown("🌍")
+    with col_title:
+        st.markdown("""<div style='background:linear-gradient(135deg,#6a3800 0%,#c07000 60%,#6a3800 100%);
+            border-radius:16px;padding:20px 28px;margin-bottom:20px;'>
+            <div style='font-size:1.9rem;font-weight:900;color:#fff;font-family:Bebas Neue,sans-serif;letter-spacing:2px;'>COPA ÁFRICA FMMJ</div>
+            <div style='color:#ffd088;font-size:.9rem;'>10 selecciones CAF · 2 grupos de 5 · Campeón + Subcampeón directos + Playoff → 5 cupos</div>
+        </div>""", unsafe_allow_html=True)
+
+    tabs = st.tabs(["🎲 Grupos", "📊 Fase Grupos", "⚽ Llaves", "🔄 Playoff CAF", "🌍 Clasificados"])
+
+    with tabs[0]:
+        if not tour.get("setup_done"):
+            manual_group_setup(state, "copa_africa", CAF_TEAMS, num_groups=2, teams_per_group=5,
+                               confirm_label="Confirmar Grupos Copa África")
+        else:
+            st.success("✅ Grupos confirmados")
+            if st.button("✏️ Editar", type="secondary"):
+                tour["setup_done"] = False
+                if "draft_copa_africa" in st.session_state: del st.session_state["draft_copa_africa"]
+                save_state(); st.rerun()
+            _render_groups_grid(tour["groups"], cols_n=2)
+
+    with tabs[1]:
+        if not tour.get("setup_done"):
+            st.info("Confirma los grupos primero.")
+        else:
+            all_done = show_group_jornadas(state, tour, "CAF", advancing=2)
+            if all_done or st.checkbox("🔓 Forzar avance", key="caf_force"):
+                if tour["phase"] == "grupos":
+                    if st.button("⚽ Generar Cuartos CAF", type="primary"):
+                        _build_caf_knockout(state, tour)
+                        save_state(); st.rerun()
+
+    with tabs[2]:
+        if tour["phase"] not in ["llaves", "playoff", "completado"]:
+            st.info("Completa la fase de grupos primero.")
+        else:
+            _show_caf_knockout(state, tour)
+
+    with tabs[3]:
+        _show_caf_playoff(state, tour)
+
+    with tabs[4]:
+        _show_caf_classified(state, tour)
+
+
+def _build_caf_knockout(state, tour):
+    standings = tour.get("group_standings", {})
+    groups = sorted(standings.keys())
+    top2, thirds, rest = [], [], []
+    for g in groups:
+        s = standings.get(g, [])
+        if len(s) >= 1: top2.append(s[0]["team"])
+        if len(s) >= 2: top2.append(s[1]["team"])
+        if len(s) >= 3: thirds.append(s[2]["team"])
+        for row in s[3:]: rest.append(row["team"])
+
+    # Semifinales: 1A vs 2B, 2A vs 1B
+    semis = [
+        {"home": top2[0], "away": top2[3], "winner": None},
+        {"home": top2[2], "away": top2[1], "winner": None},
+    ] if len(top2) >= 4 else []
+
+    tour["knockout_bracket"] = {
+        "semis": semis, "tercer_puesto": [], "final": []
+    }
+    tour["knockout_results"] = {}
+    tour["playoff_pool"] = thirds + rest
+    tour["phase"] = "llaves"
+
+
+def _show_caf_knockout(state, tour):
+    bracket = tour.setdefault("knockout_bracket", {})
+    results = tour.setdefault("knockout_results", {})
+    phases = [
+        ("semis", "🟠 Semifinales", "final"),
+        ("final", "🏆 GRAN FINAL Copa África", None),
+    ]
+    final_done = show_knockout_generic(state, tour, "Copa África FMMJ", phases, "caf")
+    if final_done:
+        res_f = results.get("caf_final_0", {})
+        if res_f.get("winner") and not tour.get("champion"):
+            champ = res_f["winner"]
+            runner = None
+            for m in bracket.get("final", []):
+                if m.get("winner"):
+                    runner = m["home"] if m["winner"] == m["away"] else m["away"]
+            tour["champion"] = champ
+            tour["finalist"] = runner
+            tour["qualified_direct"] = [t for t in [champ, runner] if t]
+            # Add semi losers to playoff pool
+            for i, m in enumerate(bracket.get("semis", [])):
+                r = results.get(f"caf_semis_{i}", {})
+                if r.get("winner"):
+                    loser = m["home"] if r["winner"] == m["away"] else m["away"]
+                    if loser and loser not in tour["playoff_pool"]:
+                        tour["playoff_pool"].append(loser)
+            tour["phase"] = "playoff"
+            update_ranking(champ, RANKING_POINTS["champion"], state)
+            if runner: update_ranking(runner, RANKING_POINTS["runner_up"], state)
+            save_state(); st.rerun()
+
+
+def _show_caf_playoff(state, tour):
+    st.markdown("### 🔄 Playoff CAF — 3 cupos adicionales")
+    st.caption("3ro–7mo: todos contra todos. Top 3 → Mundial.")
+    if tour["phase"] not in ["playoff", "completado"]:
+        st.info("Se habilita al terminar las llaves.")
+        return
+
+    pool = tour.get("playoff_pool", [])
+    if not pool:
+        st.warning("No hay candidatos.")
+        return
+
+    pb = tour.setdefault("playoff_bracket", {})
+    results = pb.setdefault("results", {})
+    all_done = True
+
+    fixtures = [(pool[i], pool[j]) for i in range(len(pool)) for j in range(i+1, len(pool))]
+    for home, away in fixtures:
+        mk = match_key(home, away)
+        key = f"cafpb_{mk}"
+        show_match_row(home, away, key, results, "Playoff CAF", state, show_scorers=False)
+        if results.get(key, {}).get("played"):
+            results[mk] = results[key]
+        elif not results.get(mk, {}).get("played"):
+            all_done = False
+
+    standings = calculate_standings(pool, results)
+    pb["standings"] = standings
+    render_standings_table(standings, advancing=3)
+
+    if all_done or st.checkbox("🔓 Forzar clasificados CAF"):
+        if st.button("✅ Confirmar Clasificados CAF", type="primary"):
+            top3 = [s["team"] for s in standings[:3]]
+            tour["qualified"] = list(dict.fromkeys(tour.get("qualified_direct", []) + top3))
+            tour["phase"] = "completado"
+            for t in tour["qualified"]:
+                if t not in state["world_cup_qualified"]:
+                    state["world_cup_qualified"].append(t)
+            save_state(); st.rerun()
+
+
+def _show_caf_classified(state, tour):
+    st.markdown("### 🌍 Clasificados CAF al Mundial FMMJ")
+    direct = tour.get("qualified_direct", [])
+    if direct:
+        st.markdown("#### ✅ Campeón y Subcampeón (Directos)")
+        for t in direct:
+            st.markdown(f"✅ {flag_img(t,22,16)}&nbsp;**{display_name(t)}**", unsafe_allow_html=True)
+    playoff_q = [t for t in tour.get("qualified", []) if t not in direct]
+    if playoff_q:
+        st.markdown("#### 🔄 Vía Playoff CAF")
+        for t in playoff_q:
+            st.markdown(f"✅ {flag_img(t,22,16)}&nbsp;**{display_name(t)}**", unsafe_allow_html=True)
+    st.info(f"**Total CAF: {len(tour.get('qualified',[]))}/5**")
+
+
+# ══════════════════════════════════════════════════════════════
+# TORNEOS 6 EQUIPOS: Copa Oro (CONCACAF) y Copa Asia (AFC)
+# 2 grupos de 3 → Semis → Final
+# CONCACAF: campeón directo, 2do-4to playoff → top 2 + 3ro repechaje
+# AFC:      campeón directo, 2do-5to playoff → top 3 + 4to repechaje
+# ══════════════════════════════════════════════════════════════
+def _show_6team_tournament(state, tour_key, torneo_name, teams, direct_spots,
+                            playoff_spots, repechaje_slot_key, header_html):
+    tour = state[tour_key]
+
+    st.markdown(header_html, unsafe_allow_html=True)
+    tabs = st.tabs(["🎲 Grupos", "📊 Fase Grupos", "⚽ Llaves", "🔄 Playoff", "🌍 Clasificados"])
+
+    with tabs[0]:
+        if not tour.get("setup_done"):
+            manual_group_setup(state, tour_key, teams, num_groups=2, teams_per_group=3,
+                               confirm_label=f"Confirmar Grupos {torneo_name}")
+        else:
+            st.success("✅ Grupos confirmados")
+            if st.button("✏️ Editar", type="secondary", key=f"edit_{tour_key}"):
+                tour["setup_done"] = False
+                if f"draft_{tour_key}" in st.session_state: del st.session_state[f"draft_{tour_key}"]
+                save_state(); st.rerun()
+            _render_groups_grid(tour["groups"], cols_n=2)
+
+    with tabs[1]:
+        if not tour.get("setup_done"):
+            st.info("Confirma los grupos primero.")
+        else:
+            all_done = show_group_jornadas(state, tour, torneo_name[:4], advancing=2)
+            if all_done or st.checkbox(f"🔓 Forzar avance", key=f"force_{tour_key}"):
+                if tour["phase"] == "grupos":
+                    if st.button(f"⚽ Generar Semis {torneo_name}", type="primary", key=f"gen_{tour_key}"):
+                        _build_6team_knockout(state, tour)
+                        save_state(); st.rerun()
+
+    with tabs[2]:
+        if tour["phase"] not in ["llaves", "playoff", "completado"]:
+            st.info("Completa grupos primero.")
+        else:
+            _show_6team_knockout(state, tour, torneo_name, tour_key)
+
+    with tabs[3]:
+        _show_6team_playoff(state, tour, torneo_name, tour_key, playoff_spots, repechaje_slot_key)
+
+    with tabs[4]:
+        _show_6team_classified(state, tour, torneo_name, repechaje_slot_key)
+
+
+def _build_6team_knockout(state, tour):
+    standings = tour.get("group_standings", {})
+    groups = sorted(standings.keys())
+    top2, thirds = [], []
+    for g in groups:
+        s = standings.get(g, [])
+        if len(s) >= 1: top2.append(s[0]["team"])
+        if len(s) >= 2: top2.append(s[1]["team"])
+        if len(s) >= 3: thirds.append(s[2]["team"])
+
+    semis = []
+    if len(top2) >= 4:
+        semis = [
+            {"home": top2[0], "away": top2[3], "winner": None},
+            {"home": top2[2], "away": top2[1], "winner": None},
+        ]
+    tour["knockout_bracket"] = {"semis": semis, "tercer_puesto": [], "final": []}
+    tour["knockout_results"] = {}
+    tour["playoff_pool"] = thirds[:]
+    tour["phase"] = "llaves"
+
+
+def _show_6team_knockout(state, tour, torneo_name, tour_key):
+    bracket = tour.setdefault("knockout_bracket", {})
+    results = tour.setdefault("knockout_results", {})
+    pfx = tour_key[:4]
+    phases = [
+        ("semis", "🟠 Semifinales", "final"),
+        ("final", "🏆 GRAN FINAL", None),
+    ]
+    final_done = show_knockout_generic(state, tour, torneo_name, phases, pfx)
+    if final_done:
+        champ = results.get(f"{pfx}_final_0", {}).get("winner")
+        if champ and not tour.get("champion"):
+            tour["champion"] = champ
+            # Add runner up + semi losers to playoff pool
+            for m in bracket.get("final", []):
+                if m.get("winner"):
+                    runner = m["home"] if m["winner"] == m["away"] else m["away"]
+                    pool = tour.get("playoff_pool", [])
+                    if runner and runner not in pool: pool.insert(0, runner)
+                    tour["playoff_pool"] = pool
+            for i, m in enumerate(bracket.get("semis", [])):
+                r = results.get(f"{pfx}_semis_{i}", {})
+                if r.get("winner"):
+                    loser = m["home"] if r["winner"] == m["away"] else m["away"]
+                    pool = tour.get("playoff_pool", [])
+                    if loser and loser not in pool: pool.append(loser)
+                    tour["playoff_pool"] = pool
+            tour["phase"] = "playoff"
+            update_ranking(champ, RANKING_POINTS["champion"], state)
+            save_state(); st.rerun()
+
+
+def _show_6team_playoff(state, tour, torneo_name, tour_key, playoff_spots, repechaje_slot_key):
+    st.markdown(f"### 🔄 Playoff {torneo_name}")
+    st.caption(f"2do–5to: todos contra todos. Top {playoff_spots} → Mundial.{' El siguiente → Repechaje.' if repechaje_slot_key else ''}")
+    if tour["phase"] not in ["playoff", "completado"]:
+        st.info("Se habilita al terminar las llaves.")
+        return
+
+    pool = tour.get("playoff_pool", [])
+    if not pool:
+        st.warning("No hay candidatos.")
+        return
+
+    pb = tour.setdefault("playoff_bracket", {})
+    results = pb.setdefault("results", {})
+    all_done = True
+    pfx = f"{tour_key[:4]}pb"
+
+    fixtures = [(pool[i], pool[j]) for i in range(len(pool)) for j in range(i+1, len(pool))]
+    for home, away in fixtures:
+        mk = match_key(home, away)
+        key = f"{pfx}_{mk}"
+        show_match_row(home, away, key, results, f"Playoff {torneo_name}", state, show_scorers=False)
+        if results.get(key, {}).get("played"):
+            results[mk] = results[key]
+        elif not results.get(mk, {}).get("played"):
+            all_done = False
+
+    standings = calculate_standings(pool, results)
+    pb["standings"] = standings
+    render_standings_table(standings, advancing=playoff_spots)
+
+    if all_done or st.checkbox(f"🔓 Forzar resultado {torneo_name}", key=f"force_pb_{tour_key}"):
+        if st.button(f"✅ Confirmar Clasificados {torneo_name}", type="primary", key=f"confirm_{tour_key}"):
+            champion = tour.get("champion")
+            top_n = [s["team"] for s in standings[:playoff_spots]]
+            repechaje = standings[playoff_spots]["team"] if len(standings) > playoff_spots else None
+            tour["qualified"] = ([champion] if champion else []) + top_n
+            tour["phase"] = "completado"
+            if repechaje and repechaje_slot_key:
+                state["playoff_teams"][repechaje_slot_key] = repechaje
+            for t in tour["qualified"]:
+                if t not in state["world_cup_qualified"]:
+                    state["world_cup_qualified"].append(t)
+            save_state(); st.rerun()
+
+
+def _show_6team_classified(state, tour, torneo_name, repechaje_slot_key):
+    st.markdown(f"### 🌍 Clasificados {torneo_name}")
+    champion = tour.get("champion")
+    if champion:
+        st.markdown(f"🏆 **Campeón (Directo):** {flag_img(champion,24,18)}&nbsp;**{display_name(champion)}**", unsafe_allow_html=True)
+    for t in tour.get("qualified", []):
+        if t != champion:
+            st.markdown(f"✅ {flag_img(t,22,16)}&nbsp;**{display_name(t)}**", unsafe_allow_html=True)
+    if repechaje_slot_key:
+        rep = state["playoff_teams"].get(repechaje_slot_key)
+        if rep:
+            st.markdown(f"🔁 **Repechaje:** {flag_img(rep,22,16)}&nbsp;**{display_name(rep)}**", unsafe_allow_html=True)
+    st.info(f"**Total {torneo_name}: {len(tour.get('qualified',[]))} clasificados**")
+
+
+def show_copa_oro():
+    state = get_state()
+    col_logo, col_title = st.columns([1, 9])
+    with col_logo:
+        try: st.image("concacaf.png", width=72)
+        except: st.markdown("⭐")
+    header = """<div style='background:linear-gradient(135deg,#600000 0%,#cc0000 60%,#600000 100%);
+        border-radius:16px;padding:20px 28px;margin-bottom:20px;'>
+        <div style='font-size:1.9rem;font-weight:900;color:#ffd700;font-family:Bebas Neue,sans-serif;letter-spacing:2px;'>COPA ORO FMMJ</div>
+        <div style='color:#ffaaaa;font-size:.9rem;'>6 selecciones CONCACAF · 2 grupos de 3 · Campeón directo + Playoff → 3 cupos | 4to → Repechaje</div>
+    </div>"""
+    with col_title:
+        pass
+    _show_6team_tournament(state, "copa_oro", "Copa Oro FMMJ", CONCACAF_TEAMS,
+                            direct_spots=1, playoff_spots=2,
+                            repechaje_slot_key="concacaf_slot",
+                            header_html=header)
+
+
+def show_copa_asia():
+    state = get_state()
+    col_logo, col_title = st.columns([1, 9])
+    with col_logo:
+        try: st.image("afc.png", width=72)
+        except: st.markdown("🌏")
+    header = """<div style='background:linear-gradient(135deg,#350060 0%,#6600cc 60%,#350060 100%);
+        border-radius:16px;padding:20px 28px;margin-bottom:20px;'>
+        <div style='font-size:1.9rem;font-weight:900;color:#ffd700;font-family:Bebas Neue,sans-serif;letter-spacing:2px;'>COPA ASIA FMMJ</div>
+        <div style='color:#ddaaff;font-size:.9rem;'>6 selecciones AFC · 2 grupos de 3 · Campeón directo + Playoff → 4 cupos | 5to → Repechaje</div>
+    </div>"""
+    with col_title:
+        pass
+    _show_6team_tournament(state, "copa_asia", "Copa Asia FMMJ", AFC_TEAMS,
+                            direct_spots=1, playoff_spots=3,
+                            repechaje_slot_key="afc_slot",
+                            header_html=header)
+
+
+# ══════════════════════════════════════════════════════════════
+# REPECHAJE INTERNACIONAL
+# CONMEBOL vs New Zealand — CONCACAF vs AFC
+# Ida y vuelta — ganadores = últimos 2 cupos
+# ══════════════════════════════════════════════════════════════
+def show_repechaje():
+    state = get_state()
+    playoff = state["playoff_teams"]
+    pr = state.setdefault("playoff_results", {})
+
+    st.markdown("""<div style='background:linear-gradient(135deg,#181818 0%,#282828 50%,#181818 100%);
+        border:2px solid #ffd700;border-radius:16px;padding:22px 30px;margin-bottom:20px;'>
+        <div style='font-size:1.9rem;font-weight:900;color:#ffd700;font-family:Bebas Neue,sans-serif;letter-spacing:2px;'>🔁 REPECHAJE INTERNACIONAL FMMJ</div>
+        <div style='color:#aaa;font-size:.9rem;'>2 llaves ida y vuelta · Los ganadores obtienen los últimos 2 cupos al Mundial</div>
+    </div>""", unsafe_allow_html=True)
+
+    conmebol_team = playoff.get("conmebol_slot")
+    ofc_team = "New Zealand"
+    concacaf_team = playoff.get("concacaf_slot")
+    afc_team = playoff.get("afc_slot")
+
+    tabs = st.tabs(["🌎 Llave 1: CONMEBOL vs OFC", "🌏 Llave 2: CONCACAF vs AFC", "✅ Resultados"])
+
+    with tabs[0]:
+        st.markdown("### 🌎 Llave 1: CONMEBOL vs OFC")
+        if not conmebol_team:
+            st.warning("⏳ Esperando 4to CONMEBOL (Playoff Copa América).")
+        else:
+            _show_tie(state, "llave1", conmebol_team, ofc_team, "slot1", pr)
+
+    with tabs[1]:
+        st.markdown("### 🌏 Llave 2: CONCACAF vs AFC")
+        if not concacaf_team:
+            st.warning("⏳ Esperando 3er Copa Oro (Playoff CONCACAF).")
+        elif not afc_team:
+            st.warning("⏳ Esperando 4to Copa Asia (Playoff AFC).")
+        else:
+            _show_tie(state, "llave2", concacaf_team, afc_team, "slot2", pr)
+
+    with tabs[2]:
+        st.markdown("### ✅ Clasificados vía Repechaje")
+        slot1 = pr.get("slot1")
+        slot2 = pr.get("slot2")
+        for slot, label in [(slot1, "Llave 1 (CONMEBOL/OFC)"), (slot2, "Llave 2 (CONCACAF/AFC)")]:
+            if slot:
+                st.markdown(
+                    f"<div style='background:#0d4f2e;border-radius:8px;padding:10px;color:#4eff91;font-weight:700;margin-bottom:8px;'>"
+                    f"🎉 {label}: {flag_img(slot,24,18)}&nbsp;{display_name(slot)}</div>",
+                    unsafe_allow_html=True
+                )
+                if slot not in state["world_cup_qualified"]:
+                    state["world_cup_qualified"].append(slot)
+                    save_state()
+        if slot1 and slot2:
+            st.balloons()
+            st.success("✅ ¡Los 32 clasificados están completos! Procede al Sorteo del Mundial.")
+
+
+def _show_tie(state, tie_key, home_team, away_team, slot_key, pr):
+    st.info(f"**{display_name(home_team)}** vs **{display_name(away_team)}** — Ida y Vuelta")
+    for leg, leg_name, h, a in [
+        ("ida",    "⚽ Partido de Ida",    home_team, away_team),
+        ("vuelta", "⚽ Partido de Vuelta", away_team, home_team),
+    ]:
+        st.markdown(f"#### {leg_name}")
+        key = f"rep_{tie_key}_{leg}"
+        res = pr.get(key, {})
+        c1, c2, c3, c4, c5 = st.columns([3, 1, 1, 3, 1])
+        with c1: st.markdown(f"{flag_img(h)}&nbsp;**{display_name(h)}**", unsafe_allow_html=True)
+        with c2:
+            hg = st.number_input("", 0, 20, int(res.get("home_goals", 0)), key=f"{key}_hg", label_visibility="collapsed")
+        with c3:
+            ag = st.number_input("", 0, 20, int(res.get("away_goals", 0)), key=f"{key}_ag", label_visibility="collapsed")
+        with c4: st.markdown(f"{flag_img(a)}&nbsp;**{display_name(a)}**", unsafe_allow_html=True)
+        with c5:
+            if st.button("💾", key=f"{key}_save"):
+                pr[key] = {"home": h, "away": a, "home_goals": hg, "away_goals": ag, "played": True}
+                save_state(); st.rerun()
+        if res.get("played"):
+            st.markdown(f"<small style='color:#507090'>✅ {display_name(h)} {res.get('home_goals',0)} - {res.get('away_goals',0)} {display_name(a)}</small>", unsafe_allow_html=True)
+
+    ida    = pr.get(f"rep_{tie_key}_ida", {})
+    vuelta = pr.get(f"rep_{tie_key}_vuelta", {})
+    if ida.get("played") and vuelta.get("played"):
+        ht = int(ida.get("home_goals", 0)) + int(vuelta.get("away_goals", 0))
+        at = int(ida.get("away_goals", 0)) + int(vuelta.get("home_goals", 0))
+        st.markdown(f"---\n**Global:** {display_name(home_team)} **{ht}** – **{at}** {display_name(away_team)}")
+        if ht != at:
+            winner = home_team if ht > at else away_team
+            st.success(f"🎉 **Clasificado: {display_name(winner)}**")
+            pr[slot_key] = winner
+            save_state()
+        else:
+            st.warning("⚠️ Empate global → Definición por penales")
+            opts = ["— Elige —", display_name(home_team), display_name(away_team)]
+            sel = st.selectbox("Ganador en penales:", opts, key=f"rep_{tie_key}_pen")
+            if sel != "— Elige —":
+                winner = home_team if sel == display_name(home_team) else away_team
+                if st.button(f"✅ Confirmar: {display_name(winner)}", key=f"rep_{tie_key}_pen_btn"):
+                    pr[slot_key] = winner
+                    save_state(); st.rerun()
+
+
+# ══════════════════════════════════════════════════════════════
+# RANKING FMMJ
+# ══════════════════════════════════════════════════════════════
+def show_ranking():
+    state = get_state()
+    ranking = state["ranking"]
+
+    st.markdown("""<div style='background:linear-gradient(135deg,#06101e 0%,#0c1e3a 50%,#06101e 100%);
+        border:2px solid #b89000;border-radius:16px;padding:22px 30px;margin-bottom:20px;'>
+        <div style='font-size:1.9rem;font-weight:900;color:#c8a000;font-family:Bebas Neue,sans-serif;letter-spacing:2px;'>🏅 RANKING FMMJ</div>
+        <div style='color:#888;font-size:.85rem;'>Puntuación dinámica actualizada con resultados de cada torneo clasificatorio</div>
+    </div>""", unsafe_allow_html=True)
+
+    sorted_ranking = sorted(ranking.items(), key=lambda x: -x[1])
+    c1, c2, c3 = st.columns(3)
+    with c1: conf_filter = st.selectbox("Confederación", ["Todas","UEFA","CONMEBOL","CAF","CONCACAF","AFC","OFC"])
+    with c2: search = st.text_input("🔍 Buscar", placeholder="Nombre del país...")
+    with c3: show_pts = st.checkbox("Mostrar puntos", value=True)
+
+    conf_colors = {
+        "UEFA":"#003580","CONMEBOL":"#006b3c","CAF":"#5a3000",
+        "CONCACAF":"#5a0000","AFC":"#3a0060","OFC":"#1a3a1a"
+    }
+
+    html = """<table style='width:100%;border-collapse:collapse;font-size:0.84rem;margin-top:12px;'>
+    <tr style='background:#091525;color:#5070a0;font-size:0.72rem;text-transform:uppercase;border-bottom:2px solid #182848;'>
+        <th style='padding:8px;text-align:center;width:36px;'>#</th>
+        <th style='padding:8px;text-align:left;'>Selección</th>
+        <th style='padding:8px;text-align:center;'>Conf.</th>"""
+    if show_pts: html += "<th style='padding:8px;text-align:center;'>Puntos</th>"
+    html += "<th style='padding:8px;text-align:center;'>Estado</th></tr>"
+
+    pos_real = 0
+    for pos, (team, pts) in enumerate(sorted_ranking, 1):
+        conf = get_team_confederation(team)
+        if conf_filter != "Todas" and conf != conf_filter: continue
+        if search and search.lower() not in display_name(team).lower() and search.lower() not in team.lower(): continue
+        pos_real += 1
+        qualified = team in state["world_cup_qualified"]
+        status_color = "#00cc66" if qualified else "#506080"
+        status = "✅ Clasificado" if qualified else "⏳"
+        row_bg = "#0c3a22" if qualified else ("#091525" if pos_real % 2 == 0 else "#06101e")
+        html += f"""<tr style='background:{row_bg};border-bottom:1px solid #101e38;'>
+            <td style='padding:8px;text-align:center;color:#555;font-weight:700;'>{pos}</td>
+            <td style='padding:8px;'>{flag_img(team,20,15)}&nbsp;<span style='font-weight:600;color:#dce8ff;'>{display_name(team)}</span></td>
+            <td style='padding:8px;text-align:center;'>
+                <span class='conf-chip' style='background:{conf_colors.get(conf,"#222")};color:#fff;'>{conf}</span>
+            </td>"""
+        if show_pts:
+            html += f"<td style='padding:8px;text-align:center;color:#ffd700;font-weight:800;font-size:0.95rem;'>{pts}</td>"
+        html += f"<td style='padding:8px;text-align:center;color:{status_color};font-size:0.8rem;'>{status}</td></tr>"
+    html += "</table>"
+    st.markdown(html, unsafe_allow_html=True)
+
+
+# ══════════════════════════════════════════════════════════════
+# GOLEADORES
+# ══════════════════════════════════════════════════════════════
+def show_goleadores():
+    state = get_state()
+    st.markdown("""<div style='background:linear-gradient(135deg,#180028 0%,#360058 50%,#180028 100%);
+        border:2px solid #ffd700;border-radius:16px;padding:22px 30px;margin-bottom:20px;'>
+        <div style='font-size:1.9rem;font-weight:900;color:#ffd700;font-family:Bebas Neue,sans-serif;letter-spacing:2px;'>⚽ TABLA DE GOLEADORES FMMJ</div>
+    </div>""", unsafe_allow_html=True)
+
+    all_scorers = state.get("all_scorers", {})
+    if not all_scorers:
+        st.info("Sin goles registrados aún.")
+        return
+
+    rows = [
+        {"name": d.get("name",""), "team": d.get("team",""), "goals": d.get("goals",0), "torneos": d.get("torneos",{})}
+        for d in all_scorers.values() if d.get("goals",0) > 0
+    ]
+    rows.sort(key=lambda x: -x["goals"])
+
+    c1, c2 = st.columns(2)
+    with c1:
+        torneos_list = sorted(set(t for r in rows for t in r["torneos"].keys()))
+        torneo_filter = st.selectbox("🏆 Torneo", ["Todos"] + torneos_list)
+    with c2:
+        top_n = st.selectbox("Top", [10, 20, 50, "Todos"])
+
+    filtered = []
+    for r in rows:
+        g = r["torneos"].get(torneo_filter, 0) if torneo_filter != "Todos" else r["goals"]
+        if g > 0:
+            filtered.append({**r, "goles_f": g})
+    filtered.sort(key=lambda x: -x["goles_f"])
+    if top_n != "Todos":
+        filtered = filtered[:int(top_n)]
+
+    if not filtered:
+        st.info("Sin resultados.")
+        return
+
+    if len(filtered) >= 3:
+        st.markdown("### 🥇 Podio")
+        cols = st.columns(3)
+        for i, (col, medal, color) in enumerate(zip(cols, ["🥇","🥈","🥉"], ["#ffd700","#c0c0c0","#cd7f32"])):
+            if i < len(filtered):
+                r = filtered[i]
+                with col:
+                    st.markdown(f"""<div style='background:#0a1020;border:2px solid {color};border-radius:12px;
+                        padding:16px;text-align:center;'>
+                        <div style='font-size:2rem;'>{medal}</div>
+                        <div style='font-size:1rem;font-weight:700;color:#fff;'>{r['name']}</div>
+                        <div style='font-size:0.8rem;color:#aaa;'>{flag_img(r['team'],18,13)}&nbsp;{display_name(r['team'])}</div>
+                        <div style='font-size:2rem;font-weight:900;color:{color};'>{r['goles_f']}</div>
+                    </div>""", unsafe_allow_html=True)
+
+    st.markdown("### 📊 Tabla")
+    import pandas as pd
+    table = [{"#": pos, "Jugador": r["name"], "Selección": display_name(r["team"]),
+              "Goles": r["goles_f"],
+              "Torneos": " · ".join([f"{t}: {g}⚽" for t, g in r["torneos"].items()])}
+             for pos, r in enumerate(filtered, 1)]
+    st.dataframe(pd.DataFrame(table), use_container_width=True, hide_index=True)
+
+
+# ══════════════════════════════════════════════════════════════
+# SORTEO Y MUNDIAL
+# ══════════════════════════════════════════════════════════════
+def show_world_cup_draw():
+    state = get_state()
+    wc = state["world_cup"]
+    qualified = state["world_cup_qualified"]
     host = state.get("host", "Nigeria")
-    edition = state.get("edition", 1)
-    qualified = state.get("world_cup_qualified", [])
-    conf_q = {}
-    for t in qualified:
-        conf = get_team_confederation(t)
-        conf_q[conf] = conf_q.get(conf, 0) + 1
 
-    st.markdown(f"""
-    <div style='background:linear-gradient(135deg,#060b18 0%,#0d1a3a 50%,#060b18 100%);
-    border:2px solid #c8a000;border-radius:20px;padding:40px;margin-bottom:32px;text-align:center;'>
-        <div style='margin-bottom:12px;'>
-            <img src='fmmj.png' style='height:80px;' onerror="this.style.display='none'">
-        </div>
-        <div style='font-size:3.5rem;font-family:Oswald,sans-serif;font-weight:700;
-                    color:#ffd700;letter-spacing:4px;text-shadow:0 0 30px rgba(255,215,0,.6);'>
+    if host and host not in qualified:
+        qualified.insert(0, host)
+        state["world_cup_qualified"] = qualified
+
+    st.markdown(f"""<div style='background:linear-gradient(135deg,#b89000 0%,#ffd700 40%,#b89000 100%);
+        border-radius:16px;padding:24px 32px;margin-bottom:20px;box-shadow:0 8px 32px rgba(200,160,0,.4);'>
+        <div style='font-size:2.2rem;font-weight:900;color:#06101e;font-family:Bebas Neue,sans-serif;letter-spacing:3px;'>🌍 FMMJ WORLD CUP</div>
+        <div style='font-size:.95rem;color:#333;margin-top:4px;'>32 selecciones · 8 grupos de 4 · Anfitrión: {flag_img(host,22,16)}&nbsp;{display_name(host)}</div>
+    </div>""", unsafe_allow_html=True)
+
+    tabs = st.tabs(["🏅 Clasificados","🎲 Bombos","🎯 Sorteo","📊 Grupos","⚽ Llaves"])
+    with tabs[0]: _show_wc_classified(state, qualified)
+    with tabs[1]: _show_wc_pots(state, wc, qualified)
+    with tabs[2]: _show_wc_draw(state, wc, qualified)
+    with tabs[3]: _show_wc_groups(state, wc)
+    with tabs[4]: _show_wc_knockout(state, wc)
+
+
+def _show_wc_classified(state, qualified):
+    st.markdown("### 🏅 Las 32 Selecciones del FMMJ World Cup")
+    cupos = {"UEFA":13,"CONMEBOL":4,"CAF":5,"CONCACAF":3,"AFC":4,"OFC":1}
+    conf_groups = {}
+    for t in qualified:
+        c = get_team_confederation(t)
+        conf_groups.setdefault(c, []).append(t)
+
+    cols = st.columns(3)
+    for i, (conf, teams) in enumerate(conf_groups.items()):
+        with cols[i % 3]:
+            total = cupos.get(conf, 0)
+            html = f"<div style='background:#091525;border:1px solid #1a2a5a;border-radius:10px;padding:14px;margin-bottom:12px;'>"
+            html += f"<div style='font-weight:700;color:#ffd700;margin-bottom:8px;font-family:Bebas Neue,sans-serif;'>{conf} — {len(teams)}/{total}</div>"
+            for t in teams:
+                html += f"<div style='padding:3px 0;'>{flag_img(t,18,13)}&nbsp;{display_name(t)}</div>"
+            html += "</div>"
+            st.markdown(html, unsafe_allow_html=True)
+    st.info(f"**Total: {len(qualified)}/32**")
+    if len(qualified) < 32:
+        st.warning(f"Faltan {32 - len(qualified)} equipos por clasificar.")
+
+
+def _show_wc_pots(state, wc, qualified):
+    st.markdown("### 🎲 Bombos del Sorteo FMMJ World Cup")
+    st.caption("4 bombos de 8 equipos por ranking FMMJ. El anfitrión encabeza el Bombo 1.")
+    if len(qualified) < 32:
+        st.warning(f"Aún no están los 32 equipos ({len(qualified)}/32).")
+        return
+
+    host = state.get("host")
+    ranking = state["ranking"]
+    teams_sorted = sorted(qualified, key=lambda t: -ranking.get(t, 0))
+    if host and host in teams_sorted:
+        teams_sorted.remove(host)
+        teams_sorted.insert(0, host)
+
+    pots = {i+1: teams_sorted[i*8:(i+1)*8] for i in range(4)}
+    wc["pots"] = {str(k): v for k, v in pots.items()}
+
+    pot_styles = [
+        ("🟡 BOMBO 1","#1a1300","#ffd700"),
+        ("🟢 BOMBO 2","#001a0d","#00cc66"),
+        ("🔵 BOMBO 3","#00001a","#3388ff"),
+        ("🔴 BOMBO 4","#1a000d","#ff6699"),
+    ]
+    cols = st.columns(2)
+    for i, (label, bg, color) in enumerate(pot_styles):
+        with cols[i % 2]:
+            html = f"<div style='background:{bg};border:2px solid {color};border-radius:10px;padding:14px;margin-bottom:12px;'>"
+            html += f"<div style='font-weight:800;color:{color};margin-bottom:10px;font-family:Bebas Neue,sans-serif;font-size:1.1rem;'>{label}</div>"
+            for t in pots.get(i+1, []):
+                h_tag = " 🏠" if t == host else ""
+                html += f"<div style='padding:3px 0;'>{flag_img(t,18,13)}&nbsp;{display_name(t)}{h_tag}</div>"
+            html += "</div>"
+            st.markdown(html, unsafe_allow_html=True)
+
+
+def _show_wc_draw(state, wc, qualified):
+    st.markdown("### 🎯 Sorteo del FMMJ World Cup")
+    st.caption("Regla: máx. 2 equipos UEFA por grupo. Sin 2 equipos de la misma confederación (excl. UEFA).")
+    if len(qualified) < 32:
+        st.warning("Aún no están los 32 clasificados.")
+        return
+
+    if wc.get("groups") and wc.get("setup_done"):
+        st.success("✅ Sorteo realizado.")
+        _render_wc_groups(wc)
+        if st.button("🔄 Repetir Sorteo", type="secondary"):
+            wc["groups"] = {}
+            wc["setup_done"] = False
+            if "draft_world_cup" in st.session_state: del st.session_state["draft_world_cup"]
+            save_state(); st.rerun()
+        if wc["phase"] == "sorteo" and st.button("▶️ Iniciar Fase de Grupos", type="primary"):
+            wc["phase"] = "grupos"
+            save_state(); st.rerun()
+        return
+
+    manual_group_setup(state, "world_cup", qualified, num_groups=8, teams_per_group=4,
+                       confirm_label="Confirmar Grupos del Mundial FMMJ")
+
+
+def _render_wc_groups(wc):
+    groups = wc.get("groups", {})
+    cols = st.columns(4)
+    for idx, (g, teams) in enumerate(groups.items()):
+        with cols[idx % 4]:
+            html = f"<div style='background:#091020;border:1px solid #1a2860;border-radius:10px;padding:12px;margin-bottom:10px;'>"
+            html += f"<div style='color:#ffd700;font-weight:700;border-bottom:1px solid #ffd700;padding-bottom:4px;margin-bottom:8px;font-family:Bebas Neue,sans-serif;'>GRUPO {g}</div>"
+            for t in teams:
+                html += f"<div style='padding:3px 0;font-size:0.85rem;'>{flag_img(t,18,13)}&nbsp;{display_name(t)}</div>"
+            html += "</div>"
+            st.markdown(html, unsafe_allow_html=True)
+
+
+def _show_wc_groups(state, wc):
+    if not wc.get("groups"):
+        st.warning("Realiza el sorteo primero.")
+        return
+    st.markdown("### 📊 Fase de Grupos — FMMJ World Cup")
+    all_done = show_group_jornadas(state, wc, "FMMJ", advancing=2)
+    if all_done or st.checkbox("🔓 Forzar avance Mundial"):
+        if wc["phase"] == "grupos":
+            if st.button("⚽ Generar Octavos de Final", type="primary"):
+                _build_wc_knockout(state, wc)
+                save_state(); st.rerun()
+
+
+def _build_wc_knockout(state, wc):
+    standings = wc.get("group_standings", {})
+    groups = sorted(standings.keys())
+    pairs = [(groups[i], groups[i+1]) for i in range(0, len(groups)-1, 2)]
+    octavos = []
+    for ga, gb in pairs:
+        f_a = standings[ga][0]["team"] if standings.get(ga) else None
+        s_b = standings[gb][1]["team"] if len(standings.get(gb,[])) > 1 else None
+        f_b = standings[gb][0]["team"] if standings.get(gb) else None
+        s_a = standings[ga][1]["team"] if len(standings.get(ga,[])) > 1 else None
+        if f_a and s_b: octavos.append({"home": f_a, "away": s_b, "winner": None})
+        if f_b and s_a: octavos.append({"home": f_b, "away": s_a, "winner": None})
+    wc["knockout_bracket"] = {
+        "octavos": octavos, "cuartos": [], "semis": [], "tercer_puesto": [], "final": []
+    }
+    wc["knockout_results"] = {}
+    wc["phase"] = "octavos"
+
+
+def _show_wc_knockout(state, wc):
+    st.markdown("### ⚽ Fase Eliminatoria — FMMJ World Cup")
+    bracket = wc.get("knockout_bracket", {})
+    if not bracket:
+        st.info("Completa la fase de grupos primero.")
+        return
+    results = wc.setdefault("knockout_results", {})
+    phases = [
+        ("octavos", "🔵 Octavos de Final", "cuartos"),
+        ("cuartos", "🟡 Cuartos de Final",  "semis"),
+        ("semis",   "🟠 Semifinales",        "final"),
+        ("final",   "🏆 GRAN FINAL FMMJ",    None),
+    ]
+    final_done = show_knockout_generic(state, wc, "FMMJ World Cup", phases, "wc")
+    if final_done:
+        champ = results.get("wc_final_0", {}).get("winner")
+        if champ and not wc.get("champion"):
+            wc["champion"] = champ
+            wc["phase"] = "completado"
+            st.balloons()
+            st.markdown(f"""<div style='background:linear-gradient(135deg,#ffd700,#c8a000);border-radius:16px;
+                padding:28px;text-align:center;margin-top:20px;'>
+                <div style='font-size:3rem;'>🏆</div>
+                <div style='font-size:2.2rem;font-weight:900;color:#06101e;font-family:Bebas Neue,sans-serif;'>{display_name(champ)}</div>
+                <div style='font-size:1rem;color:#333;'>¡CAMPEÓN DEL FMMJ WORLD CUP!</div>
+            </div>""", unsafe_allow_html=True)
+            save_state()
+
+
+# ══════════════════════════════════════════════════════════════
+# HOME
+# ══════════════════════════════════════════════════════════════
+def show_home(state):
+    host = state.get("host", "Nigeria")
+    qualified = state.get("world_cup_qualified", [])
+
+    st.markdown(f"""<div style='background:linear-gradient(135deg,#06101e 0%,#0c1e3a 50%,#06101e 100%);
+        border:2px solid #c8a000;border-radius:20px;padding:40px;margin-bottom:28px;text-align:center;'>
+        <div style='font-size:3.5rem;font-family:Bebas Neue,sans-serif;font-weight:700;
+                    color:#ffd700;letter-spacing:5px;text-shadow:0 0 40px rgba(255,215,0,.6);'>
             🌍 FMMJ WORLD CUP
         </div>
-        <div style='font-size:1.1rem;color:#6080aa;letter-spacing:2px;margin-top:8px;'>
-            EDICIÓN {edition} · SIMULADOR OFICIAL
+        <div style='font-size:1rem;color:#406080;letter-spacing:3px;margin-top:6px;'>
+            SIMULADOR OFICIAL FMMJ · {state.get('edition',1)}ª EDICIÓN
         </div>
-        <div style='margin-top:20px;font-size:1rem;color:#a0c0e0;'>
+        <div style='margin-top:16px;font-size:1rem;color:#90b0d0;'>
             Anfitrión: {flag_img(host,24,18)}&nbsp;<strong>{display_name(host)}</strong>
         </div>
-    </div>
-    """, unsafe_allow_html=True)
+    </div>""", unsafe_allow_html=True)
 
     cupos_info = [
-        ("🏆 UEFA", 13, "UEFA", "#003580"),
-        ("🌎 CONMEBOL", 4, "CONMEBOL", "#006b3c"),
-        ("🌍 CAF", 5, "CAF", "#b8860b"),
-        ("⭐ CONCACAF", 3, "CONCACAF", "#8b0000"),
-        ("🌏 AFC", 4, "AFC", "#4a0080"),
+        ("🏆 UEFA",13,"UEFA","#003580"),
+        ("🌎 CONMEBOL",4,"CONMEBOL","#006b3c"),
+        ("🌍 CAF",5,"CAF","#7a4500"),
+        ("⭐ CONCACAF",3,"CONCACAF","#6a0000"),
+        ("🌏 AFC",4,"AFC","#3a0060"),
+        ("🔁 OFC/Rep.",2,"OFC","#1a3a1a"),
     ]
-    cols = st.columns(5)
+    cols = st.columns(6)
+    conf_q = {}
+    for t in qualified:
+        c = get_team_confederation(t)
+        conf_q[c] = conf_q.get(c, 0) + 1
+
     for col, (label, total, conf, color) in zip(cols, cupos_info):
         current = conf_q.get(conf, 0)
+        done = current >= total
         with col:
-            st.markdown(f"""
-            <div style='background:#0a1020;border:1px solid {color};border-radius:12px;
-            padding:16px;text-align:center;'>
-                <div style='font-size:0.9rem;font-weight:700;color:#c8d8ff;'>{label}</div>
-                <div style='font-size:2rem;font-weight:900;color:{"#00cc66" if current >= total else "#ffd700"};'>{current}/{total}</div>
-                <div style='font-size:0.7rem;color:#6080aa;'>cupos</div>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown(f"""<div style='background:#091525;border:1px solid {color};border-radius:12px;
+                padding:14px;text-align:center;'>
+                <div style='font-size:0.8rem;font-weight:700;color:#c0d0f0;'>{label}</div>
+                <div style='font-size:1.8rem;font-weight:900;color:{"#00cc66" if done else "#ffd700"};'>{current}/{total}</div>
+            </div>""", unsafe_allow_html=True)
 
-    st.markdown("<br/>", unsafe_allow_html=True)
-    col_a, col_b = st.columns(2)
-    with col_a:
-        st.markdown("### 🗺️ Guía de uso")
+    st.markdown(f"<br><div style='text-align:center;font-size:1rem;color:#8090a8;margin-bottom:10px;'>{len(qualified)}/32 clasificados al FMMJ World Cup</div>", unsafe_allow_html=True)
+    st.progress(len(qualified) / 32)
+
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown("### 🗺️ Guía del Simulador")
         st.markdown("""
-1. **🏅 Ranking FMMJ** — Consulta el ranking actualizado
-2. **🏆 Eurocopa** → 6 grupos + llaves + playoff UEFA (13 cupos)
-3. **🌎 Copa América** → Elige invitadas, sortea, juega (4 cupos)
-4. **🌍 Copa África** → 10 equipos CAF (5 cupos)
-5. **⭐ Copa Oro** → CONCACAF (3 cupos)
-6. **🌏 Copa Asia** → AFC (4 cupos)
-7. **🔁 Repechaje** → 2 llaves ida y vuelta (2 cupos)
-8. **🌍 Sorteo y Mundial** → 32 equipos, 8 grupos, llaves 🏆
+1. **🏅 Ranking FMMJ** — Ranking dinámico
+2. **🏆 Eurocopa** — 24 equipos UEFA → 13 cupos
+3. **🌎 Copa América** — 10 + 6 invitadas → 4 cupos
+4. **🌍 Copa África** — 10 equipos CAF → 5 cupos
+5. **⭐ Copa Oro** — 6 CONCACAF → 3 cupos
+6. **🌏 Copa Asia** — 6 AFC → 4 cupos
+7. **🔁 Repechaje** — 2 llaves → 2 cupos
+8. **🌍 Sorteo y Mundial** — 32 equipos 🏆
         """)
-    with col_b:
+    with c2:
+        st.markdown("### ✅ Últimos Clasificados")
         if qualified:
-            st.markdown("### ✅ Clasificados al Mundial")
-            for t in qualified[:16]:
-                st.markdown(f"{flag_img(t,20,15)}&nbsp;**{display_name(t)}**", unsafe_allow_html=True)
-            if len(qualified) > 16:
-                st.caption(f"... y {len(qualified)-16} más")
+            for t in reversed(qualified[-10:]):
+                st.markdown(f"{flag_img(t,18,13)}&nbsp;{display_name(t)}", unsafe_allow_html=True)
         else:
-            st.info("Ningún equipo clasificado aún. Comienza por la Eurocopa.")
-    if len(qualified) == 32:
-        st.balloons()
-        st.success("🎉 ¡Los 32 equipos están clasificados! Ve al **Sorteo y Mundial**.")
+            st.info("Ninguno clasificado aún.")
 
 
-def _show_config(state):
+def show_config(state):
     st.markdown("### ⚙️ Configuración del Simulador FMMJ")
     st.markdown("#### 🏠 Anfitrión del Mundial")
+    all_teams_list = sorted(
+        UEFA_TEAMS + CONMEBOL_TEAMS + CAF_TEAMS + CONCACAF_TEAMS + AFC_TEAMS + PLAYOFF_TEAMS,
+        key=lambda t: display_name(t)
+    )
+    host_display = [display_name(t) for t in all_teams_list]
     current_host = state.get("host", "Nigeria")
-    host_options = sorted(ALL_TEAMS, key=lambda t: display_name(t))
-    host_display = [display_name(t) for t in host_options]
-    current_idx = host_options.index(current_host) if current_host in host_options else 0
-    selected_display = st.selectbox("Selecciona el anfitrión:", host_display, index=current_idx)
-    new_host = host_options[host_display.index(selected_display)]
+    current_idx = all_teams_list.index(current_host) if current_host in all_teams_list else 0
+    sel = st.selectbox("Seleccionar anfitrión:", host_display, index=current_idx)
+    new_host = all_teams_list[host_display.index(sel)]
     if new_host != current_host:
-        if st.button(f"✅ Confirmar: {display_name(new_host)} como anfitrión", type="primary"):
+        if st.button(f"✅ Confirmar: {display_name(new_host)}", type="primary"):
             state["host"] = new_host
-            if new_host not in state["world_cup_qualified"]:
-                state["world_cup_qualified"].insert(0, new_host)
-            st.success(f"✅ Anfitrión: {display_name(new_host)}")
-            st.rerun()
+            save_state(); st.rerun()
+
     st.markdown("---")
-    st.markdown("#### 🔄 Nueva Edición")
-    st.warning("⚠️ Borra todos los resultados pero conserva el ranking.")
-    col1, col2 = st.columns(2)
-    with col1:
+    st.markdown("#### 💾 Gestión de Datos")
+    c1, c2, c3 = st.columns(3)
+    with c1:
         if st.button("🔄 Nueva Edición", type="primary"):
             reset_for_new_edition()
             st.success("✅ Nueva edición iniciada.")
             st.rerun()
-    with col2:
+    with c2:
         if st.button("🗑️ Reset Completo"):
+            if os.path.exists("fmmj_state.json"):
+                os.remove("fmmj_state.json")
             st.session_state.fmmj_state = get_initial_state()
-            st.success("✅ Reset completo.")
-            st.rerun()
+            st.success("✅ Reset completo."); st.rerun()
+    with c3:
+        state_json = json.dumps(state, ensure_ascii=False, indent=2)
+        st.download_button("⬇️ Descargar Estado", state_json, "fmmj_state.json", "application/json")
+
     st.markdown("---")
+    st.markdown("#### 📊 Estado Actual")
     st.json({
         "edicion": state.get("edition"),
-        "anfitrion": display_name(state.get("host", "")),
-        "clasificados": len(state.get("world_cup_qualified", [])),
-        "eurocopa": state.get("euro", {}).get("phase", "—"),
-        "copa_america": state.get("copa_america", {}).get("phase", "—"),
-        "copa_africa": state.get("copa_africa", {}).get("phase", "—"),
-        "copa_oro": state.get("copa_oro", {}).get("phase", "—"),
-        "copa_asia": state.get("copa_asia", {}).get("phase", "—"),
+        "anfitrion": display_name(state.get("host","")),
+        "clasificados": len(state.get("world_cup_qualified",[])),
+        "eurocopa": state.get("euro",{}).get("phase"),
+        "copa_america": state.get("copa_america",{}).get("phase"),
+        "copa_africa": state.get("copa_africa",{}).get("phase"),
+        "copa_oro": state.get("copa_oro",{}).get("phase"),
+        "copa_asia": state.get("copa_asia",{}).get("phase"),
     })
 
 
+# ══════════════════════════════════════════════════════════════
 # SIDEBAR
+# ══════════════════════════════════════════════════════════════
 with st.sidebar:
     st.markdown("""
     <div style='text-align:center;padding:16px 0 8px;'>
-        <img src='fmmj.png' style='height:50px;margin-bottom:4px;' onerror="this.style.display='none'">
-        <div style='font-size:2.2rem;font-family:Oswald,sans-serif;font-weight:700;
-                    color:#ffd700;letter-spacing:2px;text-shadow:0 0 20px rgba(255,215,0,0.5);'>
-            FMMJ
-        </div>
-        <div style='font-size:0.7rem;color:#6080aa;letter-spacing:3px;text-transform:uppercase;'>
-            World Cup Simulator
-        </div>
+        <div style='font-size:2.6rem;font-family:Bebas Neue,sans-serif;color:#ffd700;letter-spacing:3px;text-shadow:0 0 20px rgba(255,215,0,0.5);'>FMMJ</div>
+        <div style='font-size:0.62rem;color:#406080;letter-spacing:4px;text-transform:uppercase;'>World Cup Simulator</div>
     </div>
-    <hr style='border-color:#1a2a5a;margin:8px 0 16px;'/>
+    <hr style='border-color:#142038;margin:8px 0 14px;'/>
     """, unsafe_allow_html=True)
 
     host = state.get("host", "Nigeria")
     edition = state.get("edition", 1)
-    qualified_count = len(state.get("world_cup_qualified", []))
+    qc = len(state.get("world_cup_qualified", []))
 
-    st.markdown(f"""
-    <div style='background:#0a1530;border:1px solid #1a3a6a;border-radius:10px;padding:12px;margin-bottom:16px;'>
-        <div style='font-size:0.75rem;color:#6080aa;text-transform:uppercase;'>Edición</div>
-        <div style='font-size:1.1rem;font-weight:700;color:#ffd700;'>FMMJ {edition}ª Copa</div>
-        <div style='margin-top:8px;font-size:0.75rem;color:#6080aa;'>Anfitrión</div>
-        <div style='font-size:0.95rem;font-weight:600;color:#e0e8ff;'>{flag_img(host,20,15)}&nbsp;{display_name(host)}</div>
-        <div style='margin-top:8px;font-size:0.75rem;color:#6080aa;'>Clasificados</div>
-        <div style='font-size:0.95rem;font-weight:700;color:{"#00cc66" if qualified_count >= 32 else "#ffd700"};'>{qualified_count}/32</div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(f"""<div style='background:#091525;border:1px solid #1a3a6a;border-radius:10px;padding:12px;margin-bottom:14px;'>
+        <div style='font-size:0.68rem;color:#406080;text-transform:uppercase;'>Edición</div>
+        <div style='font-size:1rem;font-weight:700;color:#ffd700;font-family:Bebas Neue,sans-serif;'>FMMJ {edition}ª Copa</div>
+        <div style='margin-top:5px;font-size:0.68rem;color:#406080;'>Anfitrión</div>
+        <div style='font-size:0.9rem;font-weight:600;color:#dce8ff;'>{flag_img(host,18,13)}&nbsp;{display_name(host)}</div>
+        <div style='margin-top:5px;font-size:0.68rem;color:#406080;'>Clasificados</div>
+        <div style='font-size:1rem;font-weight:700;color:{"#00cc66" if qc >= 32 else "#ffd700"};'>{qc}/32</div>
+    </div>""", unsafe_allow_html=True)
 
     menu_options = {
         "🏠 Inicio": "inicio",
@@ -3904,35 +1623,28 @@ with st.sidebar:
     selected = st.radio("", list(menu_options.keys()), label_visibility="collapsed")
     page_key = menu_options[selected]
 
-    st.markdown("<hr style='border-color:#1a2a5a;margin:16px 0;'/>", unsafe_allow_html=True)
-    st.markdown("<div style='font-size:0.75rem;color:#6080aa;text-transform:uppercase;margin-bottom:8px;'>Progreso</div>", unsafe_allow_html=True)
-    for name, ph_key in [("Eurocopa","euro"),("Copa América","copa_america"),
-                          ("Copa África","copa_africa"),("Copa Oro","copa_oro"),("Copa Asia","copa_asia")]:
+    st.markdown("<hr style='border-color:#142038;margin:14px 0;'/>", unsafe_allow_html=True)
+    st.markdown("<div style='font-size:0.68rem;color:#406080;text-transform:uppercase;margin-bottom:6px;'>Progreso Torneos</div>", unsafe_allow_html=True)
+    for name, ph_key in [("Eurocopa","euro"),("Copa América","copa_america"),("Copa África","copa_africa"),("Copa Oro","copa_oro"),("Copa Asia","copa_asia")]:
         phase = state.get(ph_key, {}).get("phase", "—")
-        icon = "✅" if phase == "completado" else ("🔄" if phase not in ["—","configuracion"] else "⏳")
-        color = "#00cc66" if icon == "✅" else ("#ffd700" if icon == "🔄" else "#6080aa")
-        st.markdown(f"<div style='font-size:0.8rem;color:{color};padding:2px 0;'>{icon} {name}: <span style='color:#888;'>{phase}</span></div>", unsafe_allow_html=True)
+        icon = "✅" if phase == "completado" else ("🔄" if phase not in ["—","sorteo","configuracion"] else "⏳")
+        color = "#00cc66" if icon == "✅" else ("#ffd700" if icon == "🔄" else "#406080")
+        st.markdown(f"<div style='font-size:0.78rem;color:{color};padding:2px 0;'>{icon} {name}</div>", unsafe_allow_html=True)
 
+    save_state()
+
+
+# ══════════════════════════════════════════════════════════════
 # ROUTING
-if page_key == "inicio":
-    _show_home(state)
-elif page_key == "ranking":
-    show_ranking()
-elif page_key == "goleadores":
-    show_goleadores()
-elif page_key == "eurocopa":
-    show_eurocopa()
-elif page_key == "copa_america":
-    show_copa_america()
-elif page_key == "copa_africa":
-    show_copa_africa()
-elif page_key == "copa_oro":
-    show_copa_oro()
-elif page_key == "copa_asia":
-    show_copa_asia()
-elif page_key == "repechaje":
-    show_repechaje()
-elif page_key == "mundial":
-    show_world_cup_draw()
-elif page_key == "config":
-    _show_config(state)
+# ══════════════════════════════════════════════════════════════
+if page_key == "inicio":        show_home(state)
+elif page_key == "ranking":     show_ranking()
+elif page_key == "goleadores":  show_goleadores()
+elif page_key == "eurocopa":    show_eurocopa()
+elif page_key == "copa_america":show_copa_america()
+elif page_key == "copa_africa": show_copa_africa()
+elif page_key == "copa_oro":    show_copa_oro()
+elif page_key == "copa_asia":   show_copa_asia()
+elif page_key == "repechaje":   show_repechaje()
+elif page_key == "mundial":     show_world_cup_draw()
+elif page_key == "config":      show_config(state)
