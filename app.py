@@ -2000,52 +2000,14 @@ def _show_groups_draw(ca):
 
 
 def _show_group_stage(state, ca):
-    groups = ca["groups"]
-    results = ca.get("group_results", {})
-
     st.markdown("### 📊 Fase de Grupos — Copa América FMMJ")
     st.caption("Clasifican **2 primeros** de cada grupo a cuartos de final.")
-    all_complete = True
-
-    for g, teams in groups.items():
-        fixtures = [(teams[i], teams[j]) for i in range(len(teams)) for j in range(i+1, len(teams))]
-        with st.expander(f"📋 GRUPO {g}", expanded=True):
-            for home, away in fixtures:
-                key = match_key(home, away)
-                res = results.get(key, {})
-                col1, col2, col3, col4, col5 = st.columns([3,1,1,3,1])
-                with col1:
-                    st.markdown(f"{flag_img(home)}&nbsp;**{display_name(home)}**", unsafe_allow_html=True)
-                with col2:
-                    hg = st.number_input("", 0, 20, res.get("home_goals", 0), key=f"ca_hg_{g}_{home}_{away}", label_visibility="collapsed")
-                with col3:
-                    ag = st.number_input("", 0, 20, res.get("away_goals", 0), key=f"ca_ag_{g}_{home}_{away}", label_visibility="collapsed")
-                with col4:
-                    st.markdown(f"{flag_img(away)}&nbsp;**{display_name(away)}**", unsafe_allow_html=True)
-                with col5:
-                    save = st.button("💾", key=f"ca_save_{g}_{home}_{away}")
-                col_s1, col_s2 = st.columns(2)
-                with col_s1:
-                    hs = _scorer_input(home, hg, res.get("home_scorers", []), f"ca_hs_{g}_{home}_{away}", state, "Copa América FMMJ")
-                with col_s2:
-                    as_ = _scorer_input(away, ag, res.get("away_scorers", []), f"ca_as_{g}_{home}_{away}", state, "Copa América FMMJ")
-                if save:
-                    ca["group_results"][key] = {
-                        "home_goals": hg, "away_goals": ag, "played": True,
-                        "home_scorers": [s.strip() for s in hs.split(",") if s.strip()],
-                        "away_scorers": [s.strip() for s in as_.split(",") if s.strip()],
-                    }
-                    register_scorers(hs, home, state, "Copa América FMMJ")
-                    register_scorers(as_, away, state, "Copa América FMMJ")
-                    st.rerun()
-                if not results.get(key, {}).get("played"):
-                    all_complete = False
-                st.markdown("---")
-
-            standings = calculate_standings(teams, {k: v for k, v in results.items() if any(t in k for t in teams)})
-            ca["group_standings"][g] = standings
-            render_standings_table(standings, advancing=2)
-
+    all_complete = _show_jornada_groups(
+        state, ca, "Copa América FMMJ",
+        results_key="group_results", groups_key="groups",
+        standings_key="group_standings", advancing=2,
+        caption_text="✅ Clasifica a cuartos | ❌ Eliminado"
+    )
     if all_complete or st.checkbox("🔓 Forzar avance a llaves"):
         if ca["phase"] == "grupos":
             if st.button("⚽ Generar Cuartos de Final", type="primary", use_container_width=True):
@@ -2151,8 +2113,8 @@ def _show_knockout(state, ca):
                     winner = home if hg > ag else (away if ag > hg else pen_winner)
                     results[key] = {"home_goals": hg, "away_goals": ag, "winner": winner,
                                     "penalty_winner": pen_winner,
-                                    "home_scorers": [s.strip() for s in hs.split(",") if s.strip()],
-                                    "away_scorers": [s.strip() for s in as_.split(",") if s.strip()]}
+                                    "home_scorers": hs,
+                                    "away_scorers": as_}
                     ca["knockout_bracket"][phase_key][idx]["winner"] = winner
                     register_scorers(hs, home, state, "Copa América FMMJ")
                     register_scorers(as_, away, state, "Copa América FMMJ")
@@ -2371,49 +2333,13 @@ def _setup_6team_groups(state, tour, teams):
 
 def _show_6team_groups(state, tour, torneo_name):
     st.markdown("### 📊 Fase de Grupos")
-    groups = tour["groups"]
-    results = tour.get("group_results", {})
-    all_complete = True
-
-    for g, teams in groups.items():
-        fixtures = [(teams[i], teams[j]) for i in range(len(teams)) for j in range(i+1, len(teams))]
-        with st.expander(f"📋 GRUPO {g}", expanded=True):
-            for home, away in fixtures:
-                key = match_key(home, away)
-                res = results.get(key, {})
-                col1,col2,col3,col4,col5 = st.columns([3,1,1,3,1])
-                with col1: st.markdown(f"{flag_img(home)}&nbsp;**{display_name(home)}**", unsafe_allow_html=True)
-                with col2:
-                    hg = st.number_input("", 0, 20, res.get("home_goals", 0), key=f"{torneo_name[:3]}_hg_{g}_{home}_{away}", label_visibility="collapsed")
-                with col3:
-                    ag = st.number_input("", 0, 20, res.get("away_goals", 0), key=f"{torneo_name[:3]}_ag_{g}_{home}_{away}", label_visibility="collapsed")
-                with col4: st.markdown(f"{flag_img(away)}&nbsp;**{display_name(away)}**", unsafe_allow_html=True)
-                with col5:
-                    save = st.button("💾", key=f"{torneo_name[:3]}_save_{g}_{home}_{away}")
-                col_s1, col_s2 = st.columns(2)
-                with col_s1:
-                    hs = _scorer_input(home, hg, res.get("home_scorers", []), f"{torneo_name[:3]}_hs_{g}_{home}_{away}", state, torneo_name)
-                with col_s2:
-                    as_ = _scorer_input(away, ag, res.get("away_scorers", []), f"{torneo_name[:3]}_as_{g}_{home}_{away}", state, torneo_name)
-                if save:
-                    tour["group_results"][key] = {
-                        "home_goals": hg, "away_goals": ag, "played": True,
-                        "home_scorers": [s.strip() for s in hs.split(",") if s.strip()],
-                        "away_scorers": [s.strip() for s in as_.split(",") if s.strip()],
-                    }
-                    register_scorers(hs, home, state, torneo_name)
-                    register_scorers(as_, away, state, torneo_name)
-                    st.rerun()
-                if not results.get(key, {}).get("played"):
-                    all_complete = False
-                st.markdown("---")
-
-            standings = calculate_standings(teams, {k: v for k, v in results.items() if any(t in k for t in teams)})
-            tour["group_standings"][g] = standings
-            render_standings_table(standings, advancing=1)
-            st.caption("🟢 1ro → Semifinales")
-
-    if all_complete or st.checkbox(f"🔓 Forzar avance a semis ({torneo_name[:5]})", key=f"force_{torneo_name[:5]}"):
+    all_complete = _show_jornada_groups(
+        state, tour, torneo_name,
+        results_key="group_results", groups_key="groups",
+        standings_key="group_standings", advancing=1,
+        caption_text="✅ 1ro → Semifinales"
+    )
+    if all_complete or st.checkbox(f"🔓 Forzar avance ({torneo_name[:5]})", key=f"force_{torneo_name[:5]}"):
         if tour["phase"] == "grupos":
             if st.button("⚽ Generar Semifinales", type="primary", use_container_width=True, key=f"gen_sf_{torneo_name[:5]}"):
                 _build_6team_knockout(state, tour)
@@ -2496,8 +2422,8 @@ def _show_6team_knockout(state, tour, torneo_name):
             if save:
                 winner = home if hg > ag else (away if ag > hg else pen_winner)
                 results[key] = {"home_goals": hg, "away_goals": ag, "winner": winner, "penalty_winner": pen_winner,
-                                "home_scorers": [s.strip() for s in hs.split(",") if s.strip()],
-                                "away_scorers": [s.strip() for s in as_.split(",") if s.strip()]}
+                                "home_scorers": hs,
+                                "away_scorers": as_}
                 tour["knockout_bracket"][phase_key][idx]["winner"] = winner
                 register_scorers(hs, home, state, torneo_name)
                 register_scorers(as_, away, state, torneo_name)
@@ -2722,48 +2648,12 @@ def _setup_caf_groups(state, tour, teams):
 
 def _show_caf_groups(state, tour, torneo_name):
     st.markdown("### 📊 Fase de Grupos — Copa África")
-    groups = tour["groups"]
-    results = tour.get("group_results", {})
-    all_complete = True
-
-    for g, teams in groups.items():
-        fixtures = [(teams[i], teams[j]) for i in range(len(teams)) for j in range(i+1, len(teams))]
-        with st.expander(f"📋 GRUPO {g}", expanded=True):
-            for home, away in fixtures:
-                key = match_key(home, away)
-                res = results.get(key, {})
-                col1,col2,col3,col4,col5 = st.columns([3,1,1,3,1])
-                with col1: st.markdown(f"{flag_img(home)}&nbsp;**{display_name(home)}**", unsafe_allow_html=True)
-                with col2:
-                    hg = st.number_input("", 0, 20, res.get("home_goals", 0), key=f"caf_hg_{g}_{home}_{away}", label_visibility="collapsed")
-                with col3:
-                    ag = st.number_input("", 0, 20, res.get("away_goals", 0), key=f"caf_ag_{g}_{home}_{away}", label_visibility="collapsed")
-                with col4: st.markdown(f"{flag_img(away)}&nbsp;**{display_name(away)}**", unsafe_allow_html=True)
-                with col5:
-                    save = st.button("💾", key=f"caf_save_{g}_{home}_{away}")
-                col_s1, col_s2 = st.columns(2)
-                with col_s1:
-                    hs = _scorer_input(home, hg, res.get("home_scorers", []), f"caf_hs_{g}_{home}_{away}", state, "Copa África FMMJ")
-                with col_s2:
-                    as_ = _scorer_input(away, ag, res.get("away_scorers", []), f"caf_as_{g}_{home}_{away}", state, "Copa África FMMJ")
-                if save:
-                    tour["group_results"][key] = {
-                        "home_goals": hg, "away_goals": ag, "played": True,
-                        "home_scorers": [s.strip() for s in hs.split(",") if s.strip()],
-                        "away_scorers": [s.strip() for s in as_.split(",") if s.strip()],
-                    }
-                    register_scorers(hs, home, state, torneo_name)
-                    register_scorers(as_, away, state, torneo_name)
-                    st.rerun()
-                if not results.get(key, {}).get("played"):
-                    all_complete = False
-                st.markdown("---")
-
-            standings = calculate_standings(teams, {k: v for k, v in results.items() if any(t in k for t in teams)})
-            tour["group_standings"][g] = standings
-            render_standings_table(standings, advancing=2)
-            st.caption("🟢 Top 2 → Cuartos de Final")
-
+    all_complete = _show_jornada_groups(
+        state, tour, torneo_name,
+        results_key="group_results", groups_key="groups",
+        standings_key="group_standings", advancing=2,
+        caption_text="✅ Top 2 → Cuartos de Final"
+    )
     if all_complete or st.checkbox("🔓 Forzar avance Copa África"):
         if tour["phase"] == "grupos":
             if st.button("⚽ Generar Cuartos de Final CAF", type="primary", use_container_width=True):
@@ -2848,8 +2738,8 @@ def _show_caf_knockout(state, tour, torneo_name):
             if save:
                 winner = home if hg > ag else (away if ag > hg else pw)
                 results[key] = {"home_goals": hg, "away_goals": ag, "winner": winner, "penalty_winner": pw,
-                                "home_scorers": [s.strip() for s in hs.split(",") if s.strip()],
-                                "away_scorers": [s.strip() for s in as_.split(",") if s.strip()]}
+                                "home_scorers": hs,
+                                "away_scorers": as_}
                 tour["knockout_bracket"][phase_key][idx]["winner"] = winner
                 register_scorers(hs, home, state, torneo_name)
                 register_scorers(as_, away, state, torneo_name)
@@ -3508,49 +3398,13 @@ def _show_wc_groups(state, wc):
     if not wc.get("groups"):
         st.warning("Realiza el sorteo primero.")
         return
-
-    groups = wc["groups"]
-    results = wc.get("group_results", {})
     st.markdown("### 📊 Fase de Grupos — FMMJ World Cup")
-    all_complete = True
-
-    for g, teams in groups.items():
-        fixtures = [(teams[i], teams[j]) for i in range(len(teams)) for j in range(i+1, len(teams))]
-        with st.expander(f"📋 GRUPO {g}", expanded=False):
-            for home, away in fixtures:
-                key = match_key(home, away)
-                res = results.get(key, {})
-                col1,col2,col3,col4,col5 = st.columns([3,1,1,3,1])
-                with col1: st.markdown(f"{flag_img(home)}&nbsp;**{display_name(home)}**", unsafe_allow_html=True)
-                with col2:
-                    hg = st.number_input("", 0, 20, res.get("home_goals", 0), key=f"wc_hg_{g}_{home}_{away}", label_visibility="collapsed")
-                with col3:
-                    ag = st.number_input("", 0, 20, res.get("away_goals", 0), key=f"wc_ag_{g}_{home}_{away}", label_visibility="collapsed")
-                with col4: st.markdown(f"{flag_img(away)}&nbsp;**{display_name(away)}**", unsafe_allow_html=True)
-                with col5:
-                    save = st.button("💾", key=f"wc_save_{g}_{home}_{away}")
-                col_s1, col_s2 = st.columns(2)
-                with col_s1:
-                    hs = _scorer_input(home, hg, res.get("home_scorers", []), f"wc_hs_{g}_{home}_{away}", state, "FMMJ World Cup")
-                with col_s2:
-                    as_ = _scorer_input(away, ag, res.get("away_scorers", []), f"wc_as_{g}_{home}_{away}", state, "FMMJ World Cup")
-                if save:
-                    wc["group_results"][key] = {
-                        "home_goals": hg, "away_goals": ag, "played": True,
-                        "home_scorers": [s.strip() for s in hs.split(",") if s.strip()],
-                        "away_scorers": [s.strip() for s in as_.split(",") if s.strip()],
-                    }
-                    register_scorers(hs, home, state, "FMMJ World Cup")
-                    register_scorers(as_, away, state, "FMMJ World Cup")
-                    st.rerun()
-                if not results.get(key, {}).get("played"):
-                    all_complete = False
-                st.markdown("---")
-
-            standings = calculate_standings(teams, {k: v for k, v in results.items() if any(t in k for t in teams)})
-            wc["group_standings"][g] = standings
-            render_standings_table(standings, advancing=2)
-
+    all_complete = _show_jornada_groups(
+        state, wc, "FMMJ World Cup",
+        results_key="group_results", groups_key="groups",
+        standings_key="group_standings", advancing=2,
+        caption_text="✅ Top 2 → Octavos de Final"
+    )
     if all_complete or st.checkbox("🔓 Forzar avance a octavos"):
         if wc["phase"] == "grupos":
             if st.button("⚽ Generar Octavos de Final", type="primary", use_container_width=True):
@@ -3645,8 +3499,8 @@ def _show_wc_knockout(state, wc):
             if save:
                 winner = home if hg > ag else (away if ag > hg else pw)
                 results[key] = {"home_goals": hg, "away_goals": ag, "winner": winner, "penalty_winner": pw,
-                                "home_scorers": [s.strip() for s in hs.split(",") if s.strip()],
-                                "away_scorers": [s.strip() for s in as_.split(",") if s.strip()]}
+                                "home_scorers": hs,
+                                "away_scorers": as_}
                 wc["knockout_bracket"][phase_key][idx]["winner"] = winner
                 register_scorers(hs, home, state, "FMMJ World Cup")
                 register_scorers(as_, away, state, "FMMJ World Cup")
