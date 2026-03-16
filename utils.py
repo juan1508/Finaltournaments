@@ -4,7 +4,6 @@ utils.py — Helpers compartidos para FMMJ World Cup Simulator
 import streamlit as st
 import random
 from data import FLAG_MAP, TEAM_DISPLAY_NAMES, get_flag_url, CONFEDERATIONS, PLAYERS
-from flag_emoji import flag_emoji, team_label_emoji
 
 
 def display_name(team):
@@ -20,8 +19,8 @@ def flag_img(team, w=20, h=15):
 
 
 def tlabel(team):
-    """Label con emoji de bandera — seguro para cualquier widget Streamlit."""
-    return team_label_emoji(team, TEAM_DISPLAY_NAMES)
+    """Label con nombre para widgets Streamlit."""
+    return TEAM_DISPLAY_NAMES.get(team, team)
 
 
 def get_team_confederation(team):
@@ -114,7 +113,7 @@ def render_standings_table(standings, advancing=2, show_thirds=False):
         html += f"<td style='padding:7px 8px;text-align:center;'>{badge}</td>"
         html += f"<td style='padding:7px 8px;text-align:center;color:#666;font-weight:700;'>{i+1}</td>"
         html += (f"<td style='padding:7px 8px;text-align:left;color:#e0e8ff;'>"
-                 f"{flag_emoji(row['team'])} {display_name(row['team'])}</td>")
+                 f"<img src='{get_flag_url(row['team'],18,13)}' style='vertical-align:middle;margin-right:4px;border-radius:2px;' width='18' height='13'>&nbsp;{display_name(row['team'])}</td>")
         for k in ["pj","pg","pe","pp","gf","ga","gd"]:
             color = "#ffd700" if k == "gd" else "#e0e8ff"
             html += f"<td style='padding:7px 8px;text-align:center;color:{color};'>{row[k]}</td>"
@@ -223,7 +222,7 @@ def manual_group_setup(state, tour_key, teams, num_groups, teams_per_group, conf
                         # ✅ emoji en markdown también OK
                         st.markdown(
                             f"<div style='padding:2px 0;font-size:0.9rem;'>"
-                            f"{flag_emoji(t)} {display_name(t)}</div>",
+                            f"<img src='{get_flag_url(t,16,11)}' style='vertical-align:middle;margin-right:4px;border-radius:2px;' width='16' height='11'>&nbsp;{display_name(t)}</div>",
                             unsafe_allow_html=True
                         )
                     with c2:
