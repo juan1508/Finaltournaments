@@ -2,14 +2,14 @@
 pages/confederaciones.py - Copa África (CAF), Copa Oro (CONCACAF), Copa Asia (AFC)
 """
 import sys, os as _os
-_ROOT = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
-if _ROOT not in sys.path:
-    sys.path.insert(0, _ROOT)
+_root = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+if _root not in sys.path:
+    sys.path.insert(0, _root)
 import streamlit as st
 import random
 from data import CAF_TEAMS, CONCACAF_TEAMS, AFC_TEAMS
 from state import get_state
-from utils.tournament import (
+from tournament import (
     display_name, flag_img, calculate_standings,
     match_key, render_standings_table, register_scorers
 )
