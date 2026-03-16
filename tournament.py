@@ -1,10 +1,6 @@
 """
 utils/tournament.py - Lógica compartida para todos los torneos FMMJ
 """
-import sys, os as _os
-_ROOT = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
-if _ROOT not in sys.path:
-    sys.path.insert(0, _ROOT)
 import random
 import streamlit as st
 from data import INITIAL_FIFA_RANKING, FLAG_MAP, TEAM_DISPLAY_NAMES, get_flag_url
