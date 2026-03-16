@@ -2,14 +2,14 @@
 pages/repechaje.py - Repechaje Internacional + Sorteo y Mundial FMMJ
 """
 import sys, os as _os
-_ROOT = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
-if _ROOT not in sys.path:
-    sys.path.insert(0, _ROOT)
+_root = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+if _root not in sys.path:
+    sys.path.insert(0, _root)
 import streamlit as st
 import random
 from data import INITIAL_FIFA_RANKING, FLAG_MAP
 from state import get_state, get_team_confederation
-from utils.tournament import (
+from tournament import (
     display_name, flag_img, calculate_standings,
     match_key, render_standings_table, register_scorers, CONF_COLORS
 )
