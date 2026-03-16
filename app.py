@@ -1084,6 +1084,112 @@ def render_standings_table(standings, advancing=2, show_thirds=False):
 # ---------------------------------------------------------------------------
 # ARMADO MANUAL DE GRUPOS (función genérica para todos los torneos)
 # ---------------------------------------------------------------------------
+
+
+def _show_jornada_groups(state, tour, torneo_name, results_key="group_results",
+                          groups_key="groups", standings_key="group_standings",
+                          advancing=2, show_thirds=False, caption_text=""):
+    """
+    Muestra los partidos de grupos organizados por jornadas para cualquier torneo.
+    """
+    groups = tour.get(groups_key, {})
+    results = tour.get(results_key, {})
+    all_complete = True
+
+    for g, teams in groups.items():
+        jornadas = get_jornadas(list(teams))
+        all_fixtures = [(h, a) for j in jornadas for h, a in j]
+
+        with st.expander(f"📋 GRUPO {g}", expanded=True):
+            tab_labels = [f"🗓 J{i+1}" for i in range(len(jornadas))] + ["📊 Tabla"]
+            j_tabs = st.tabs(tab_labels)
+
+            for ji, jornada_matches in enumerate(jornadas):
+                with j_tabs[ji]:
+                    st.markdown(f"**Jornada {ji+1}**")
+                    for home, away in jornada_matches:
+                        mk = match_key(home, away)
+                        res = results.get(mk, {})
+                        played = res.get("played", False)
+                        icon = "✅" if played else "⏳"
+
+                        col1, col2, col3, col4, col5 = st.columns([3, 1, 1, 3, 1])
+                        with col1:
+                            st.markdown(f"**{display_name(home)}**")
+                        with col2:
+                            hg = st.number_input("", 0, 20, res.get("home_goals", 0),
+                                                key=f"{torneo_name[:4]}_{g}_{home}_{away}_hg",
+                                                label_visibility="collapsed")
+                        with col3:
+                            ag = st.number_input("", 0, 20, res.get("away_goals", 0),
+                                                key=f"{torneo_name[:4]}_{g}_{home}_{away}_ag",
+                                                label_visibility="collapsed")
+                        with col4:
+                            st.markdown(f"**{display_name(away)}**")
+                        with col5:
+                            save = st.button(icon, key=f"{torneo_name[:4]}_{g}_{home}_{away}_sv",
+                                           help="Guardar resultado")
+
+                        col_s1, col_s2 = st.columns(2)
+                        with col_s1:
+                            hs = _scorer_input(home, hg, res.get("home_scorers", []),
+                                               f"{torneo_name[:4]}_{g}_{home}_{away}_hs",
+                                               state, torneo_name)
+                        with col_s2:
+                            as_ = _scorer_input(away, ag, res.get("away_scorers", []),
+                                                f"{torneo_name[:4]}_{g}_{home}_{away}_as",
+                                                state, torneo_name)
+
+                        if save:
+                            tour[results_key][mk] = {
+                                "home_goals": hg, "away_goals": ag,
+                                "home_scorers": hs, "away_scorers": as_, "played": True
+                            }
+                            register_scorers(hs, home, state, torneo_name)
+                            register_scorers(as_, away, state, torneo_name)
+                            st.rerun()
+
+            # Tab tabla
+            with j_tabs[-1]:
+                standings = calculate_standings(teams, {k: v for k, v in results.items()
+                                                         if any(t in k for t in teams)})
+                tour[standings_key][g] = standings
+                render_standings_table(standings, advancing=advancing, show_thirds=show_thirds)
+                if caption_text:
+                    st.caption(caption_text)
+
+        for home, away in all_fixtures:
+            if not results.get(match_key(home, away), {}).get("played"):
+                all_complete = False
+
+    return all_complete
+
+def get_jornadas(teams):
+    """
+    Genera el calendario de jornadas usando round-robin.
+    Con N equipos produce N-1 jornadas (o N si N es impar).
+    Cada jornada: todos los equipos juegan exactamente 1 partido.
+    """
+    n = len(teams)
+    t = list(teams)
+    if n % 2 != 0:
+        t.append(None)  # bye
+    rounds = []
+    num_rounds = len(t) - 1
+    half = len(t) // 2
+    rotation = t[1:]
+    for r in range(num_rounds):
+        pairs = []
+        circle = [t[0]] + rotation
+        for i in range(half):
+            h = circle[i]
+            a = circle[-(i+1)]
+            if h is not None and a is not None:
+                pairs.append((h, a))
+        rounds.append(pairs)
+        rotation = [rotation[-1]] + rotation[:-1]
+    return rounds
+
 def _manual_group_setup(state, tour_key, teams, num_groups, teams_per_group, confirm_label="Confirmar grupos"):
     """
     Interfaz manual para armar grupos: selectbox con texto plano (sin HTML).
@@ -1141,7 +1247,7 @@ def _manual_group_setup(state, tour_key, teams, num_groups, teams_per_group, con
             st.markdown(
                 f"<div style='background:#0a1020;border:1px solid {color};border-radius:8px;padding:10px;margin-bottom:8px;'>"
                 f"<div style='font-weight:700;color:{color};margin-bottom:6px;'>GRUPO {g} ({len(teams_in)}/{teams_per_group})</div>"
-                + "".join([f"<div style='font-size:0.85rem;padding:2px 0;'>{get_flag_url(t,16,12) and chr(127)+chr(127) or ''}{display_name(t)}</div>" for t in teams_in])
+                + "".join([f"<div style='font-size:0.85rem;padding:2px 0;'>• {display_name(t)}</div>" for t in teams_in])
                 + "</div>",
                 unsafe_allow_html=True
             )
@@ -1324,78 +1430,72 @@ def _show_group_stage(state, euro):
     results = euro.get("group_results", {})
 
     st.markdown("### 📊 Fase de Grupos — Eurocopa FMMJ")
-    st.caption("Ingresa los resultados de cada partido. Clasifican los **2 primeros** de cada grupo + los **4 mejores terceros** al cuadro de llaves.")
+    st.caption("Clasifican los **2 primeros** de cada grupo + los **4 mejores terceros**.")
 
     all_groups_complete = True
 
     for g, teams in groups.items():
-        fixtures = []
-        for i in range(len(teams)):
-            for j in range(i+1, len(teams)):
-                fixtures.append((teams[i], teams[j]))
+        jornadas = get_jornadas(teams)
+        all_fixtures = [(h, a) for j in jornadas for h, a in j]
 
         with st.expander(f"📋 GRUPO {g}", expanded=True):
-            # Ingresar resultados
-            st.markdown("**Resultados de partidos:**")
-            for home, away in fixtures:
-                key = match_key(home, away)
-                res = results.get(key, {})
-                played = res.get("played", False)
+            # Tabs por jornada
+            jornada_tabs = st.tabs([f"J{i+1}" for i in range(len(jornadas))] + ["📊 Tabla"])
 
-                col1, col2, col3, col4, col5 = st.columns([3, 1, 1, 3, 1])
-                with col1:
-                    st.markdown(f"{flag_img(home,20,15)}&nbsp;**{display_name(home)}**", unsafe_allow_html=True)
-                with col2:
-                    hg = st.number_input("", min_value=0, max_value=20,
-                                        value=res.get("home_goals", 0),
-                                        key=f"euro_hg_{g}_{home}_{away}",
-                                        label_visibility="collapsed")
-                with col3:
-                    ag = st.number_input("", min_value=0, max_value=20,
-                                        value=res.get("away_goals", 0),
-                                        key=f"euro_ag_{g}_{home}_{away}",
-                                        label_visibility="collapsed")
-                with col4:
-                    st.markdown(f"{flag_img(away,20,15)}&nbsp;**{display_name(away)}**", unsafe_allow_html=True)
-                with col5:
-                    save = st.button("💾", key=f"euro_save_{g}_{home}_{away}", help="Guardar resultado")
+            for ji, jornada_matches in enumerate(jornadas):
+                with jornada_tabs[ji]:
+                    st.markdown(f"**Jornada {ji+1}**")
+                    for home, away in jornada_matches:
+                        key = match_key(home, away)
+                        res = results.get(key, {})
+                        played = res.get("played", False)
+                        played_icon = "✅" if played else "⏳"
 
-                # Goleadores con jugadores reales
-                col_sc1, col_sc2 = st.columns(2)
-                with col_sc1:
-                    hs = _scorer_input(home, hg, res.get("home_scorers", []),
-                                       f"euro_sc_{g}_{home}_{away}_h", state, "Eurocopa FMMJ")
-                with col_sc2:
-                    as_ = _scorer_input(away, ag, res.get("away_scorers", []),
-                                        f"euro_sc_{g}_{home}_{away}_a", state, "Eurocopa FMMJ")
+                        st.markdown(f"<div style='background:#0a1020;border:1px solid {'#1a4a2a' if played else '#1a2a5a'};border-radius:8px;padding:10px;margin-bottom:8px;'>", unsafe_allow_html=True)
+                        col1, col2, col3, col4, col5 = st.columns([3, 1, 1, 3, 1])
+                        with col1:
+                            st.markdown(f"**{display_name(home)}**")
+                        with col2:
+                            hg = st.number_input("", 0, 20, res.get("home_goals", 0),
+                                                key=f"euro_hg_{g}_{home}_{away}", label_visibility="collapsed")
+                        with col3:
+                            ag = st.number_input("", 0, 20, res.get("away_goals", 0),
+                                                key=f"euro_ag_{g}_{home}_{away}", label_visibility="collapsed")
+                        with col4:
+                            st.markdown(f"**{display_name(away)}**")
+                        with col5:
+                            save = st.button(f"{played_icon}", key=f"euro_save_{g}_{home}_{away}", help="Guardar")
 
-                if save:
-                    # Registrar limpiando duplicados primero
-                    old_sc = state.get("all_scorers", {})
-                    for skey in list(old_sc.keys()):
-                        if old_sc[skey]["team"] in (home, away) and "Eurocopa FMMJ" in old_sc[skey].get("torneos", {}):
-                            pass  # se sobreescribe en register
-                    euro["group_results"][key] = {
-                        "home_goals": hg, "away_goals": ag,
-                        "home_scorers": hs,
-                        "away_scorers": as_,
-                        "played": True
-                    }
-                    register_scorers(hs, home, state, "Eurocopa FMMJ")
-                    register_scorers(as_, away, state, "Eurocopa FMMJ")
-                    st.rerun()
+                        col_sc1, col_sc2 = st.columns(2)
+                        with col_sc1:
+                            hs = _scorer_input(home, hg, res.get("home_scorers", []),
+                                               f"euro_sc_{g}_{home}_{away}_h", state, "Eurocopa FMMJ")
+                        with col_sc2:
+                            as_ = _scorer_input(away, ag, res.get("away_scorers", []),
+                                                f"euro_sc_{g}_{home}_{away}_a", state, "Eurocopa FMMJ")
 
-                if not results.get(key, {}).get("played"):
-                    all_groups_complete = False
-                st.markdown("---")
+                        if save:
+                            euro["group_results"][key] = {
+                                "home_goals": hg, "away_goals": ag,
+                                "home_scorers": hs, "away_scorers": as_, "played": True
+                            }
+                            register_scorers(hs, home, state, "Eurocopa FMMJ")
+                            register_scorers(as_, away, state, "Eurocopa FMMJ")
+                            st.rerun()
+                        st.markdown("</div>", unsafe_allow_html=True)
 
-            # Tabla
-            st.markdown("**Tabla de posiciones:**")
-            standings = calculate_standings(teams, {k: v for k, v in results.items()
-                                                     if any(t in k for t in teams)})
-            euro["group_standings"][g] = standings
-            render_standings_table(standings, advancing=2, show_thirds=True)
-            st.caption("🟢 Clasificado directo | 🟡 Posible mejor tercero")
+            # Tab tabla
+            with jornada_tabs[-1]:
+                standings = calculate_standings(teams, {k: v for k, v in results.items()
+                                                         if any(t in k for t in teams)})
+                euro["group_standings"][g] = standings
+                render_standings_table(standings, advancing=2, show_thirds=True)
+                st.caption("✅ Clasifica directo | 🟡 Posible mejor tercero")
+
+        # Verificar si todos los partidos del grupo están jugados
+        for home, away in all_fixtures:
+            if not results.get(match_key(home, away), {}).get("played"):
+                all_groups_complete = False
 
     # Botón para avanzar a llaves
     if all_groups_complete or st.checkbox("🔓 Forzar avance a llaves (aunque falten resultados)"):
@@ -1793,21 +1893,41 @@ def show_copa_america():
                 ca["setup_done"] = False
                 st.rerun()
         else:
-            selected = []
-            st.markdown("**Equipos disponibles:**")
-            cols = st.columns(3)
-            for idx, team in enumerate(GUEST_POOL_CA):
-                with cols[idx % 3]:
-                    if st.checkbox(f"{flag_img(team,16,12)}{display_name(team)}", key=f"ca_guest_{team}"):
-                        selected.append(team)
+            st.markdown("**Selecciona 6 invitadas:**")
 
-            st.markdown(f"**Seleccionados: {len(selected)}/6**")
-            if len(selected) == 6:
-                if st.button("✅ Confirmar invitadas", type="primary"):
+            # Agrupar por confederación para mejor UX
+            conf_groups_pool = {
+                "⭐ CONCACAF": CONCACAF_TEAMS,
+                "🌏 AFC": AFC_TEAMS,
+                "🌍 CAF": CAF_TEAMS,
+                "🌐 OFC": PLAYOFF_TEAMS,
+            }
+            selected = []
+            for conf_label, conf_teams in conf_groups_pool.items():
+                st.markdown(f"**{conf_label}**")
+                cols = st.columns(3)
+                for idx, team in enumerate(conf_teams):
+                    with cols[idx % 3]:
+                        # Texto plano — sin HTML
+                        checked = st.checkbox(display_name(team), key=f"ca_guest_{team}")
+                        if checked:
+                            selected.append(team)
+
+            n = len(selected)
+            color = "#00cc66" if n == 6 else ("#ffd700" if n < 6 else "#ff4444")
+            st.markdown(f"<div style='padding:8px;border-radius:6px;background:#0a1020;margin-top:8px;'>"
+                        f"<span style='color:{color};font-weight:700;'>Seleccionadas: {n}/6</span>"
+                        + (f" — {', '.join([display_name(t) for t in selected])}" if selected else "")
+                        + "</div>", unsafe_allow_html=True)
+
+            if n == 6:
+                if st.button("✅ Confirmar invitadas", type="primary", use_container_width=True):
                     ca["guests"] = selected
                     st.rerun()
-            elif len(selected) > 6:
-                st.error("Máximo 6 invitadas. Deselecciona algunas.")
+            elif n > 6:
+                st.error(f"Máximo 6 invitadas — tienes {n}. Deselecciona {n-6}.")
+            else:
+                st.info(f"Faltan {6-n} por seleccionar.")
 
     # ── SORTEO ─────────────────────────────────────────────────────────────
     with tabs[1]:
@@ -2573,10 +2693,11 @@ def _show_10team_caf_tournament(state, tour, teams):
                             confirm_label="Confirmar grupos Copa África")
         return
 
+    _TORNEO_CAF = "Copa África FMMJ"
     tabs = st.tabs(["📊 Grupos", "⚽ Llaves", "🔄 Playoff CAF", "🌍 Clasificados"])
-    with tabs[0]: _show_caf_groups(state, tour, TORNEO_NAME)
-    with tabs[1]: _show_caf_knockout(state, tour, TORNEO_NAME)
-    with tabs[2]: _show_caf_playoff(state, tour, TORNEO_NAME)
+    with tabs[0]: _show_caf_groups(state, tour, _TORNEO_CAF)
+    with tabs[1]: _show_caf_knockout(state, tour, _TORNEO_CAF)
+    with tabs[2]: _show_caf_playoff(state, tour, _TORNEO_CAF)
     with tabs[3]: _show_caf_qualified(state, tour)
 
 
