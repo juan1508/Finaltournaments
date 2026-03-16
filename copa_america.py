@@ -4,10 +4,6 @@ pages/copa_america.py - Copa América FMMJ (CONMEBOL)
 4 grupos de 4 equipos (16 total)
 Campeón → directo. 2do-7mo → playoffs. 1er-3ro playoffs → mundial. 4to → repechaje.
 """
-import sys, os as _os
-_root = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
-if _root not in sys.path:
-    sys.path.insert(0, _root)
 import streamlit as st
 import random
 from data import CONMEBOL_TEAMS, CONCACAF_TEAMS, AFC_TEAMS, CAF_TEAMS, PLAYOFF_TEAMS, get_flag_url
