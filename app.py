@@ -989,41 +989,40 @@ def render_standings_table(standings, advancing=2, show_thirds=False):
 # ---------------------------------------------------------------------------
 def _manual_group_setup(state, tour_key, teams, num_groups, teams_per_group, confirm_label="Confirmar grupos"):
     """
-    Muestra selectboxes para que el usuario asigne cada equipo a un grupo.
-    Retorna True si se confirmó, False si sigue pendiente.
+    Interfaz manual para armar grupos: selectbox con texto plano (sin HTML).
     """
     tour = state[tour_key]
     group_labels = [chr(65+i) for i in range(num_groups)]
     ranking = state["ranking"]
     teams_sorted = sorted(teams, key=lambda t: -ranking.get(t, 0))
 
-    st.markdown("#### Asigna cada equipo a su grupo:")
+    st.markdown("#### 📋 Asigna cada equipo a su grupo:")
     st.caption(f"{len(teams)} equipos → {num_groups} grupos de {teams_per_group}")
 
-    # Opciones de grupo + "Sin asignar"
     group_opts = ["— Sin asignar —"] + [f"Grupo {g}" for g in group_labels]
 
-    # Leer asignaciones guardadas en sesión temporal
     key_prefix = f"manual_{tour_key}"
     if f"{key_prefix}_assignments" not in state:
         state[f"{key_prefix}_assignments"] = {}
     assignments = state[f"{key_prefix}_assignments"]
 
-    # Mostrar equipos en columnas
+    # Mostrar en columnas con TEXTO PLANO (sin HTML en labels)
     cols = st.columns(3)
     for idx, team in enumerate(teams_sorted):
         with cols[idx % 3]:
             current_val = assignments.get(team, "— Sin asignar —")
             current_idx = group_opts.index(current_val) if current_val in group_opts else 0
+            # Label con bandera emoji o solo texto — sin HTML
+            code = FLAG_MAP.get(team, "")
+            label = f"{display_name(team)}"
             sel = st.selectbox(
-                f"{flag_img(team,16,12)} {display_name(team)}",
+                label,
                 group_opts,
                 index=current_idx,
                 key=f"{key_prefix}_{team}",
-                label_visibility="visible"
             )
             assignments[team] = sel
-            state[f"{key_prefix}_assignments"] = assignments
+    state[f"{key_prefix}_assignments"] = assignments
 
     # Preview de grupos
     preview = {g: [] for g in group_labels}
@@ -1035,21 +1034,26 @@ def _manual_group_setup(state, tour_key, teams, num_groups, teams_per_group, con
 
     st.markdown("---")
     st.markdown("**Vista previa de grupos:**")
-    pcols = st.columns(num_groups)
+    ncols = min(num_groups, 8)
+    pcols = st.columns(ncols)
     all_valid = True
     for i, g in enumerate(group_labels):
-        with pcols[i]:
+        with pcols[i % ncols]:
             teams_in = preview[g]
             color = "#00cc66" if len(teams_in) == teams_per_group else ("#ffd700" if len(teams_in) > 0 else "#6080aa")
-            st.markdown(f"**Grupo {g}** <span style='color:{color};'>({len(teams_in)}/{teams_per_group})</span>", unsafe_allow_html=True)
-            for t in teams_in:
-                st.markdown(f"{flag_img(t,16,12)} {display_name(t)}", unsafe_allow_html=True)
-        if len(teams_in) != teams_per_group:
-            all_valid = False
+            st.markdown(
+                f"<div style='background:#0a1020;border:1px solid {color};border-radius:8px;padding:10px;margin-bottom:8px;'>"
+                f"<div style='font-weight:700;color:{color};margin-bottom:6px;'>GRUPO {g} ({len(teams_in)}/{teams_per_group})</div>"
+                + "".join([f"<div style='font-size:0.85rem;padding:2px 0;'>{get_flag_url(t,16,12) and chr(127)+chr(127) or ''}{display_name(t)}</div>" for t in teams_in])
+                + "</div>",
+                unsafe_allow_html=True
+            )
+            if len(teams_in) != teams_per_group:
+                all_valid = False
 
     unassigned = [t for t in teams if assignments.get(t, "— Sin asignar —") == "— Sin asignar —"]
     if unassigned:
-        st.warning(f"⚠️ Sin asignar: {', '.join([display_name(t) for t in unassigned])}")
+        st.warning(f"⚠️ Sin asignar ({len(unassigned)}): {', '.join([display_name(t) for t in unassigned])}")
 
     if all_valid:
         if st.button(f"✅ {confirm_label}", type="primary", use_container_width=True):
@@ -1058,13 +1062,12 @@ def _manual_group_setup(state, tour_key, teams, num_groups, teams_per_group, con
             tour["group_standings"] = {}
             tour["phase"] = "grupos"
             tour["setup_done"] = True
-            # Limpiar asignaciones temporales
             if f"{key_prefix}_assignments" in state:
                 del state[f"{key_prefix}_assignments"]
             st.rerun()
             return True
     else:
-        st.info(f"Cada grupo debe tener exactamente {teams_per_group} equipos para continuar.")
+        st.info(f"Asigna exactamente {teams_per_group} equipos a cada grupo para continuar.")
     return False
 
 # ============================================================
@@ -2440,12 +2443,16 @@ def show_copa_africa():
     .caf-subtitle {font-size:.9rem;color:#fff3a0;margin:4px 0 0;}
     </style>
     """, unsafe_allow_html=True)
-    n_teams = len(CAF_TEAMS)
-    subtitle_caf = f"{n_teams} selecciones CAF · 2 grupos de 5 · 5 cupos al Mundial"
-    st.markdown(f"""<div class='caf-header'>
-        <div><div class='caf-title'>🏆 Copa África FMMJ</div>
-        <div class='caf-subtitle'>{subtitle_caf}</div></div>
-    </div>""", unsafe_allow_html=True)
+    col_logo, col_title = st.columns([1, 6])
+    with col_logo:
+        st.image("caf.png", width=80)
+    with col_title:
+        st.markdown(f"""
+        <div class='caf-header' style='margin-bottom:0;'>
+            <div class='caf-title'>Copa África FMMJ</div>
+            <div class='caf-subtitle'>{len(CAF_TEAMS)} selecciones CAF · 2 grupos de 5 · 5 cupos al Mundial</div>
+        </div>""", unsafe_allow_html=True)
+    st.markdown("<br>", unsafe_allow_html=True)
 
     # El anfitrión participa normalmente pero si clasifica cede su cupo al siguiente
     if host in CAF_TEAMS:
@@ -2798,10 +2805,16 @@ def show_copa_oro():
     .concacaf-title {font-size:2rem;font-weight:800;color:#ffd700;margin:0;}
     .concacaf-subtitle {font-size:.9rem;color:#ffaaaa;margin:4px 0 0;}
     </style>""", unsafe_allow_html=True)
-    st.markdown(f"""<div class='concacaf-header'>
-        <div><div class='concacaf-title'>🏆 Copa Oro FMMJ</div>
-        <div class='concacaf-subtitle'>6 selecciones CONCACAF · 2 grupos de 3 · 3 cupos al Mundial</div></div>
-    </div>""", unsafe_allow_html=True)
+    col_logo, col_title = st.columns([1, 6])
+    with col_logo:
+        st.image("concacaf.png", width=80)
+    with col_title:
+        st.markdown("""
+        <div class='concacaf-header' style='margin-bottom:0;'>
+            <div class='concacaf-title'>Copa Oro FMMJ</div>
+            <div class='concacaf-subtitle'>6 selecciones CONCACAF · 2 grupos de 3 · 3 cupos al Mundial</div>
+        </div>""", unsafe_allow_html=True)
+    st.markdown("<br>", unsafe_allow_html=True)
 
     st.caption("Campeón → directo. 2do-5to → playoff todos contra todos. Top 2 playoff → Mundial. 3ro → Repechaje.")
     _generic_6team_tournament(state, "copa_oro", "Copa Oro FMMJ", CONCACAF_TEAMS,
@@ -2822,10 +2835,16 @@ def show_copa_asia():
     .afc-title {font-size:2rem;font-weight:800;color:#ffd700;margin:0;}
     .afc-subtitle {font-size:.9rem;color:#ddaaff;margin:4px 0 0;}
     </style>""", unsafe_allow_html=True)
-    st.markdown(f"""<div class='afc-header'>
-        <div><div class='afc-title'>🏆 Copa Asia FMMJ</div>
-        <div class='afc-subtitle'>6 selecciones AFC · 2 grupos de 3 · 4 cupos al Mundial</div></div>
-    </div>""", unsafe_allow_html=True)
+    col_logo, col_title = st.columns([1, 6])
+    with col_logo:
+        st.image("afc.png", width=80)
+    with col_title:
+        st.markdown("""
+        <div class='afc-header' style='margin-bottom:0;'>
+            <div class='afc-title'>Copa Asia FMMJ</div>
+            <div class='afc-subtitle'>6 selecciones AFC · 2 grupos de 3 · 4 cupos al Mundial</div>
+        </div>""", unsafe_allow_html=True)
+    st.markdown("<br>", unsafe_allow_html=True)
 
     st.caption("Campeón → directo. 2do-5to → playoff todos contra todos. Top 3 playoff → Mundial. 4to → Repechaje.")
     _generic_6team_tournament(state, "copa_asia", "Copa Asia FMMJ", AFC_TEAMS,
@@ -3529,6 +3548,9 @@ def _show_home(state):
     st.markdown(f"""
     <div style='background:linear-gradient(135deg,#060b18 0%,#0d1a3a 50%,#060b18 100%);
     border:2px solid #c8a000;border-radius:20px;padding:40px;margin-bottom:32px;text-align:center;'>
+        <div style='margin-bottom:12px;'>
+            <img src='fmmj.png' style='height:80px;' onerror="this.style.display='none'">
+        </div>
         <div style='font-size:3.5rem;font-family:Oswald,sans-serif;font-weight:700;
                     color:#ffd700;letter-spacing:4px;text-shadow:0 0 30px rgba(255,215,0,.6);'>
             🌍 FMMJ WORLD CUP
@@ -3637,9 +3659,10 @@ def _show_config(state):
 with st.sidebar:
     st.markdown("""
     <div style='text-align:center;padding:16px 0 8px;'>
+        <img src='fmmj.png' style='height:50px;margin-bottom:4px;' onerror="this.style.display='none'">
         <div style='font-size:2.2rem;font-family:Oswald,sans-serif;font-weight:700;
                     color:#ffd700;letter-spacing:2px;text-shadow:0 0 20px rgba(255,215,0,0.5);'>
-            🌍 FMMJ
+            FMMJ
         </div>
         <div style='font-size:0.7rem;color:#6080aa;letter-spacing:3px;text-transform:uppercase;'>
             World Cup Simulator
