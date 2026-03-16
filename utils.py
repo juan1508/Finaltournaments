@@ -11,10 +11,16 @@ def display_name(team):
 
 
 def flag_img(team, w=20, h=15):
+    """Devuelve HTML con la bandera — usar solo en st.markdown, NUNCA en labels de widgets."""
     url = get_flag_url(team, w, h)
     if url:
         return f"<img src='{url}' style='vertical-align:middle;margin-right:4px;border-radius:2px;' width='{w}' height='{h}'>"
     return ""
+
+
+def team_label(team):
+    """Texto plano para usar en labels de selectbox/checkbox/radio."""
+    return display_name(team)
 
 
 def get_team_confederation(team):
@@ -43,18 +49,27 @@ def get_jornadas(teams):
             [(teams[1], teams[2])],
         ]
     elif n == 5:
-        return [
-            [(teams[0], teams[1]), (teams[2], teams[3])],
-            [(teams[4], teams[0]), (teams[3], teams[1])],
-            [(teams[1], teams[4]), (teams[2], teams[0])],
-            [(teams[3], teams[2]), (teams[4], teams[0])],
-            [(teams[0], teams[3]), (teams[1], teams[2])],
-            [(teams[4], teams[3]), (teams[0], teams[1])],
-            [(teams[2], teams[4]), (teams[1], teams[3])],
-            [(teams[0], teams[4]), (teams[3], teams[2])],
-            [(teams[1], teams[0]), (teams[4], teams[2])],
-            [(teams[2], teams[1]), (teams[3], teams[4])],
-        ]
+        # Round robin estándar para 5 equipos (10 partidos en 5 jornadas dobles más descanso)
+        fixtures = [(teams[i], teams[j]) for i in range(n) for j in range(i+1, n)]
+        # Agrupar en jornadas de 2 partidos (uno descansa)
+        jornadas = []
+        used = []
+        jornada = []
+        for pair in fixtures:
+            involved = set(pair)
+            used_in_round = set(t for p in jornada for t in p)
+            if not involved & used_in_round:
+                jornada.append(pair)
+                if len(jornada) == 2:
+                    jornadas.append(jornada)
+                    jornada = []
+            else:
+                if jornada:
+                    jornadas.append(jornada)
+                jornada = [pair]
+        if jornada:
+            jornadas.append(jornada)
+        return jornadas
     else:
         fixtures = [(teams[i], teams[j]) for i in range(n) for j in range(i+1, n)]
         return [[f] for f in fixtures]
@@ -135,6 +150,7 @@ def _scorer_input(team, num_goals, existing_scorers, widget_key, state, torneo):
             default_idx = 0
             if i < len(existing_scorers) and existing_scorers[i] in player_names:
                 default_idx = player_names.index(existing_scorers[i])
+            # LABEL PLANO — sin HTML
             sel = st.selectbox(
                 f"Gol {i+1} — {display_name(team)}",
                 player_names,
@@ -169,6 +185,10 @@ def register_scorers(scorers_list, team, state, torneo_name):
 
 
 def manual_group_setup(state, tour_key, teams, num_groups, teams_per_group, confirm_label="Confirmar grupos"):
+    """
+    Widget para armar grupos manualmente.
+    IMPORTANTE: todos los labels de widgets usan texto plano (sin HTML).
+    """
     tour = state[tour_key]
     ranking = state["ranking"]
     teams_sorted = sorted(teams, key=lambda t: -ranking.get(t, 0))
@@ -182,18 +202,19 @@ def manual_group_setup(state, tour_key, teams, num_groups, teams_per_group, conf
     assigned = [t for lst in dg.values() for t in lst]
     unassigned = [t for t in teams_sorted if t not in assigned]
 
+    # ── Sección equipos disponibles ──────────────────────────────────
     if unassigned:
-        st.markdown("**Equipos disponibles (por ranking FMMJ):**")
+        st.markdown("**Equipos disponibles (ordenados por Ranking FMMJ):**")
         cols_un = st.columns(4)
         for idx, team in enumerate(unassigned):
             with cols_un[idx % 4]:
-                conf = get_team_confederation(team)
                 opts = ["— Grupo —"] + [f"Grupo {g}" for g in group_keys]
+                # Label TEXTO PLANO — sin flag_img()
+                label = display_name(team)
                 sel = st.selectbox(
-                    f"{flag_img(team,16,11)}{display_name(team)}",
+                    label,
                     opts,
                     key=f"assign_{tour_key}_{team}",
-                    label_visibility="visible"
                 )
                 if sel != "— Grupo —":
                     g = sel.split()[-1]
@@ -201,6 +222,7 @@ def manual_group_setup(state, tour_key, teams, num_groups, teams_per_group, conf
                         dg[g].append(team)
                         st.rerun()
 
+    # ── Grupos actuales ───────────────────────────────────────────────
     st.markdown("---")
     st.markdown("**Grupos actuales:**")
     cols_per_row = min(num_groups, 4)
@@ -211,16 +233,26 @@ def manual_group_setup(state, tour_key, teams, num_groups, teams_per_group, conf
             with col:
                 count = len(dg.get(g, []))
                 color = "#00cc66" if count == teams_per_group else "#ffd700"
-                st.markdown(f"<div style='font-weight:700;color:{color};margin-bottom:6px;'>GRUPO {g} ({count}/{teams_per_group})</div>", unsafe_allow_html=True)
+                # Cabecera del grupo como HTML (no es label de widget → OK)
+                st.markdown(
+                    f"<div style='font-weight:700;color:{color};margin-bottom:6px;"
+                    f"font-family:Bebas Neue,sans-serif;font-size:1rem;'>GRUPO {g} ({count}/{teams_per_group})</div>",
+                    unsafe_allow_html=True
+                )
                 for t in list(dg.get(g, [])):
                     c1, c2 = st.columns([5, 1])
                     with c1:
-                        st.markdown(f"<small>{flag_img(t,14,10)}{display_name(t)}</small>", unsafe_allow_html=True)
+                        # Bandera en markdown → OK
+                        st.markdown(
+                            f"<div style='padding:2px 0;font-size:0.88rem;'>{flag_img(t,16,11)}&nbsp;{display_name(t)}</div>",
+                            unsafe_allow_html=True
+                        )
                     with c2:
                         if st.button("✕", key=f"rm_{tour_key}_{g}_{t}", help="Quitar"):
                             dg[g].remove(t)
                             st.rerun()
 
+    # ── Acciones ──────────────────────────────────────────────────────
     total_assigned = sum(len(v) for v in dg.values())
     all_correct = total_assigned == len(teams) and all(len(dg[g]) == teams_per_group for g in group_keys)
 
@@ -230,12 +262,11 @@ def manual_group_setup(state, tour_key, teams, num_groups, teams_per_group, conf
             ts = sorted(teams, key=lambda t: -ranking.get(t, 0))
             pot_size = len(ts) // num_groups
             remainder = len(ts) % num_groups
-            pots = []
-            idx = 0
+            pots, idx_ = [], 0
             for i in range(num_groups):
                 size = pot_size + (1 if i < remainder else 0)
-                pots.append(ts[idx:idx+size])
-                idx += size
+                pots.append(ts[idx_:idx_+size])
+                idx_ += size
             new_dg = {g: [] for g in group_keys}
             for pot in pots:
                 shuffled = pot[:]
@@ -260,4 +291,4 @@ def manual_group_setup(state, tour_key, teams, num_groups, teams_per_group, conf
                 st.rerun()
         else:
             missing = len(teams) - total_assigned
-            st.warning(f"Faltan {missing} equipos por asignar")
+            st.warning(f"Faltan {missing} equipos por asignar ({total_assigned}/{len(teams)})")
