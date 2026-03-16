@@ -4,14 +4,13 @@ app.py - FMMJ World Cup Simulator
 import streamlit as st
 import sys, os
 
-# Garantizar que el directorio raiz del proyecto esté en el path
-# Funciona tanto localmente como en Streamlit Cloud
-ROOT = os.path.dirname(os.path.abspath(__file__))
-if ROOT not in sys.path:
-    sys.path.insert(0, ROOT)
+# Streamlit Cloud: asegurar que la raíz del repo esté en sys.path
+_root = os.path.dirname(os.path.abspath(__file__))
+if _root not in sys.path:
+    sys.path.insert(0, _root)
 
 from state import init_state, get_state, reset_for_new_edition
-from utils.tournament import display_name, flag_img
+from tournament import display_name, flag_img
 
 st.set_page_config(
     page_title="FMMJ World Cup Simulator",
