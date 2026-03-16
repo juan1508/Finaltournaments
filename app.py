@@ -1013,48 +1013,71 @@ def register_scorers(scorers_list, team, state, torneo):
 # RENDER TABLA DE POSICIONES
 # ---------------------------------------------------------------------------
 def render_standings_table(standings, advancing=2, show_thirds=False):
-    """Renderiza tabla HTML con colores de clasificación"""
-    html = """
-    <style>
-    .standings-table {width:100%;border-collapse:collapse;font-size:13px;font-family:'Segoe UI',sans-serif;}
-    .standings-table th {background:#1a1a2e;color:#ffd700;padding:6px 8px;text-align:center;font-weight:600;}
-    .standings-table td {padding:5px 8px;text-align:center;border-bottom:1px solid #2a2a4a;}
-    .standings-table tr:hover td {background:#ffffff15;}
-    .pos-direct {background:#0d4f2e;}
-    .pos-playoff {background:#2a4a0d;}
-    .pos-out {background:#1a1a2e;}
-    .team-cell {text-align:left!important;}
-    </style>
-    <table class='standings-table'>
-    <tr>
-      <th>#</th><th class='team-cell'>Selección</th>
-      <th>PJ</th><th>PG</th><th>PE</th><th>PP</th>
-      <th>GF</th><th>GC</th><th>DG</th><th>PTS</th>
-    </tr>
     """
+    Renderiza tabla de posiciones usando st.dataframe nativo.
+    No retorna HTML — llama directamente a st.dataframe.
+    """
+    import pandas as pd
+
+    rows = []
     for row in standings:
         pos = row["pos"]
-        if pos <= advancing:
-            css = "pos-direct"
-        elif pos <= advancing + 2 and show_thirds:
-            css = "pos-playoff"
-        else:
-            css = "pos-out"
+        dg = row["dg"]
+        dg_str = f"+{dg}" if dg > 0 else str(dg)
 
-        flag = flag_img(row["team"], 18, 13)
-        name = display_name(row["team"])
-        html += f"""
-        <tr class='{css}'>
-          <td><b>{pos}</b></td>
-          <td class='team-cell'>{flag}{name}</td>
-          <td>{row['pj']}</td><td>{row['pg']}</td><td>{row['pe']}</td><td>{row['pp']}</td>
-          <td>{row['gf']}</td><td>{row['gc']}</td>
-          <td>{'+' if row['dg']>0 else ''}{row['dg']}</td>
-          <td><b>{row['pts']}</b></td>
-        </tr>
-        """
-    html += "</table>"
-    return html
+        if pos <= advancing:
+            estado = "✅ Clasifica"
+        elif pos <= advancing + 2 and show_thirds:
+            estado = "🟡 Posible 3ro"
+        else:
+            estado = "❌ Eliminado"
+
+        rows.append({
+            "#": pos,
+            "Selección": display_name(row["team"]),
+            "PJ": row["pj"],
+            "PG": row["pg"],
+            "PE": row["pe"],
+            "PP": row["pp"],
+            "GF": row["gf"],
+            "GC": row["gc"],
+            "DG": dg_str,
+            "PTS": row["pts"],
+            "Estado": estado,
+        })
+
+    df = pd.DataFrame(rows)
+
+    def color_row(row):
+        estado = row["Estado"]
+        if "✅" in estado:
+            bg = "background-color: #0d3a1e; color: #4eff91"
+        elif "🟡" in estado:
+            bg = "background-color: #2a3a00; color: #ccff44"
+        else:
+            bg = "background-color: #1a1a2e; color: #888899"
+        return [bg] * len(row)
+
+    styled = df.style.apply(color_row, axis=1)
+    st.dataframe(
+        styled,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "#": st.column_config.NumberColumn(width="small"),
+            "PJ": st.column_config.NumberColumn(width="small"),
+            "PG": st.column_config.NumberColumn(width="small"),
+            "PE": st.column_config.NumberColumn(width="small"),
+            "PP": st.column_config.NumberColumn(width="small"),
+            "GF": st.column_config.NumberColumn(width="small"),
+            "GC": st.column_config.NumberColumn(width="small"),
+            "DG": st.column_config.TextColumn(width="small"),
+            "PTS": st.column_config.NumberColumn(width="small"),
+            "Estado": st.column_config.TextColumn(width="medium"),
+        }
+    )
+    # Retornar string vacío para compatibilidad con llamadas que hacen st.markdown(...)
+    return ""
 
 
 
@@ -1371,8 +1394,7 @@ def _show_group_stage(state, euro):
             standings = calculate_standings(teams, {k: v for k, v in results.items()
                                                      if any(t in k for t in teams)})
             euro["group_standings"][g] = standings
-            st.markdown(render_standings_table(standings, advancing=2, show_thirds=True),
-                       unsafe_allow_html=True)
+            render_standings_table(standings, advancing=2, show_thirds=True)
             st.caption("🟢 Clasificado directo | 🟡 Posible mejor tercero")
 
     # Botón para avanzar a llaves
@@ -1680,7 +1702,7 @@ def _show_uefa_playoff(state, euro):
             standings = calculate_standings(teams, {k: v for k, v in playoff_results.items()
                                                      if any(t in k for t in teams)})
             pb["standings"][g] = standings
-            st.markdown(render_standings_table(standings, advancing=2), unsafe_allow_html=True)
+            render_standings_table(standings, advancing=2)
 
     if all_complete:
         qualified_playoff = []
@@ -1902,7 +1924,7 @@ def _show_group_stage(state, ca):
 
             standings = calculate_standings(teams, {k: v for k, v in results.items() if any(t in k for t in teams)})
             ca["group_standings"][g] = standings
-            st.markdown(render_standings_table(standings, advancing=2), unsafe_allow_html=True)
+            render_standings_table(standings, advancing=2)
 
     if all_complete or st.checkbox("🔓 Forzar avance a llaves"):
         if ca["phase"] == "grupos":
@@ -2144,7 +2166,7 @@ def _show_playoff(state, ca):
     standings = calculate_standings(candidates, results)
     pb["standings"] = standings
     st.markdown("**Tabla Playoff CONMEBOL:**")
-    st.markdown(render_standings_table(standings, advancing=3), unsafe_allow_html=True)
+    render_standings_table(standings, advancing=3)
     st.caption("🟢 Top 3 → Mundial | 4to → Repechaje Internacional")
 
     if all_done:
@@ -2268,7 +2290,7 @@ def _show_6team_groups(state, tour, torneo_name):
 
             standings = calculate_standings(teams, {k: v for k, v in results.items() if any(t in k for t in teams)})
             tour["group_standings"][g] = standings
-            st.markdown(render_standings_table(standings, advancing=1), unsafe_allow_html=True)
+            render_standings_table(standings, advancing=1)
             st.caption("🟢 1ro → Semifinales")
 
     if all_complete or st.checkbox(f"🔓 Forzar avance a semis ({torneo_name[:5]})", key=f"force_{torneo_name[:5]}"):
@@ -2465,7 +2487,7 @@ def _show_6team_playoff(state, tour, torneo_name, direct_spots, playoff_spots, r
 
     standings = calculate_standings(candidates, results)
     pb["standings"] = standings
-    st.markdown(render_standings_table(standings, advancing=playoff_spots), unsafe_allow_html=True)
+    render_standings_table(standings, advancing=playoff_spots)
 
     if all_done:
         repechaje_idx = playoff_spots
@@ -2618,7 +2640,7 @@ def _show_caf_groups(state, tour, torneo_name):
 
             standings = calculate_standings(teams, {k: v for k, v in results.items() if any(t in k for t in teams)})
             tour["group_standings"][g] = standings
-            st.markdown(render_standings_table(standings, advancing=2), unsafe_allow_html=True)
+            render_standings_table(standings, advancing=2)
             st.caption("🟢 Top 2 → Cuartos de Final")
 
     if all_complete or st.checkbox("🔓 Forzar avance Copa África"):
@@ -2832,7 +2854,7 @@ def _show_caf_playoff(state, tour, torneo_name):
 
     standings = calculate_standings(candidates, results)
     pb["standings"] = standings
-    st.markdown(render_standings_table(standings, advancing=3), unsafe_allow_html=True)
+    render_standings_table(standings, advancing=3)
 
     if all_done:
         if st.button("✅ Confirmar Clasificados CAF", type="primary"):
@@ -3406,7 +3428,7 @@ def _show_wc_groups(state, wc):
 
             standings = calculate_standings(teams, {k: v for k, v in results.items() if any(t in k for t in teams)})
             wc["group_standings"][g] = standings
-            st.markdown(render_standings_table(standings, advancing=2), unsafe_allow_html=True)
+            render_standings_table(standings, advancing=2)
 
     if all_complete or st.checkbox("🔓 Forzar avance a octavos"):
         if wc["phase"] == "grupos":
