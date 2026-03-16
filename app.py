@@ -982,6 +982,91 @@ def render_standings_table(standings, advancing=2, show_thirds=False):
     html += "</table>"
     return html
 
+
+
+# ---------------------------------------------------------------------------
+# ARMADO MANUAL DE GRUPOS (función genérica para todos los torneos)
+# ---------------------------------------------------------------------------
+def _manual_group_setup(state, tour_key, teams, num_groups, teams_per_group, confirm_label="Confirmar grupos"):
+    """
+    Muestra selectboxes para que el usuario asigne cada equipo a un grupo.
+    Retorna True si se confirmó, False si sigue pendiente.
+    """
+    tour = state[tour_key]
+    group_labels = [chr(65+i) for i in range(num_groups)]
+    ranking = state["ranking"]
+    teams_sorted = sorted(teams, key=lambda t: -ranking.get(t, 0))
+
+    st.markdown("#### Asigna cada equipo a su grupo:")
+    st.caption(f"{len(teams)} equipos → {num_groups} grupos de {teams_per_group}")
+
+    # Opciones de grupo + "Sin asignar"
+    group_opts = ["— Sin asignar —"] + [f"Grupo {g}" for g in group_labels]
+
+    # Leer asignaciones guardadas en sesión temporal
+    key_prefix = f"manual_{tour_key}"
+    if f"{key_prefix}_assignments" not in state:
+        state[f"{key_prefix}_assignments"] = {}
+    assignments = state[f"{key_prefix}_assignments"]
+
+    # Mostrar equipos en columnas
+    cols = st.columns(3)
+    for idx, team in enumerate(teams_sorted):
+        with cols[idx % 3]:
+            current_val = assignments.get(team, "— Sin asignar —")
+            current_idx = group_opts.index(current_val) if current_val in group_opts else 0
+            sel = st.selectbox(
+                f"{flag_img(team,16,12)} {display_name(team)}",
+                group_opts,
+                index=current_idx,
+                key=f"{key_prefix}_{team}",
+                label_visibility="visible"
+            )
+            assignments[team] = sel
+            state[f"{key_prefix}_assignments"] = assignments
+
+    # Preview de grupos
+    preview = {g: [] for g in group_labels}
+    for team, grp in assignments.items():
+        if grp != "— Sin asignar —":
+            g = grp.replace("Grupo ", "")
+            if g in preview:
+                preview[g].append(team)
+
+    st.markdown("---")
+    st.markdown("**Vista previa de grupos:**")
+    pcols = st.columns(num_groups)
+    all_valid = True
+    for i, g in enumerate(group_labels):
+        with pcols[i]:
+            teams_in = preview[g]
+            color = "#00cc66" if len(teams_in) == teams_per_group else ("#ffd700" if len(teams_in) > 0 else "#6080aa")
+            st.markdown(f"**Grupo {g}** <span style='color:{color};'>({len(teams_in)}/{teams_per_group})</span>", unsafe_allow_html=True)
+            for t in teams_in:
+                st.markdown(f"{flag_img(t,16,12)} {display_name(t)}", unsafe_allow_html=True)
+        if len(teams_in) != teams_per_group:
+            all_valid = False
+
+    unassigned = [t for t in teams if assignments.get(t, "— Sin asignar —") == "— Sin asignar —"]
+    if unassigned:
+        st.warning(f"⚠️ Sin asignar: {', '.join([display_name(t) for t in unassigned])}")
+
+    if all_valid:
+        if st.button(f"✅ {confirm_label}", type="primary", use_container_width=True):
+            tour["groups"] = preview
+            tour["group_results"] = {}
+            tour["group_standings"] = {}
+            tour["phase"] = "grupos"
+            tour["setup_done"] = True
+            # Limpiar asignaciones temporales
+            if f"{key_prefix}_assignments" in state:
+                del state[f"{key_prefix}_assignments"]
+            st.rerun()
+            return True
+    else:
+        st.info(f"Cada grupo debe tener exactamente {teams_per_group} equipos para continuar.")
+    return False
+
 # ============================================================
 # EUROCOPA UEFA
 # ============================================================
@@ -1079,25 +1164,15 @@ def show_eurocopa():
     # Pestañas
     tabs = st.tabs(["🎲 Sorteo", "📊 Fase de Grupos", "⚽ Llaves", "🔄 Playoff UEFA", "🌍 Clasificados"])
 
-    # ── TAB 1: SORTEO ──────────────────────────────────────────────────────
+    # ── TAB 1: ARMADO DE GRUPOS ────────────────────────────────────────────
     with tabs[0]:
-        st.markdown("### 🎲 Sorteo de Grupos")
+        st.markdown("### 📋 Armado de Grupos — Eurocopa FMMJ")
         if not euro["setup_done"]:
-            st.info("Los 24 equipos se distribuyen en 6 grupos de 4, usando el Ranking FMMJ como referencia para los bombos.")
-            col1, col2 = st.columns([2, 1])
-            with col1:
-                st.markdown("**Equipos UEFA participantes:**")
-                ranking = state["ranking"]
-                teams_sorted = sorted(UEFA_TEAMS, key=lambda t: -ranking.get(t, 0))
-                for i, t in enumerate(teams_sorted):
-                    st.markdown(f"{flag_img(t,16,12)}{i+1}. **{display_name(t)}** — {ranking.get(t,'?')} pts", unsafe_allow_html=True)
-            with col2:
-                if st.button("🎯 Realizar Sorteo", use_container_width=True, type="primary"):
-                    setup_euro_groups(state)
-                    st.rerun()
+            _manual_group_setup(state, "euro", UEFA_TEAMS, num_groups=6, teams_per_group=4,
+                                confirm_label="Confirmar grupos Eurocopa")
         else:
-            st.success("✅ Sorteo realizado")
-            if st.button("🔄 Repetir Sorteo", type="secondary"):
+            st.success("✅ Grupos confirmados")
+            if st.button("✏️ Editar grupos", type="secondary"):
                 euro["setup_done"] = False
                 st.rerun()
             _show_groups_draw(euro)
@@ -1639,19 +1714,12 @@ def show_copa_america():
         if not ca.get("guests"):
             st.warning("Primero selecciona las 6 invitadas.")
         elif not ca.get("setup_done"):
-            all_teams = CONMEBOL_TEAMS + ca["guests"]
-            st.info(f"16 equipos → 4 grupos de 4")
-            ranking = state["ranking"]
-            teams_sorted = sorted(all_teams, key=lambda t: -ranking.get(t, 0))
-            st.markdown("**Equipos participantes:**")
-            for i, t in enumerate(teams_sorted):
-                st.markdown(f"{flag_img(t,16,12)}{i+1}. **{display_name(t)}** — {ranking.get(t,'?')} pts", unsafe_allow_html=True)
-            if st.button("🎯 Realizar Sorteo", type="primary"):
-                _setup_ca_groups(state, ca)
-                st.rerun()
+            all_teams_ca2 = CONMEBOL_TEAMS + ca["guests"]
+            _manual_group_setup(state, "copa_america", all_teams_ca2, num_groups=4, teams_per_group=4,
+                                confirm_label="Confirmar grupos Copa América")
         else:
-            st.success("✅ Sorteo realizado")
-            if st.button("🔄 Repetir Sorteo"):
+            st.success("✅ Grupos confirmados")
+            if st.button("✏️ Editar grupos"):
                 ca["setup_done"] = False
                 st.rerun()
             _show_groups_draw(ca)
@@ -2051,14 +2119,9 @@ def _generic_6team_tournament(state, tournament_key, torneo_name, teams,
     tour = state[tournament_key]
 
     if not tour.get("setup_done"):
-        st.info(f"**Equipos ({len(teams)}):**")
-        ranking = state["ranking"]
-        teams_sorted = sorted(teams, key=lambda t: -ranking.get(t, 0))
-        for i, t in enumerate(teams_sorted):
-            st.markdown(f"{flag_img(t,16,12)}&nbsp;{i+1}. **{display_name(t)}** — {ranking.get(t,'?')} pts", unsafe_allow_html=True)
-        if st.button("🎯 Realizar Sorteo y Comenzar", type="primary"):
-            _setup_6team_groups(state, tour, teams)
-            st.rerun()
+        st.markdown("### 📋 Armado de Grupos")
+        _manual_group_setup(state, tournament_key, teams, num_groups=2, teams_per_group=3,
+                            confirm_label="Confirmar grupos")
         return
 
     tabs = st.tabs(["📊 Fase de Grupos", "⚽ Llaves", "🔄 Playoff", "🌍 Clasificados"])
@@ -2398,13 +2461,11 @@ def _show_10team_caf_tournament(state, tour, teams):
     """Copa África: 10 equipos, 2 grupos de 5"""
     
     if not tour.get("setup_done"):
-        st.info(f"**Equipos participantes CAF ({len(teams)}):**")
-        ranking = state["ranking"]
-        for i, t in enumerate(sorted(teams, key=lambda x: -ranking.get(x, 0))):
-            st.markdown(f"{flag_img(t,16,12)}&nbsp;{i+1}. **{display_name(t)}**", unsafe_allow_html=True)
-        if st.button("🎯 Sortear Grupos Copa África", type="primary"):
-            _setup_caf_groups(state, tour, teams)
-            st.rerun()
+        st.markdown("### 📋 Armado de Grupos — Copa África FMMJ")
+        teams_per_g = 5 if len(teams) == 10 else (len(teams)+1)//2
+        _manual_group_setup(state, "copa_africa", teams, num_groups=2,
+                            teams_per_group=teams_per_g,
+                            confirm_label="Confirmar grupos Copa África")
         return
 
     tabs = st.tabs(["📊 Grupos", "⚽ Llaves", "🔄 Playoff CAF", "🌍 Clasificados"])
@@ -2969,49 +3030,37 @@ def show_ranking():
     with col2:
         search = st.text_input("🔍 Buscar selección", placeholder="Escribe el nombre...")
 
-    # Tabla
-    html = """
-    <style>
-    .rank-table {width:100%;border-collapse:collapse;font-size:13px;font-family:'Segoe UI',sans-serif;}
-    .rank-table th {background:#0a0a2e;color:#c8a000;padding:8px;text-align:center;position:sticky;top:0;}
-    .rank-table td {padding:7px 10px;border-bottom:1px solid #1a1a3a;text-align:center;}
-    .rank-table tr:hover td {background:#ffffff08;}
-    .rank-1 td {background:#1a1500!important;}
-    .rank-top5 td {background:#0d1500!important;}
-    .team-cell-rank {text-align:left!important;font-weight:600;}
-    </style>
-    <table class='rank-table'>
-    <tr>
-      <th>#</th><th class='team-cell-rank'>Selección</th><th>Conf.</th><th>Puntos</th>
-    </tr>
-    """
-    conf_colors_map = {
-        "UEFA": "#003580", "CONMEBOL": "#006b3c", "CAF": "#8b6914",
-        "CONCACAF": "#8b0000", "AFC": "#4a0080", "OFC": "#006080"
-    }
-
+    # Construir tabla de datos filtrada
+    rows = []
     for pos, (team, pts) in enumerate(sorted_ranking, 1):
         conf = get_team_confederation(team)
         if conf_filter != "Todas" and conf != conf_filter:
             continue
         if search and search.lower() not in display_name(team).lower() and search.lower() not in team.lower():
             continue
+        rows.append({
+            "#": pos,
+            "Selección": display_name(team),
+            "Confederación": conf,
+            "Puntos": pts,
+        })
 
-        row_class = "rank-1" if pos == 1 else ("rank-top5" if pos <= 5 else "")
-        flag = flag_img(team, 18, 13)
-        color = conf_colors_map.get(conf, "#333")
-        badge = f"<span style='background:{color};color:#fff;padding:2px 7px;border-radius:10px;font-size:0.7rem;font-weight:700;'>{conf}</span>"
-
-        html += f"""
-        <tr class='{row_class}'>
-          <td><b>{pos}</b></td>
-          <td class='team-cell-rank'>{flag}{display_name(team)}</td>
-          <td>{badge}</td>
-          <td><b>{pts}</b></td>
-        </tr>"""
-
-    html += "</table>"
-    st.markdown(html, unsafe_allow_html=True)
+    if rows:
+        import pandas as pd
+        df = pd.DataFrame(rows)
+        st.dataframe(
+            df,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "#": st.column_config.NumberColumn(width="small"),
+                "Selección": st.column_config.TextColumn(width="medium"),
+                "Confederación": st.column_config.TextColumn(width="small"),
+                "Puntos": st.column_config.NumberColumn(width="small"),
+            }
+        )
+    else:
+        st.info("No hay resultados para el filtro seleccionado.")
 
 
 # ---------------------------------------------------------------------------
@@ -3144,15 +3193,16 @@ def _show_draw(state, wc):
             st.rerun()
         return
 
-    if st.button("🎯 ¡Realizar Sorteo del Mundial!", type="primary", use_container_width=True):
-        groups = _do_world_cup_draw(pots, state)
-        wc["groups"] = groups
-        wc["group_results"] = {}
-        wc["group_standings"] = {}
-        wc["phase"] = "grupos"
-        st.rerun()
-
-    if wc.get("groups"):
+    if not wc.get("groups"):
+        st.info("Asigna cada selección clasificada a uno de los 8 grupos (4 equipos por grupo).")
+        _manual_group_setup(state, "world_cup", qualified, num_groups=8, teams_per_group=4,
+                            confirm_label="Confirmar grupos del Mundial")
+    else:
+        st.success("✅ Grupos confirmados")
+        if st.button("✏️ Editar grupos", type="secondary"):
+            wc["groups"] = {}
+            wc["phase"] = "sorteo"
+            st.rerun()
         _display_wc_groups_draw(wc)
 
 
