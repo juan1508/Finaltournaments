@@ -417,19 +417,18 @@ def _build_euro_knockout(state, euro):
     #   Rama izquierda: W37 vs W38 → W41 vs W42 → FINAL
     #   Rama derecha:   W39 vs W40 → W43 vs W44 → FINAL
     octavos = [
-        # Rama izquierda
+        # Rama izquierda: (M37 vs M38) vs (M43 vs M44)
         {"home": firsts.get("A"),  "away": seconds.get("C"), "winner": None},  # M37
         {"home": firsts.get("B"),  "away": t3.get("1B"),     "winner": None},  # M38
-        {"home": firsts.get("E"),  "away": t3.get("1E"),     "winner": None},  # M42 (agrupa rama izq)
-        {"home": seconds.get("A"), "away": seconds.get("B"), "winner": None},  # M41
-        # Rama derecha
+        {"home": firsts.get("F"),  "away": t3.get("1F"),     "winner": None},  # M43 (visitante cambiado)
+        {"home": seconds.get("E"), "away": t3.get("1E"),     "winner": None},  # M44 (visitante cambiado)
+        # Rama derecha: (M39 vs M40) vs (M41 vs M42)
         {"home": firsts.get("C"),  "away": t3.get("1C"),     "winner": None},  # M39
         {"home": firsts.get("D"),  "away": seconds.get("F"), "winner": None},  # M40
-        {"home": firsts.get("F"),  "away": seconds.get("E"), "winner": None},  # M43
-        {"home": seconds.get("D"), "away": t3.get("1F"),     "winner": None},  # M44
+        {"home": seconds.get("A"), "away": seconds.get("B"), "winner": None},  # M41
+        {"home": firsts.get("E"),  "away": t3.get("1E"),     "winner": None},  # M42
     ]
-    # Guardar labels de cada partido para mostrar en bracket
-    euro["octavos_labels"] = ["M37","M38","M42","M41","M39","M40","M43","M44"]
+    euro["octavos_labels"] = ["M37","M38","M43","M44","M39","M40","M41","M42"]
     # Filtrar partidos sin equipos definidos
     octavos = [m for m in octavos if m["home"] and m["away"]]
 
@@ -554,55 +553,66 @@ def _render_euro_bracket(euro, bracket, results):
     if not octavos:
         return
 
-    html = "<div style='overflow-x:auto;padding-bottom:8px;'>"
-    html += "<div style='display:flex;gap:16px;align-items:flex-start;min-width:800px;'>"
+    labels = euro.get("octavos_labels", ["M37","M38","M43","M44","M39","M40","M41","M42"])
+    CARD_H = 98
 
-    # ── Octavos (columna izq y der) ──────────────────────────────────
-    html += "<div style='flex:0 0 220px;'>"
-    html += "<div style='font-size:0.7rem;color:#406080;text-transform:uppercase;margin-bottom:6px;letter-spacing:1px;'>Octavos</div>"
-    for i, m in enumerate(octavos[:4]):
+    html = "<div style='overflow-x:auto;padding-bottom:12px;'>"
+    html += "<div style='display:flex;gap:12px;align-items:flex-start;min-width:900px;'>"
+
+    # COL 1: Octavos izquierda — M37, M38 (arriba) y M43, M44 (abajo)
+    html += "<div style='flex:0 0 210px;'>"
+    html += "<div style='font-size:0.68rem;color:#406080;text-transform:uppercase;margin-bottom:6px;letter-spacing:1px;'>Octavos</div>"
+    for i in range(4):
         r = results.get(f"euro_octavos_{i}", {})
-        html += match_card(m, r, f"M{i+1}")
+        lbl = labels[i] if i < len(labels) else ""
+        html += match_card(octavos[i] if i < len(octavos) else {}, r, lbl)
+        if i == 1:
+            html += "<div style='height:16px;'></div>"
     html += "</div>"
 
-    # ── Cuartos izq ─────────────────────────────────────────────────
-    html += "<div style='flex:0 0 220px;margin-top:44px;'>"
-    html += "<div style='font-size:0.7rem;color:#406080;text-transform:uppercase;margin-bottom:6px;letter-spacing:1px;'>Cuartos</div>"
-    for i, m in enumerate(cuartos[:2]):
+    # COL 2: Cuartos izquierda
+    html += f"<div style='flex:0 0 210px;margin-top:{CARD_H}px;'>"
+    html += "<div style='font-size:0.68rem;color:#406080;text-transform:uppercase;margin-bottom:6px;letter-spacing:1px;'>Cuartos</div>"
+    for i in range(2):
         r = results.get(f"euro_cuartos_{i}", {})
-        html += match_card(m, r)
+        html += match_card(cuartos[i] if i < len(cuartos) else {}, r)
     html += "</div>"
 
-    # ── Semis ────────────────────────────────────────────────────────
-    html += "<div style='flex:0 0 220px;margin-top:88px;'>"
-    html += "<div style='font-size:0.7rem;color:#406080;text-transform:uppercase;margin-bottom:6px;letter-spacing:1px;'>Semis</div>"
-    for i, m in enumerate(semis[:2]):
-        r = results.get(f"euro_semis_{i}", {})
-        html += match_card(m, r)
+    # COL 3: Semi izquierda
+    html += f"<div style='flex:0 0 210px;margin-top:{CARD_H*2}px;'>"
+    html += "<div style='font-size:0.68rem;color:#406080;text-transform:uppercase;margin-bottom:6px;letter-spacing:1px;'>Semis</div>"
+    html += match_card(semis[0] if semis else {}, results.get("euro_semis_0", {}))
     html += "</div>"
 
-    # ── Final ────────────────────────────────────────────────────────
-    html += "<div style='flex:0 0 220px;margin-top:132px;'>"
-    html += "<div style='font-size:0.7rem;color:#ffd700;text-transform:uppercase;margin-bottom:6px;letter-spacing:1px;font-weight:700;'>🏆 Final</div>"
-    for i, m in enumerate(final[:1]):
-        r = results.get(f"euro_final_{i}", {})
-        html += match_card(m, r, "Gran Final")
+    # COL 4: Final
+    html += f"<div style='flex:0 0 210px;margin-top:{CARD_H*3}px;'>"
+    html += "<div style='font-size:0.68rem;color:#ffd700;text-transform:uppercase;margin-bottom:6px;letter-spacing:1px;font-weight:700;'>🏆 Final</div>"
+    html += match_card(final[0] if final else {}, results.get("euro_final_0", {}), "Gran Final")
     html += "</div>"
 
-    # ── Cuartos der ──────────────────────────────────────────────────
-    html += "<div style='flex:0 0 220px;margin-top:44px;'>"
-    html += "<div style='font-size:0.7rem;color:#406080;text-transform:uppercase;margin-bottom:6px;letter-spacing:1px;'>Cuartos</div>"
-    for i, m in enumerate(cuartos[2:4]):
-        r = results.get(f"euro_cuartos_{i+2}", {})
-        html += match_card(m, r)
+    # COL 5: Semi derecha
+    html += f"<div style='flex:0 0 210px;margin-top:{CARD_H*2}px;'>"
+    html += "<div style='font-size:0.68rem;color:#406080;text-transform:uppercase;margin-bottom:6px;letter-spacing:1px;'>Semis</div>"
+    html += match_card(semis[1] if len(semis)>1 else {}, results.get("euro_semis_1", {}))
     html += "</div>"
 
-    # ── Octavos der ─────────────────────────────────────────────────
-    html += "<div style='flex:0 0 220px;'>"
-    html += "<div style='font-size:0.7rem;color:#406080;text-transform:uppercase;margin-bottom:6px;letter-spacing:1px;'>Octavos</div>"
-    for i, m in enumerate(octavos[4:8]):
-        r = results.get(f"euro_octavos_{i+4}", {})
-        html += match_card(m, r, f"M{i+5}")
+    # COL 6: Cuartos derecha
+    html += f"<div style='flex:0 0 210px;margin-top:{CARD_H}px;'>"
+    html += "<div style='font-size:0.68rem;color:#406080;text-transform:uppercase;margin-bottom:6px;letter-spacing:1px;'>Cuartos</div>"
+    for i in range(2, 4):
+        r = results.get(f"euro_cuartos_{i}", {})
+        html += match_card(cuartos[i] if i < len(cuartos) else {}, r)
+    html += "</div>"
+
+    # COL 7: Octavos derecha — M39, M40 (arriba) y M41, M42 (abajo)
+    html += "<div style='flex:0 0 210px;'>"
+    html += "<div style='font-size:0.68rem;color:#406080;text-transform:uppercase;margin-bottom:6px;letter-spacing:1px;'>Octavos</div>"
+    for i in range(4, 8):
+        r = results.get(f"euro_octavos_{i}", {})
+        lbl = labels[i] if i < len(labels) else ""
+        html += match_card(octavos[i] if i < len(octavos) else {}, r, lbl)
+        if i == 5:
+            html += "<div style='height:16px;'></div>"
     html += "</div>"
 
     html += "</div></div>"
