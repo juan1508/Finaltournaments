@@ -379,12 +379,14 @@ def _build_euro_knockout(state, euro):
     # Tabla UEFA oficial: clave = grupos con 3eros clasificados
     # Valor: {receptor: grupo_del_3ero}
     # Receptores: 1B, 1C, 1E, 1F
+    # Tabla UEFA oficial leída exactamente de la imagen
+    # Columnas: 1B vs T3(grupo?) | 1C vs T3(grupo?) | 1E vs T3(grupo?) | 1F vs T3(grupo?)
     UEFA_THIRDS_TABLE = {
-        "ABCD": {"1B": "D", "1C": "A", "1E": "B", "1F": "C"},
-        "ABCE": {"1B": "E", "1C": "A", "1E": "B", "1F": "C"},
-        "ABCF": {"1B": "F", "1C": "A", "1E": "B", "1F": "C"},
-        "ABDE": {"1B": "E", "1C": "D", "1E": "A", "1F": "B"},
-        "ABDF": {"1B": "F", "1C": "D", "1E": "A", "1F": "B"},
+        "ABCD": {"1B": "A", "1C": "D", "1E": "B", "1F": "C"},
+        "ABCE": {"1B": "A", "1C": "E", "1E": "B", "1F": "C"},
+        "ABCF": {"1B": "A", "1C": "F", "1E": "B", "1F": "C"},
+        "ABDE": {"1B": "D", "1C": "E", "1E": "A", "1F": "B"},
+        "ABDF": {"1B": "D", "1C": "F", "1E": "A", "1F": "B"},
         "ABEF": {"1B": "E", "1C": "F", "1E": "B", "1F": "A"},
         "ACDE": {"1B": "E", "1C": "D", "1E": "C", "1F": "A"},
         "ACDF": {"1B": "F", "1C": "D", "1E": "C", "1F": "A"},
@@ -400,22 +402,34 @@ def _build_euro_knockout(state, euro):
     mapping = UEFA_THIRDS_TABLE.get(best4_key, {})
     t3 = {slot: thirds_raw[g]["team"] for slot, g in mapping.items() if g in thirds_raw}
 
-    # Cruces oficiales octavos Eurocopa (adaptado a 6 grupos A-F):
-    # M1: 1A vs 2C   M2: 1B vs T3(1B)
-    # M3: 1C vs T3(1C) M4: 1D vs 2F
-    # M5: 2A vs 2B   M6: 1E vs T3(1E)
-    # M7: 1F vs 2E   M8: T3(1F) — en Eurocopa real hay M8 distinto
-    # Formato FMMJ 6 grupos:
+    # ── Cruces oficiales Eurocopa UEFA (formato real adaptado a 6 grupos A-F) ──
+    # Los cruces fijos son:
+    #   M37: 1A  vs 2C
+    #   M38: 1B  vs T3(según tabla → "1B")
+    #   M39: 1C  vs T3(según tabla → "1C")
+    #   M40: 1D  vs 2F
+    #   M41: 2A  vs 2B
+    #   M42: 1E  vs T3(según tabla → "1E")
+    #   M43: 1F  vs 2E
+    #   M44: 2D  vs T3(según tabla → "1F")
+    #
+    # Cuadro de llaves (los ganadores se cruzan así):
+    #   Rama izquierda: W37 vs W38 → W41 vs W42 → FINAL
+    #   Rama derecha:   W39 vs W40 → W43 vs W44 → FINAL
     octavos = [
-        {"home": firsts.get("A"), "away": seconds.get("C"), "winner": None},   # M1
-        {"home": firsts.get("D"), "away": seconds.get("F"), "winner": None},   # M2
-        {"home": seconds.get("A"), "away": seconds.get("B"), "winner": None},  # M3
-        {"home": firsts.get("F"), "away": seconds.get("E"), "winner": None},   # M4
-        {"home": firsts.get("B"), "away": t3.get("1B"),    "winner": None},   # M5
-        {"home": firsts.get("C"), "away": t3.get("1C"),    "winner": None},   # M6
-        {"home": firsts.get("E"), "away": t3.get("1E"),    "winner": None},   # M7
-        {"home": t3.get("1F"),   "away": seconds.get("D"), "winner": None},   # M8
+        # Rama izquierda
+        {"home": firsts.get("A"),  "away": seconds.get("C"), "winner": None},  # M37
+        {"home": firsts.get("B"),  "away": t3.get("1B"),     "winner": None},  # M38
+        {"home": firsts.get("E"),  "away": t3.get("1E"),     "winner": None},  # M42 (agrupa rama izq)
+        {"home": seconds.get("A"), "away": seconds.get("B"), "winner": None},  # M41
+        # Rama derecha
+        {"home": firsts.get("C"),  "away": t3.get("1C"),     "winner": None},  # M39
+        {"home": firsts.get("D"),  "away": seconds.get("F"), "winner": None},  # M40
+        {"home": firsts.get("F"),  "away": seconds.get("E"), "winner": None},  # M43
+        {"home": seconds.get("D"), "away": t3.get("1F"),     "winner": None},  # M44
     ]
+    # Guardar labels de cada partido para mostrar en bracket
+    euro["octavos_labels"] = ["M37","M38","M42","M41","M39","M40","M43","M44"]
     # Filtrar partidos sin equipos definidos
     octavos = [m for m in octavos if m["home"] and m["away"]]
 
