@@ -5,14 +5,14 @@ Clasifican al mundial: campeón al 5to directo + playoffs (16 equipos → 8 clas
 Total UEFA al mundial: 13
 """
 import sys, os as _os
-_ROOT = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
-if _ROOT not in sys.path:
-    sys.path.insert(0, _ROOT)
+_root = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+if _root not in sys.path:
+    sys.path.insert(0, _root)
 import streamlit as st
 import random
 from data import UEFA_TEAMS, get_flag_url, PLAYERS
 from state import get_state, update_ranking, RANKING_POINTS
-from utils.tournament import (
+from tournament import (
     display_name, flag_img, team_badge, generate_group_fixtures,
     calculate_standings, match_key, render_standings_table,
     register_scorers, draw_groups
