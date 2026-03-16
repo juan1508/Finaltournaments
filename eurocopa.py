@@ -4,6 +4,10 @@ pages/eurocopa.py - Eurocopa FMMJ (UEFA)
 Clasifican al mundial: campeón al 5to directo + playoffs (16 equipos → 8 clasificados)
 Total UEFA al mundial: 13
 """
+import sys, os as _os
+_ROOT = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
 import streamlit as st
 import random
 from data import UEFA_TEAMS, get_flag_url, PLAYERS
