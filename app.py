@@ -12,6 +12,12 @@ if _root not in sys.path:
 from state import init_state, get_state, reset_for_new_edition
 from tournament import display_name, flag_img
 
+# Importar todas las páginas al inicio para evitar errores en Streamlit Cloud
+from pages.repechaje import show_ranking, show_repechaje, show_world_cup_draw
+from pages.eurocopa import show as show_eurocopa
+from pages.copa_america import show as show_copa_america
+from pages.confederaciones import show_copa_africa, show_copa_oro, show_copa_asia
+
 st.set_page_config(
     page_title="FMMJ World Cup Simulator",
     page_icon="🏆",
@@ -244,28 +250,20 @@ with st.sidebar:
 if page_key == "inicio":
     _show_home(state)
 elif page_key == "ranking":
-    from pages.repechaje import show_ranking
     show_ranking()
 elif page_key == "eurocopa":
-    from pages.eurocopa import show
-    show()
+    show_eurocopa()
 elif page_key == "copa_america":
-    from pages.copa_america import show
-    show()
+    show_copa_america()
 elif page_key == "copa_africa":
-    from pages.confederaciones import show_copa_africa
     show_copa_africa()
 elif page_key == "copa_oro":
-    from pages.confederaciones import show_copa_oro
     show_copa_oro()
 elif page_key == "copa_asia":
-    from pages.confederaciones import show_copa_asia
     show_copa_asia()
 elif page_key == "repechaje":
-    from pages.repechaje import show_repechaje
     show_repechaje()
 elif page_key == "mundial":
-    from pages.repechaje import show_world_cup_draw
     show_world_cup_draw()
 elif page_key == "config":
     _show_config(state)
