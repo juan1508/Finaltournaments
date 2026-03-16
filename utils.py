@@ -1,0 +1,263 @@
+"""
+utils.py — Helpers compartidos para FMMJ World Cup Simulator
+"""
+import streamlit as st
+import random
+from data import FLAG_MAP, TEAM_DISPLAY_NAMES, get_flag_url, CONFEDERATIONS, PLAYERS
+
+
+def display_name(team):
+    return TEAM_DISPLAY_NAMES.get(team, team)
+
+
+def flag_img(team, w=20, h=15):
+    url = get_flag_url(team, w, h)
+    if url:
+        return f"<img src='{url}' style='vertical-align:middle;margin-right:4px;border-radius:2px;' width='{w}' height='{h}'>"
+    return ""
+
+
+def get_team_confederation(team):
+    for conf, teams in CONFEDERATIONS.items():
+        if team in teams:
+            return conf
+    return "OFC"
+
+
+def match_key(t1, t2):
+    return f"{min(t1,t2)}||{max(t1,t2)}"
+
+
+def get_jornadas(teams):
+    n = len(teams)
+    if n == 4:
+        return [
+            [(teams[0], teams[1]), (teams[2], teams[3])],
+            [(teams[0], teams[2]), (teams[1], teams[3])],
+            [(teams[0], teams[3]), (teams[1], teams[2])],
+        ]
+    elif n == 3:
+        return [
+            [(teams[0], teams[1])],
+            [(teams[0], teams[2])],
+            [(teams[1], teams[2])],
+        ]
+    elif n == 5:
+        return [
+            [(teams[0], teams[1]), (teams[2], teams[3])],
+            [(teams[4], teams[0]), (teams[3], teams[1])],
+            [(teams[1], teams[4]), (teams[2], teams[0])],
+            [(teams[3], teams[2]), (teams[4], teams[0])],
+            [(teams[0], teams[3]), (teams[1], teams[2])],
+            [(teams[4], teams[3]), (teams[0], teams[1])],
+            [(teams[2], teams[4]), (teams[1], teams[3])],
+            [(teams[0], teams[4]), (teams[3], teams[2])],
+            [(teams[1], teams[0]), (teams[4], teams[2])],
+            [(teams[2], teams[1]), (teams[3], teams[4])],
+        ]
+    else:
+        fixtures = [(teams[i], teams[j]) for i in range(n) for j in range(i+1, n)]
+        return [[f] for f in fixtures]
+
+
+def calculate_standings(group_teams, results):
+    table = {t: {"team": t, "pts": 0, "gf": 0, "ga": 0, "gd": 0,
+                 "pj": 0, "pg": 0, "pe": 0, "pp": 0} for t in group_teams}
+    for i, t1 in enumerate(group_teams):
+        for j, t2 in enumerate(group_teams):
+            if i >= j:
+                continue
+            key = match_key(t1, t2)
+            res = results.get(key, {})
+            if not res.get("played"):
+                continue
+            hg = res.get("home_goals", 0)
+            ag = res.get("away_goals", 0)
+            table[t1]["pj"] += 1
+            table[t2]["pj"] += 1
+            table[t1]["gf"] += hg
+            table[t1]["ga"] += ag
+            table[t2]["gf"] += ag
+            table[t2]["ga"] += hg
+            if hg > ag:
+                table[t1]["pts"] += 3
+                table[t1]["pg"] += 1
+                table[t2]["pp"] += 1
+            elif hg < ag:
+                table[t2]["pts"] += 3
+                table[t2]["pg"] += 1
+                table[t1]["pp"] += 1
+            else:
+                table[t1]["pts"] += 1
+                table[t2]["pts"] += 1
+                table[t1]["pe"] += 1
+                table[t2]["pe"] += 1
+    for t in table.values():
+        t["gd"] = t["gf"] - t["ga"]
+    return sorted(table.values(), key=lambda x: (-x["pts"], -x["gd"], -x["gf"]))
+
+
+def render_standings_table(standings, advancing=2, show_thirds=False):
+    html = """<table style='width:100%;border-collapse:collapse;font-size:0.83rem;margin-top:8px;'>
+    <tr style='background:#0a1530;color:#7090c0;font-size:0.72rem;text-transform:uppercase;border-bottom:2px solid #1a2a5a;'>"""
+    for h in ["", "#", "Selección", "PJ", "PG", "PE", "PP", "GF", "GA", "DG", "Pts"]:
+        align = "left" if h == "Selección" else "center"
+        html += f"<th style='padding:7px 8px;text-align:{align};'>{h}</th>"
+    html += "</tr>"
+    for i, row in enumerate(standings):
+        if i < advancing:
+            badge, bg = "🟢", "#0d3a20"
+        elif show_thirds and i == advancing:
+            badge, bg = "🟡", "#2a2a00"
+        else:
+            badge, bg = "🔴", "#0a0a1a"
+        html += f"<tr style='background:{bg};border-bottom:1px solid #111e35;'>"
+        html += f"<td style='padding:7px 8px;text-align:center;'>{badge}</td>"
+        html += f"<td style='padding:7px 8px;text-align:center;color:#666;font-weight:700;'>{i+1}</td>"
+        html += f"<td style='padding:7px 8px;text-align:left;color:#e0e8ff;'>{flag_img(row['team'],18,13)}&nbsp;{display_name(row['team'])}</td>"
+        for k in ["pj","pg","pe","pp","gf","ga","gd"]:
+            color = "#ffd700" if k == "gd" else "#e0e8ff"
+            html += f"<td style='padding:7px 8px;text-align:center;color:{color};'>{row[k]}</td>"
+        html += f"<td style='padding:7px 8px;text-align:center;color:#ffd700;font-weight:800;font-size:0.95rem;'>{row['pts']}</td>"
+        html += "</tr>"
+    html += "</table>"
+    st.markdown(html, unsafe_allow_html=True)
+
+
+def _scorer_input(team, num_goals, existing_scorers, widget_key, state, torneo):
+    players_data = PLAYERS.get(team, [])
+    if num_goals == 0:
+        return []
+    scorers = []
+    if players_data:
+        player_names = [p["name"] for p in players_data]
+        for i in range(num_goals):
+            default_idx = 0
+            if i < len(existing_scorers) and existing_scorers[i] in player_names:
+                default_idx = player_names.index(existing_scorers[i])
+            sel = st.selectbox(
+                f"Gol {i+1} — {display_name(team)}",
+                player_names,
+                index=default_idx,
+                key=f"{widget_key}_{i}"
+            )
+            scorers.append(sel)
+    else:
+        val = st.text_input(
+            f"Goleadores {display_name(team)}",
+            value=", ".join(existing_scorers),
+            key=f"{widget_key}_free"
+        )
+        scorers = [s.strip() for s in val.split(",") if s.strip()]
+    return scorers
+
+
+def register_scorers(scorers_list, team, state, torneo_name):
+    if not scorers_list:
+        return
+    if "all_scorers" not in state:
+        state["all_scorers"] = {}
+    for name in scorers_list:
+        if not name:
+            continue
+        key = f"{name}||{team}"
+        if key not in state["all_scorers"]:
+            state["all_scorers"][key] = {"name": name, "team": team, "goals": 0, "torneos": {}}
+        state["all_scorers"][key]["goals"] += 1
+        state["all_scorers"][key]["torneos"][torneo_name] = \
+            state["all_scorers"][key]["torneos"].get(torneo_name, 0) + 1
+
+
+def manual_group_setup(state, tour_key, teams, num_groups, teams_per_group, confirm_label="Confirmar grupos"):
+    tour = state[tour_key]
+    ranking = state["ranking"]
+    teams_sorted = sorted(teams, key=lambda t: -ranking.get(t, 0))
+    group_keys = [chr(65 + i) for i in range(num_groups)]
+
+    sk = f"draft_{tour_key}"
+    if sk not in st.session_state or set(st.session_state[sk].keys()) != set(group_keys):
+        st.session_state[sk] = {g: [] for g in group_keys}
+    dg = st.session_state[sk]
+
+    assigned = [t for lst in dg.values() for t in lst]
+    unassigned = [t for t in teams_sorted if t not in assigned]
+
+    if unassigned:
+        st.markdown("**Equipos disponibles (por ranking FMMJ):**")
+        cols_un = st.columns(4)
+        for idx, team in enumerate(unassigned):
+            with cols_un[idx % 4]:
+                conf = get_team_confederation(team)
+                opts = ["— Grupo —"] + [f"Grupo {g}" for g in group_keys]
+                sel = st.selectbox(
+                    f"{flag_img(team,16,11)}{display_name(team)}",
+                    opts,
+                    key=f"assign_{tour_key}_{team}",
+                    label_visibility="visible"
+                )
+                if sel != "— Grupo —":
+                    g = sel.split()[-1]
+                    if len(dg.get(g, [])) < teams_per_group and team not in dg[g]:
+                        dg[g].append(team)
+                        st.rerun()
+
+    st.markdown("---")
+    st.markdown("**Grupos actuales:**")
+    cols_per_row = min(num_groups, 4)
+    gkeys_rows = [group_keys[i:i+cols_per_row] for i in range(0, num_groups, cols_per_row)]
+    for row_keys in gkeys_rows:
+        cols = st.columns(len(row_keys))
+        for col, g in zip(cols, row_keys):
+            with col:
+                count = len(dg.get(g, []))
+                color = "#00cc66" if count == teams_per_group else "#ffd700"
+                st.markdown(f"<div style='font-weight:700;color:{color};margin-bottom:6px;'>GRUPO {g} ({count}/{teams_per_group})</div>", unsafe_allow_html=True)
+                for t in list(dg.get(g, [])):
+                    c1, c2 = st.columns([5, 1])
+                    with c1:
+                        st.markdown(f"<small>{flag_img(t,14,10)}{display_name(t)}</small>", unsafe_allow_html=True)
+                    with c2:
+                        if st.button("✕", key=f"rm_{tour_key}_{g}_{t}", help="Quitar"):
+                            dg[g].remove(t)
+                            st.rerun()
+
+    total_assigned = sum(len(v) for v in dg.values())
+    all_correct = total_assigned == len(teams) and all(len(dg[g]) == teams_per_group for g in group_keys)
+
+    col_auto, col_confirm = st.columns(2)
+    with col_auto:
+        if st.button("🎲 Sorteo Automático", type="secondary", key=f"auto_{tour_key}"):
+            ts = sorted(teams, key=lambda t: -ranking.get(t, 0))
+            pot_size = len(ts) // num_groups
+            remainder = len(ts) % num_groups
+            pots = []
+            idx = 0
+            for i in range(num_groups):
+                size = pot_size + (1 if i < remainder else 0)
+                pots.append(ts[idx:idx+size])
+                idx += size
+            new_dg = {g: [] for g in group_keys}
+            for pot in pots:
+                shuffled = pot[:]
+                random.shuffle(shuffled)
+                for i, t in enumerate(shuffled):
+                    new_dg[group_keys[i % num_groups]].append(t)
+            st.session_state[sk] = new_dg
+            st.rerun()
+
+    with col_confirm:
+        if all_correct:
+            if st.button(f"✅ {confirm_label}", type="primary", key=f"confirm_{tour_key}"):
+                tour["groups"] = {g: list(v) for g, v in dg.items()}
+                tour["group_results"] = {}
+                tour["group_standings"] = {}
+                tour["phase"] = "grupos"
+                tour["setup_done"] = True
+                if sk in st.session_state:
+                    del st.session_state[sk]
+                from state import save_state
+                save_state()
+                st.rerun()
+        else:
+            missing = len(teams) - total_assigned
+            st.warning(f"Faltan {missing} equipos por asignar")
