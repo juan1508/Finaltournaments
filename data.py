@@ -1,4 +1,4 @@
-""""
+"""
 data.py - Base de datos del simulador FMMJ Nations
 Incluye FLAG_MAP, COUNTRY_CODES, logos de confederaciones
 """
