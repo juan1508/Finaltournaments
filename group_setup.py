@@ -12,6 +12,9 @@ def display_name(team):
 
 
 def manual_group_setup(state, tour_key, teams, num_groups, teams_per_group, confirm_label="Confirmar grupos"):
+    # Asegurar que el tour_key exista en el state
+    if tour_key not in state:
+        state[tour_key] = {"groups": {}, "group_results": {}, "group_standings": {}, "phase": "sorteo", "setup_done": False}
     tour = state[tour_key]
     ranking = state["ranking"]
     teams_sorted = sorted(teams, key=lambda t: -ranking.get(t, 0))
