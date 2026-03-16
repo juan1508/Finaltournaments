@@ -1925,6 +1925,161 @@ def _show_wc_knockout(state, wc):
             save_state()
 
 
+
+# ══════════════════════════════════════════════════════════════
+# QUALIFIERS — Página central de eliminatorias por confederación
+# ══════════════════════════════════════════════════════════════
+def show_qualifiers():
+    state = get_state()
+
+    st.markdown("""
+    <div style='background:linear-gradient(135deg,#06101e 0%,#0c1e3a 50%,#06101e 100%);
+        border:2px solid #c8a000;border-radius:16px;padding:20px 28px;margin-bottom:20px;'>
+        <div style='font-size:2rem;font-weight:900;color:#ffd700;font-family:Bebas Neue,sans-serif;letter-spacing:3px;'>
+            🌐 QUALIFIERS — FMMJ WORLD CUP
+        </div>
+        <div style='color:#5080a0;font-size:0.88rem;margin-top:4px;'>
+            Eliminatorias por confederación · Ingresa marcadores y define los clasificados al Mundial
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ── Resumen de cupos ─────────────────────────────────────────────
+    cupos_conf = [
+        ("UEFA",     "🏆", 13, "#003580", state["euro"]),
+        ("CONMEBOL", "🌎",  4, "#006b3c", state["copa_america"]),
+        ("CAF",      "🌍",  5, "#7a4500", state["copa_africa"]),
+        ("CONCACAF", "⭐",  3, "#6a0000", state["copa_oro"]),
+        ("AFC",      "🌏",  4, "#3a0060", state["copa_asia"]),
+    ]
+    cols = st.columns(5)
+    for col, (conf, icon, total, color, tour) in zip(cols, cupos_conf):
+        q = len(tour.get("qualified", []))
+        done = q >= total
+        phase = tour.get("phase", "—")
+        phase_label = {"sorteo":"Sorteo","grupos":"Fase Grupos","llaves":"Llaves",
+                       "playoff":"Playoff","playoff_uefa":"Playoff","completado":"✅ Listo",
+                       "configuracion":"Config"}.get(phase, phase)
+        with col:
+            st.markdown(
+                f"<div style='background:#091525;border:1px solid {color};border-radius:10px;"
+                f"padding:12px;text-align:center;'>"
+                f"<div style='font-size:1.2rem;'>{icon}</div>"
+                f"<div style='font-size:0.75rem;font-weight:700;color:#c0d0f0;'>{conf}</div>"
+                f"<div style='font-size:1.6rem;font-weight:900;color:{"#00cc66" if done else "#ffd700"};'>{q}/{total}</div>"
+                f"<div style='font-size:0.65rem;color:#406080;margin-top:2px;'>{phase_label}</div>"
+                f"</div>",
+                unsafe_allow_html=True
+            )
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # ── Tabs por confederación ────────────────────────────────────────
+    tab_uefa, tab_conmebol, tab_caf, tab_concacaf, tab_afc = st.tabs([
+        "🏆 UEFA", "🌎 CONMEBOL", "🌍 CAF", "⭐ CONCACAF", "🌏 AFC"
+    ])
+
+    # ════════════════════════════════════════════════════════
+    # UEFA — 4 grupos de 4, 3 jornadas + clasificados
+    # ════════════════════════════════════════════════════════
+    with tab_uefa:
+        euro = state["euro"]
+        st.markdown(_playoff_header(
+            "🔄 PLAYOFF UEFA — 8 CUPOS",
+            "16 equipos · 4 grupos de 4 · 3 jornadas · Top 2 cada grupo → Mundial",
+            "#003580"
+        ), unsafe_allow_html=True)
+
+        if euro["phase"] not in ["playoff_uefa", "completado"]:
+            st.info("🔒 Se activa al completar las llaves de la Eurocopa.")
+        else:
+            _show_euro_playoff(state, euro)
+
+        st.markdown("---")
+        st.markdown("#### 🌍 Clasificados UEFA")
+        _show_euro_classified(state, euro)
+
+    # ════════════════════════════════════════════════════════
+    # CONMEBOL — todos contra todos + clasificados
+    # ════════════════════════════════════════════════════════
+    with tab_conmebol:
+        ca = state["copa_america"]
+        st.markdown(_playoff_header(
+            "🔄 PLAYOFF CONMEBOL — 3 CUPOS + 1 REPECHAJE",
+            "2do–7mo Copa América · Todos contra todos · Top 3 → Mundial · 4to → Repechaje",
+            "#006b3c"
+        ), unsafe_allow_html=True)
+
+        if ca["phase"] not in ["playoff", "completado"]:
+            st.info("🔒 Se activa al completar las llaves de la Copa América.")
+        else:
+            _show_ca_playoff(state, ca)
+
+        st.markdown("---")
+        st.markdown("#### 🌍 Clasificados CONMEBOL")
+        _show_ca_classified(state, ca)
+
+    # ════════════════════════════════════════════════════════
+    # CAF — todos contra todos + clasificados
+    # ════════════════════════════════════════════════════════
+    with tab_caf:
+        caf = state["copa_africa"]
+        st.markdown(_playoff_header(
+            "🔄 PLAYOFF CAF — 3 CUPOS",
+            "3ro–7mo Copa África · Todos contra todos · Top 3 → Mundial",
+            "#7a4500"
+        ), unsafe_allow_html=True)
+
+        if caf["phase"] not in ["playoff", "completado"]:
+            st.info("🔒 Se activa al completar las llaves de la Copa África.")
+        else:
+            _show_caf_playoff(state, caf)
+
+        st.markdown("---")
+        st.markdown("#### 🌍 Clasificados CAF")
+        _show_caf_classified(state, caf)
+
+    # ════════════════════════════════════════════════════════
+    # CONCACAF — todos contra todos + clasificados
+    # ════════════════════════════════════════════════════════
+    with tab_concacaf:
+        oro = state["copa_oro"]
+        st.markdown(_playoff_header(
+            "🔄 PLAYOFF CONCACAF — 2 CUPOS + 1 REPECHAJE",
+            "2do–4to Copa Oro · Todos contra todos · Top 2 → Mundial · 3ro → Repechaje",
+            "#6a0000"
+        ), unsafe_allow_html=True)
+
+        if oro["phase"] not in ["playoff", "completado"]:
+            st.info("🔒 Se activa al completar las llaves de la Copa Oro.")
+        else:
+            _show_6team_playoff(state, oro, "Copa Oro FMMJ", "copa_oro", 2, "concacaf_slot")
+
+        st.markdown("---")
+        st.markdown("#### 🌍 Clasificados CONCACAF")
+        _show_6team_classified(state, oro, "Copa Oro FMMJ", "concacaf_slot")
+
+    # ════════════════════════════════════════════════════════
+    # AFC — todos contra todos + clasificados
+    # ════════════════════════════════════════════════════════
+    with tab_afc:
+        asia = state["copa_asia"]
+        st.markdown(_playoff_header(
+            "🔄 PLAYOFF AFC — 3 CUPOS + 1 REPECHAJE",
+            "2do–5to Copa Asia · Todos contra todos · Top 3 → Mundial · 4to → Repechaje",
+            "#3a0060"
+        ), unsafe_allow_html=True)
+
+        if asia["phase"] not in ["playoff", "completado"]:
+            st.info("🔒 Se activa al completar las llaves de la Copa Asia.")
+        else:
+            _show_6team_playoff(state, asia, "Copa Asia FMMJ", "copa_asia", 3, "afc_slot")
+
+        st.markdown("---")
+        st.markdown("#### 🌍 Clasificados AFC")
+        _show_6team_classified(state, asia, "Copa Asia FMMJ", "afc_slot")
+
+
 # ══════════════════════════════════════════════════════════════
 # HOME
 # ══════════════════════════════════════════════════════════════
@@ -2078,6 +2233,7 @@ with st.sidebar:
         "🌍 Copa África (CAF)": "copa_africa",
         "⭐ Copa Oro (CONCACAF)": "copa_oro",
         "🌏 Copa Asia (AFC)": "copa_asia",
+        "🌐 Qualifiers": "qualifiers",
         "🔁 Repechaje Internacional": "repechaje",
         "🌍 Sorteo y Mundial": "mundial",
         "⚙️ Configuración": "config",
@@ -2107,6 +2263,7 @@ elif page_key == "copa_america":show_copa_america()
 elif page_key == "copa_africa": show_copa_africa()
 elif page_key == "copa_oro":    show_copa_oro()
 elif page_key == "copa_asia":   show_copa_asia()
+elif page_key == "qualifiers":  show_qualifiers()
 elif page_key == "repechaje":   show_repechaje()
 elif page_key == "mundial":     show_world_cup_draw()
 elif page_key == "config":      show_config(state)
