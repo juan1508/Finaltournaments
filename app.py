@@ -916,15 +916,36 @@ def _show_ca_knockout(state, ca):
             guests = set(ca.get("guests", []))
 
             # ── Construir copa_ranking con TODOS los equipos ordenados ──
-            # Orden por etapa de eliminación (mejor posición primero):
-            # 1. Campeón
-            # 2. Finalista
-            # 3-4. Perdedores semis
-            # 5-8. Perdedores cuartos
-            # 9-12. 3eros de grupo
-            # 13-16. 4tos de grupo
+            # Lógica:
+            # 1. Campeón / Finalista / Semis / Cuartos → por fase de eliminación
+            # 2. Dentro de cada banda (cuartos, 3eros, 4tos) → ordenar por puntos
+            #    reales en fase de grupos (pts → DG → GF)
             # Los invitados y CONMEBOL se mezclan en el ranking general,
             # pero el pool del qualifier solo usa los CONMEBOL.
+
+            # Construir tabla de puntos de fase de grupos para desempatar
+            group_results = ca.get("group_results", {})
+            group_standings_raw = ca.get("group_standings", {})
+            # Mapa equipo → stats de grupo para ordenar dentro de cada banda
+            group_stats = {}
+            for g, rows in group_standings_raw.items():
+                for row in rows:
+                    group_stats[row["team"]] = {
+                        "pts": row.get("pts", 0),
+                        "gd":  row.get("gd", 0),
+                        "gf":  row.get("gf", 0),
+                    }
+
+            def sort_by_group_stats(team_list):
+                """Ordena una lista de equipos por pts/DG/GF de fase de grupos."""
+                return sorted(
+                    team_list,
+                    key=lambda t: (
+                        -group_stats.get(t, {}).get("pts", 0),
+                        -group_stats.get(t, {}).get("gd", 0),
+                        -group_stats.get(t, {}).get("gf", 0),
+                    )
+                )
 
             ranked_by_stage = []
 
@@ -938,29 +959,39 @@ def _show_ca_knockout(state, ca):
                     if runner and runner not in ranked_by_stage:
                         ranked_by_stage.append(runner)
 
-            # 3-4. Perdedores semis
+            # 3-4. Perdedores semis → ordenados por puntos de grupos
+            semi_losers = []
             for i, m in enumerate(bracket.get("semis", [])):
                 r = results.get(f"ca_semis_{i}", {})
                 if r.get("winner"):
                     loser = m["home"] if r["winner"] == m["away"] else m["away"]
                     if loser and loser not in ranked_by_stage:
-                        ranked_by_stage.append(loser)
+                        semi_losers.append(loser)
+            for t in sort_by_group_stats(semi_losers):
+                if t not in ranked_by_stage:
+                    ranked_by_stage.append(t)
 
-            # 5-8. Perdedores cuartos
+            # 5-8. Perdedores cuartos → ordenados por puntos de grupos
+            cuartos_losers = []
             for i, m in enumerate(bracket.get("cuartos", [])):
                 r = results.get(f"ca_cuartos_{i}", {})
                 if r.get("winner"):
                     loser = m["home"] if r["winner"] == m["away"] else m["away"]
                     if loser and loser not in ranked_by_stage:
-                        ranked_by_stage.append(loser)
+                        cuartos_losers.append(loser)
+            for t in sort_by_group_stats(cuartos_losers):
+                if t not in ranked_by_stage:
+                    ranked_by_stage.append(t)
 
-            # 9-12. 3eros de grupo (del group_standings, en orden de grupos A,B,C,D)
-            for t in ca.get("_thirds", []):
+            # 9-12. 3eros de grupo → ordenados por puntos de grupos
+            thirds_sorted = sort_by_group_stats(ca.get("_thirds", []))
+            for t in thirds_sorted:
                 if t and t not in ranked_by_stage:
                     ranked_by_stage.append(t)
 
-            # 13-16. 4tos de grupo
-            for t in ca.get("_fourths", []):
+            # 13-16. 4tos de grupo → ordenados por puntos de grupos
+            fourths_sorted = sort_by_group_stats(ca.get("_fourths", []))
+            for t in fourths_sorted:
                 if t and t not in ranked_by_stage:
                     ranked_by_stage.append(t)
 
@@ -970,9 +1001,9 @@ def _show_ca_knockout(state, ca):
                 for t in g_teams:
                     if t not in all_teams_in_tournament:
                         all_teams_in_tournament.append(t)
-            for t in all_teams_in_tournament:
-                if t not in ranked_by_stage:
-                    ranked_by_stage.append(t)
+            remaining = sort_by_group_stats([t for t in all_teams_in_tournament if t not in ranked_by_stage])
+            for t in remaining:
+                ranked_by_stage.append(t)
 
             ca["copa_ranking"] = ranked_by_stage
 
@@ -1009,27 +1040,45 @@ def _show_ca_playoff(state, ca):
         results = ca.get("knockout_results", {})
         thirds  = ca.get("_thirds", [])
         fourths = ca.get("_fourths", [])
+        # Stats de fase de grupos para ordenar dentro de cada banda
+        gs_raw = ca.get("group_standings", {})
+        g_stats = {}
+        for _g, _rows in gs_raw.items():
+            for _row in _rows:
+                g_stats[_row["team"]] = {"pts": _row.get("pts",0), "gd": _row.get("gd",0), "gf": _row.get("gf",0)}
+        def _sort_gs(lst):
+            return sorted(lst, key=lambda t: (-g_stats.get(t,{}).get("pts",0), -g_stats.get(t,{}).get("gd",0), -g_stats.get(t,{}).get("gf",0)))
+
         copa_ranking = [champion] if champion else []
         for m in bracket.get("final", []):
             if m.get("winner"):
                 runner = m["home"] if m["winner"] == m["away"] else m["away"]
                 if runner and runner not in copa_ranking: copa_ranking.append(runner)
+        semi_l = []
         for i, m in enumerate(bracket.get("semis", [])):
             r = results.get(f"ca_semis_{i}", {})
             if r.get("winner"):
                 loser = m["home"] if r["winner"] == m["away"] else m["away"]
-                if loser and loser not in copa_ranking: copa_ranking.append(loser)
+                if loser and loser not in copa_ranking: semi_l.append(loser)
+        for t in _sort_gs(semi_l): copa_ranking.append(t)
+        cuartos_l = []
         for i, m in enumerate(bracket.get("cuartos", [])):
             r = results.get(f"ca_cuartos_{i}", {})
             if r.get("winner"):
                 loser = m["home"] if r["winner"] == m["away"] else m["away"]
-                if loser and loser not in copa_ranking: copa_ranking.append(loser)
-        for t in thirds + fourths:
+                if loser and loser not in copa_ranking: cuartos_l.append(loser)
+        for t in _sort_gs(cuartos_l): copa_ranking.append(t)
+        for t in _sort_gs(thirds):
+            if t and t not in copa_ranking: copa_ranking.append(t)
+        for t in _sort_gs(fourths):
             if t and t not in copa_ranking: copa_ranking.append(t)
         # Incluir TODOS los equipos del torneo que falten
+        all_in = []
         for g_teams in ca.get("groups", {}).values():
             for t in g_teams:
-                if t and t not in copa_ranking: copa_ranking.append(t)
+                if t not in all_in: all_in.append(t)
+        for t in _sort_gs([t for t in all_in if t not in copa_ranking]):
+            copa_ranking.append(t)
         ca["copa_ranking"] = copa_ranking
 
     # ── Pool: puestos 2-7 del ranking filtrado SOLO CONMEBOL ─────────
@@ -1047,32 +1096,47 @@ def _show_ca_playoff(state, ca):
             save_state(); st.rerun()
     with col_btn2:
         if st.button("🔧 Reconstruir Ranking", type="secondary", key="rebuild_ca_ranking"):
-            # Reconstruir copa_ranking incluyendo TODOS los equipos del torneo
+            # Reconstruir copa_ranking incluyendo TODOS los equipos, ordenados por pts de grupos
             bracket_r = ca.get("knockout_bracket", {})
             results_r = ca.get("knockout_results", {})
             thirds_r  = ca.get("_thirds", [])
             fourths_r = ca.get("_fourths", [])
+            gs_raw_r  = ca.get("group_standings", {})
+            g_stats_r = {}
+            for _g, _rows in gs_raw_r.items():
+                for _row in _rows:
+                    g_stats_r[_row["team"]] = {"pts": _row.get("pts",0), "gd": _row.get("gd",0), "gf": _row.get("gf",0)}
+            def _srt(lst):
+                return sorted(lst, key=lambda t: (-g_stats_r.get(t,{}).get("pts",0), -g_stats_r.get(t,{}).get("gd",0), -g_stats_r.get(t,{}).get("gf",0)))
             new_ranking = [champion] if champion else []
             for m in bracket_r.get("final", []):
                 if m.get("winner"):
                     runner = m["home"] if m["winner"] == m["away"] else m["away"]
                     if runner and runner not in new_ranking: new_ranking.append(runner)
+            _sl = []
             for i, m in enumerate(bracket_r.get("semis", [])):
                 r2 = results_r.get(f"ca_semis_{i}", {})
                 if r2.get("winner"):
                     loser = m["home"] if r2["winner"] == m["away"] else m["away"]
-                    if loser and loser not in new_ranking: new_ranking.append(loser)
+                    if loser and loser not in new_ranking: _sl.append(loser)
+            for t in _srt(_sl): new_ranking.append(t)
+            _cl = []
             for i, m in enumerate(bracket_r.get("cuartos", [])):
                 r2 = results_r.get(f"ca_cuartos_{i}", {})
                 if r2.get("winner"):
                     loser = m["home"] if r2["winner"] == m["away"] else m["away"]
-                    if loser and loser not in new_ranking: new_ranking.append(loser)
-            for t in thirds_r + fourths_r:
+                    if loser and loser not in new_ranking: _cl.append(loser)
+            for t in _srt(_cl): new_ranking.append(t)
+            for t in _srt(thirds_r):
                 if t and t not in new_ranking: new_ranking.append(t)
-            # Incluir TODOS los equipos del torneo que falten
+            for t in _srt(fourths_r):
+                if t and t not in new_ranking: new_ranking.append(t)
+            _all = []
             for g_teams in ca.get("groups", {}).values():
                 for t in g_teams:
-                    if t and t not in new_ranking: new_ranking.append(t)
+                    if t not in _all: _all.append(t)
+            for t in _srt([t for t in _all if t not in new_ranking]):
+                new_ranking.append(t)
             ca["copa_ranking"] = new_ranking
             conmebol_rebuilt = [t for t in new_ranking if t in CONMEBOL_TEAMS]
             ca["playoff_pool"] = [t for t in conmebol_rebuilt if t != champion][:6]
