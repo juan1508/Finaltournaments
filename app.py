@@ -66,6 +66,21 @@ init_state()
 state = get_state()
 
 # ─────────────────────────────────────────────
+# HOST TEAM — El anfitrión clasificado automáticamente
+# Se define aquí y se excluye de su qualifier correspondiente
+# ─────────────────────────────────────────────
+HOST_TEAM = state.get("host_team", "Nigeria")  # Por defecto Nigeria (CAF)
+
+def get_host_confederation():
+    return get_team_confederation(HOST_TEAM)
+
+def exclude_host_from_pool(pool, host=None):
+    """Elimina al anfitrión del pool del qualifier de su confederación."""
+    h = host or HOST_TEAM
+    return [t for t in pool if t != h]
+
+
+# ─────────────────────────────────────────────
 # HELPER GLOBAL: FILA DE PARTIDO
 # ─────────────────────────────────────────────
 def show_match_row(home, away, prefix_key, results_dict, torneo_name, state, show_scorers=True):
@@ -148,7 +163,6 @@ def show_group_jornadas(state, tour, torneo_name, advancing=2):
         st.warning("No hay grupos configurados.")
         return False
 
-    # Prefijo del torneo para las keys de resultados
     pfx4 = torneo_name[:4]
 
     all_complete = True
@@ -165,7 +179,6 @@ def show_group_jornadas(state, tour, torneo_name, advancing=2):
                         show_match_row(home, away, prefix, results, torneo_name, state)
                         st.markdown("<hr style='margin:4px 0;border-color:#0f2040;'>", unsafe_allow_html=True)
             with jtabs[-1]:
-                # calculate_standings con prefijo para evitar duplicados
                 standings = calculate_standings(teams, results, prefix=f"{pfx4}_{g}_")
                 standings_all[g] = standings
                 render_standings_table(standings, advancing=advancing)
@@ -175,7 +188,6 @@ def show_group_jornadas(state, tour, torneo_name, advancing=2):
             for j in range(i+1, len(teams)):
                 mk = match_key(teams[i], teams[j])
                 prefix_key = f"{pfx4}_{g}_{mk}"
-                # Solo verificar con prefijo (fuente de verdad), con fallback a key pura
                 if not results.get(prefix_key, {}).get("played") and not results.get(mk, {}).get("played"):
                     all_complete = False
     return all_complete
@@ -210,7 +222,6 @@ def show_knockout_generic(state, tour, torneo_name, phase_configs, pfx):
         if all_done and next_phase is not None and not bracket.get(next_phase):
             winners = [results.get(f"{pfx}_{phase_key}_{i}", {}).get("winner") for i in range(len(matches))]
             winners = [w for w in winners if w]
-            # semis → tercer puesto
             if phase_key == "semis" and len(winners) == 2:
                 losers = []
                 for i, m in enumerate(matches):
@@ -220,7 +231,6 @@ def show_knockout_generic(state, tour, torneo_name, phase_configs, pfx):
                         if loser: losers.append(loser)
                 if len(losers) == 2:
                     bracket["tercer_puesto"] = [{"home": losers[0], "away": losers[1], "winner": None}]
-                    # Add semis losers to playoff pool if applicable
                     pool = tour.get("playoff_pool", [])
                     for l in losers:
                         if l not in pool: pool.append(l)
@@ -244,7 +254,6 @@ def show_knockout_generic(state, tour, torneo_name, phase_configs, pfx):
         if all_done and next_phase is None:
             final_done = True
 
-    # Tercer puesto
     if bracket.get("tercer_puesto"):
         st.markdown("#### 🥉 Tercer Puesto")
         for idx, m in enumerate(bracket["tercer_puesto"]):
@@ -260,8 +269,6 @@ def show_knockout_generic(state, tour, torneo_name, phase_configs, pfx):
 
 # ══════════════════════════════════════════════════════════════
 # EUROCOPA UEFA — 24 equipos, 6 grupos de 4
-# Cupos: top 5 directos, 6-21 → playoff 4 grupos → 8 más
-# Total UEFA = 13
 # ══════════════════════════════════════════════════════════════
 def show_eurocopa():
     state = get_state()
@@ -277,6 +284,10 @@ def show_eurocopa():
             <div style='font-size:1.9rem;font-weight:900;color:#ffd700;font-family:Bebas Neue,sans-serif;letter-spacing:2px;'>EUROCOPA FMMJ</div>
             <div style='color:#a0c4ff;font-size:.9rem;'>24 selecciones UEFA · 6 grupos de 4 · Top 5 directo + Playoff 4 grupos → 13 cupos al Mundial</div>
         </div>""", unsafe_allow_html=True)
+
+    # Mostrar aviso si el anfitrión es UEFA
+    if get_host_confederation() == "UEFA":
+        st.info(f"🏟️ **{display_name(HOST_TEAM)}** es el país anfitrión — clasificado automáticamente y excluido del qualifier UEFA.")
 
     tabs = st.tabs(["🎲 Grupos", "📊 Fase Grupos", "⚽ Llaves", "🔄 Playoff UEFA", "🌍 Clasificados"])
 
@@ -321,7 +332,7 @@ def show_eurocopa():
 
 def _build_euro_knockout(state, euro):
     standings = euro.get("group_standings", {})
-    groups = sorted(standings.keys())  # ['A','B','C','D','E','F']
+    groups = sorted(standings.keys())
     if len(groups) < 6:
         st.error("Faltan standings de grupos.")
         return
@@ -335,7 +346,6 @@ def _build_euro_knockout(state, euro):
             thirds_raw[g] = {"team": s[2]["team"], "pts": s[2]["pts"], "gd": s[2]["gd"], "gf": s[2]["gf"]}
     fourths = [standings[g][3]["team"] for g in groups if len(standings.get(g,[])) > 3]
 
-    # Seleccionar los 4 mejores terceros
     thirds_sorted = sorted(thirds_raw.items(), key=lambda x: (-x[1]["pts"], -x[1]["gd"], -x[1]["gf"]))
     best4_groups = [g for g, _ in thirds_sorted[:4]]
     worst2_thirds = [thirds_raw[g]["team"] for g, _ in thirds_sorted[4:]]
@@ -588,6 +598,11 @@ def _determine_euro_classified(state, euro, results, bracket):
 
     direct = [t for t in [champion, runner_up, third] + semi_losers if t]
     direct = list(dict.fromkeys(direct))[:5]
+
+    # Si el anfitrión es UEFA, excluirlo del qualifier y del direct (ya clasificó como host)
+    if get_host_confederation() == "UEFA":
+        direct = [t for t in direct if t != HOST_TEAM]
+
     euro["direct_qualified"] = direct
 
     cuartos_losers = []
@@ -609,6 +624,9 @@ def _determine_euro_classified(state, euro, results, bracket):
 
     pool = cuartos_losers + octavos_losers + worst_thirds + fourths
     pool = [t for t in pool if t and t not in direct]
+    # Excluir anfitrión del pool si es UEFA
+    if get_host_confederation() == "UEFA":
+        pool = [t for t in pool if t != HOST_TEAM]
     pool = list(dict.fromkeys(pool))[:16]
     euro["playoff_pool"] = pool
     euro["phase"] = "playoff_uefa"
@@ -651,6 +669,7 @@ def _playoff_header(title, subtitle, color="#ffd700"):
             f"letter-spacing:1px;'>{title}</div>"
             f"<div style='font-size:0.8rem;color:#507090;margin-top:3px;'>{subtitle}</div></div>")
 
+
 def _show_euro_playoff(state, euro):
     st.markdown(_playoff_header(
         "🔄 PLAYOFF UEFA — 8 CUPOS ADICIONALES",
@@ -663,6 +682,11 @@ def _show_euro_playoff(state, euro):
 
     pb = euro.setdefault("playoff_bracket", {})
     pool = euro.get("playoff_pool", [])
+
+    # Excluir anfitrión si es UEFA
+    if get_host_confederation() == "UEFA":
+        pool = exclude_host_from_pool(pool)
+        euro["playoff_pool"] = pool
 
     if not pool:
         st.warning("No hay equipos para el playoff.")
@@ -771,9 +795,6 @@ def _show_euro_classified(state, euro):
 
 # ══════════════════════════════════════════════════════════════
 # COPA AMERICA — 10 CONMEBOL + 6 invitadas
-# 4 grupos de 4 → Cuartos → Semis → Final
-# Campeón directo. 2do-7mo CONMEBOL → playoff todos contra todos.
-# Top 3 → mundial. 4to → repechaje.
 # ══════════════════════════════════════════════════════════════
 def show_copa_america():
     state = get_state()
@@ -789,6 +810,9 @@ def show_copa_america():
             <div style='font-size:1.9rem;font-weight:900;color:#ffd700;font-family:Bebas Neue,sans-serif;letter-spacing:2px;'>COPA AMÉRICA FMMJ</div>
             <div style='color:#90ffcc;font-size:.9rem;'>10 CONMEBOL + 6 invitadas · 4 grupos de 4 · Campeón directo + Playoff → 4 cupos al Mundial</div>
         </div>""", unsafe_allow_html=True)
+
+    if get_host_confederation() == "CONMEBOL":
+        st.info(f"🏟️ **{display_name(HOST_TEAM)}** es el país anfitrión — clasificado automáticamente y excluido del qualifier CONMEBOL.")
 
     tabs = st.tabs(["🌎 Invitadas", "🎲 Sorteo", "📊 Grupos", "⚽ Llaves", "🔄 Playoff", "🌍 Clasificados"])
 
@@ -918,18 +942,8 @@ def _show_ca_knockout(state, ca):
             ca["qualified_direct"] = [champion]
             guests = set(ca.get("guests", []))
 
-            # ── Construir copa_ranking con TODOS los equipos ordenados ──
-            # Lógica:
-            # 1. Campeón / Finalista / Semis / Cuartos → por fase de eliminación
-            # 2. Dentro de cada banda (cuartos, 3eros, 4tos) → ordenar por puntos
-            #    reales en fase de grupos (pts → DG → GF)
-            # Los invitados y CONMEBOL se mezclan en el ranking general,
-            # pero el pool del qualifier solo usa los CONMEBOL.
-
-            # Construir tabla de puntos de fase de grupos para desempatar
             group_results = ca.get("group_results", {})
             group_standings_raw = ca.get("group_standings", {})
-            # Mapa equipo → stats de grupo para ordenar dentro de cada banda
             group_stats = {}
             for g, rows in group_standings_raw.items():
                 for row in rows:
@@ -940,7 +954,6 @@ def _show_ca_knockout(state, ca):
                     }
 
             def sort_by_group_stats(team_list):
-                """Ordena una lista de equipos por pts/DG/GF de fase de grupos."""
                 return sorted(
                     team_list,
                     key=lambda t: (
@@ -951,18 +964,14 @@ def _show_ca_knockout(state, ca):
                 )
 
             ranked_by_stage = []
-
-            # 1. Campeón
             ranked_by_stage.append(champion)
 
-            # 2. Finalista
             for m in bracket.get("final", []):
                 if m.get("winner"):
                     runner = m["home"] if m["winner"] == m["away"] else m["away"]
                     if runner and runner not in ranked_by_stage:
                         ranked_by_stage.append(runner)
 
-            # 3-4. Perdedores semis → ordenados por puntos de grupos
             semi_losers = []
             for i, m in enumerate(bracket.get("semis", [])):
                 r = results.get(f"ca_semis_{i}", {})
@@ -974,7 +983,6 @@ def _show_ca_knockout(state, ca):
                 if t not in ranked_by_stage:
                     ranked_by_stage.append(t)
 
-            # 5-8. Perdedores cuartos → ordenados por puntos de grupos
             cuartos_losers = []
             for i, m in enumerate(bracket.get("cuartos", [])):
                 r = results.get(f"ca_cuartos_{i}", {})
@@ -986,19 +994,16 @@ def _show_ca_knockout(state, ca):
                 if t not in ranked_by_stage:
                     ranked_by_stage.append(t)
 
-            # 9-12. 3eros de grupo → ordenados por puntos de grupos
             thirds_sorted = sort_by_group_stats(ca.get("_thirds", []))
             for t in thirds_sorted:
                 if t and t not in ranked_by_stage:
                     ranked_by_stage.append(t)
 
-            # 13-16. 4tos de grupo → ordenados por puntos de grupos
             fourths_sorted = sort_by_group_stats(ca.get("_fourths", []))
             for t in fourths_sorted:
                 if t and t not in ranked_by_stage:
                     ranked_by_stage.append(t)
 
-            # Asegurarse de que TODOS los equipos estén (por si alguno no apareció)
             all_teams_in_tournament = []
             for g_teams in ca.get("groups", {}).values():
                 for t in g_teams:
@@ -1010,9 +1015,12 @@ def _show_ca_knockout(state, ca):
 
             ca["copa_ranking"] = ranked_by_stage
 
-            # Pool: puestos 2-7 del ranking filtrado SOLO CONMEBOL
+            # Pool: CONMEBOL únicamente, excluir campeón Y anfitrión si es CONMEBOL
             conmebol_only = [t for t in ranked_by_stage if t in CONMEBOL_TEAMS]
-            pool = [t for t in conmebol_only if t != champion][:6]
+            excluded = {champion}
+            if get_host_confederation() == "CONMEBOL":
+                excluded.add(HOST_TEAM)
+            pool = [t for t in conmebol_only if t not in excluded][:6]
             ca["playoff_pool"] = pool
 
             ca["phase"] = "playoff"
@@ -1037,13 +1045,11 @@ def _show_ca_playoff(state, ca):
     copa_ranking = ca.get("copa_ranking", [])
     guests       = set(ca.get("guests", []))
 
-    # Reconstruir copa_ranking si no existe (state viejo)
     if not copa_ranking:
         bracket = ca.get("knockout_bracket", {})
         results = ca.get("knockout_results", {})
         thirds  = ca.get("_thirds", [])
         fourths = ca.get("_fourths", [])
-        # Stats de fase de grupos para ordenar dentro de cada banda
         gs_raw = ca.get("group_standings", {})
         g_stats = {}
         for _g, _rows in gs_raw.items():
@@ -1075,7 +1081,6 @@ def _show_ca_playoff(state, ca):
             if t and t not in copa_ranking: copa_ranking.append(t)
         for t in _sort_gs(fourths):
             if t and t not in copa_ranking: copa_ranking.append(t)
-        # Incluir TODOS los equipos del torneo que falten
         all_in = []
         for g_teams in ca.get("groups", {}).values():
             for t in g_teams:
@@ -1084,14 +1089,19 @@ def _show_ca_playoff(state, ca):
             copa_ranking.append(t)
         ca["copa_ranking"] = copa_ranking
 
-    # ── Pool: puestos 2-7 del ranking filtrado SOLO CONMEBOL ─────────
-    # Siempre recalcular desde copa_ranking para garantizar consistencia
+    # Pool CONMEBOL: excluir campeón y anfitrión si es CONMEBOL
     conmebol_only = [t for t in copa_ranking if t in CONMEBOL_TEAMS]
-    pool = [t for t in conmebol_only if t != champion][:6]
+    excluded_pool = {champion}
+    if get_host_confederation() == "CONMEBOL":
+        excluded_pool.add(HOST_TEAM)
+    pool = [t for t in conmebol_only if t not in excluded_pool][:6]
     ca["playoff_pool"] = pool
     save_state()
 
-    # ── Botones reset / reconstruir ──────────────────────────────────
+    # Aviso del anfitrión
+    if get_host_confederation() == "CONMEBOL" and HOST_TEAM in conmebol_only:
+        st.info(f"🏟️ **{display_name(HOST_TEAM)}** (anfitrión) está excluido del qualifier CONMEBOL — clasificado automáticamente.")
+
     col_btn1, col_btn2, _ = st.columns([1, 1.5, 3])
     with col_btn1:
         if st.button("🔄 Resetear Qualifier", type="secondary", key="reset_ca_pb"):
@@ -1099,7 +1109,6 @@ def _show_ca_playoff(state, ca):
             save_state(); st.rerun()
     with col_btn2:
         if st.button("🔧 Reconstruir Ranking", type="secondary", key="rebuild_ca_ranking"):
-            # Reconstruir copa_ranking incluyendo TODOS los equipos, ordenados por pts de grupos
             bracket_r = ca.get("knockout_bracket", {})
             results_r = ca.get("knockout_results", {})
             thirds_r  = ca.get("_thirds", [])
@@ -1142,7 +1151,10 @@ def _show_ca_playoff(state, ca):
                 new_ranking.append(t)
             ca["copa_ranking"] = new_ranking
             conmebol_rebuilt = [t for t in new_ranking if t in CONMEBOL_TEAMS]
-            ca["playoff_pool"] = [t for t in conmebol_rebuilt if t != champion][:6]
+            excl_rb = {champion}
+            if get_host_confederation() == "CONMEBOL":
+                excl_rb.add(HOST_TEAM)
+            ca["playoff_pool"] = [t for t in conmebol_rebuilt if t not in excl_rb][:6]
             ca.setdefault("playoff_bracket", {})["results"] = {}
             save_state(); st.rerun()
 
@@ -1154,9 +1166,7 @@ def _show_ca_playoff(state, ca):
     res = pb.setdefault("results", {})
     pfx = "capb"
 
-    # ── Tabla clasificación Copa América ──────────────────────────────
-    # Muestra todos los equipos en su posición real de la tabla,
-    # pero numera SOLO los CONMEBOL de forma independiente
+    # Tabla clasificación Copa América
     if copa_ranking:
         with st.expander("📊 Clasificación Final Copa América", expanded=False):
             html  = "<table style='width:100%;border-collapse:collapse;font-size:0.82rem;'>"
@@ -1169,7 +1179,7 @@ def _show_ca_playoff(state, ca):
                      "<th style='padding:6px 8px;text-align:center;'>Destino</th></tr>")
 
             medals = {1: "🥇", 2: "🥈", 3: "🥉"}
-            conmebol_pos = 0  # contador exclusivo para CONMEBOL
+            conmebol_pos = 0
 
             for i, t in enumerate(copa_ranking):
                 fu       = get_flag_url(t, 20, 15)
@@ -1177,11 +1187,10 @@ def _show_ca_playoff(state, ca):
                             f"border-radius:2px;border:1px solid #1a2a4a;' width='20' height='15'>") if fu else ""
                 tname    = TEAM_DISPLAY_NAMES.get(t, t)
                 is_guest = t in guests
+                is_host  = (t == HOST_TEAM and get_host_confederation() == "CONMEBOL")
 
-                # Posición general (todos los equipos)
                 pos_general = f"<span style='color:#506080;font-size:0.75rem;'>{i+1}</span>"
 
-                # Numeración exclusiva CONMEBOL
                 if not is_guest:
                     conmebol_pos += 1
                     medal = medals.get(conmebol_pos, "")
@@ -1191,18 +1200,18 @@ def _show_ca_playoff(state, ca):
                     )
                     pos_color = "#ffd700" if conmebol_pos <= 3 else "#dce8ff"
                 else:
-                    # Invitado: sin número CONMEBOL
                     pos_conmebol = "<span style='color:#253550;font-size:0.75rem;'>—</span>"
                     pos_color = "#304060"
 
-                # Etiqueta de confederación
                 conf_tag = ("<span style='color:#ff8800;font-size:0.7rem;font-weight:700;'>Invitado</span>"
                             if is_guest
                             else "<span style='color:#00cc66;font-size:0.7rem;font-weight:700;'>CONMEBOL</span>")
 
-                # Destino según rol
                 if t == champion:
                     destino = "🏆 <span style='color:#ffd700;font-weight:700;'>Campeón → Mundial</span>"
+                    bg = "#1a2a00"
+                elif is_host:
+                    destino = "🏟️ <span style='color:#ffd700;font-weight:700;'>Anfitrión → Mundial</span>"
                     bg = "#1a2a00"
                 elif not is_guest and t in pool:
                     destino = (f"🔄 <span style='color:#00cc66;'>Qualifier "
@@ -1216,7 +1225,6 @@ def _show_ca_playoff(state, ca):
                     destino = "<span style='color:#406080;'>Eliminado</span>"
                     bg = "#08101e"
 
-                # Separador visual entre invitados consecutivos
                 row_style = f"background:{bg};border-bottom:1px solid #111e35;"
                 if is_guest:
                     row_style += "opacity:0.7;"
@@ -1230,21 +1238,15 @@ def _show_ca_playoff(state, ca):
                          f"<td style='padding:6px 8px;'>{destino}</td></tr>")
 
             html += "</table>"
-            html += ("<div style='margin-top:8px;padding:6px 10px;background:#0a1020;"
-                     "border-radius:6px;font-size:0.72rem;color:#406080;'>"
-                     "💡 <b style='color:#5090c0;'># CONM</b> = posición en el ranking solo entre equipos CONMEBOL · "
-                     "<b style='color:#406080;'>#</b> = posición general incluyendo invitados</div>")
             st.markdown(html, unsafe_allow_html=True)
 
-    # ── Participantes del Qualifier ───────────────────────────────────
-    st.markdown("**Participantes Qualifier (Puestos 2do–7mo CONMEBOL):**")
+    st.markdown("**Participantes Qualifier (Puestos 2do–7mo CONMEBOL, excluido anfitrión si aplica):**")
     html = "<div style='display:flex;flex-wrap:wrap;gap:8px;margin:8px 0 16px;'>"
     for idx, t in enumerate(pool):
         fu       = get_flag_url(t, 20, 15)
         flag_tag = (f"<img src='{fu}' style='vertical-align:middle;margin-right:4px;"
                     f"border-radius:2px;border:1px solid #1a2a4a;' width='20' height='15'>") if fu else ""
         tname = TEAM_DISPLAY_NAMES.get(t, t)
-        # Calcular posición CONMEBOL real
         conmebol_only = [x for x in copa_ranking if x in CONMEBOL_TEAMS]
         conm_pos = conmebol_only.index(t) + 1 if t in conmebol_only else idx + 2
         html += (f"<span style='background:#0b1830;border:1px solid #1a3060;border-radius:20px;"
@@ -1254,9 +1256,9 @@ def _show_ca_playoff(state, ca):
     html += "</div>"
     st.markdown(html, unsafe_allow_html=True)
 
-    # ── Validar pool: si no tiene 6 equipos, ofrecer reconstruir ─────
-    if len(pool) != 6:
-        st.warning(f"⚠️ El qualifier tiene {len(pool)} equipos en lugar de 6.")
+    if len(pool) < 6:
+        st.warning(f"⚠️ El qualifier tiene {len(pool)} equipos. Puede ser correcto si el anfitrión es CONMEBOL.")
+    if len(pool) > 6 or (len(pool) != 6 and get_host_confederation() != "CONMEBOL"):
         if st.button("🔧 Reconstruir pool desde las llaves", type="primary", key="rebuild_ca_pool"):
             bracket = ca.get("knockout_bracket", {})
             results_k = ca.get("knockout_results", {})
@@ -1281,16 +1283,17 @@ def _show_ca_playoff(state, ca):
                 if t and t not in ranking: ranking.append(t)
             ca["copa_ranking"] = ranking
             conmebol_only_new = [t for t in ranking if t in CONMEBOL_TEAMS]
-            new_pool = [t for t in conmebol_only_new if t != champion][:6]
-            ca["playoff_pool"] = new_pool
+            excl_new = {champion}
+            if get_host_confederation() == "CONMEBOL":
+                excl_new.add(HOST_TEAM)
+            ca["playoff_pool"] = [t for t in conmebol_only_new if t not in excl_new][:6]
             pb["results"] = {}
             pb["standings"] = {}
             save_state()
             st.rerun()
         return
 
-    # ── 5 jornadas × 3 partidos ───────────────────────────────────────
-    jornadas = get_jornadas(pool)   # round-robin 6 equipos = 5 jornadas
+    jornadas = get_jornadas(pool)
 
     st.markdown(
         f"<div style='color:#a0b8d8;font-size:0.85rem;margin-bottom:10px;'>"
@@ -1298,7 +1301,6 @@ def _show_ca_playoff(state, ca):
         unsafe_allow_html=True
     )
 
-    # Calcular all_done revisando todos los partidos
     all_fixtures = [(h, a) for j in jornadas for h, a in j]
     all_done = True
     for h, a in all_fixtures:
@@ -1333,13 +1335,15 @@ def _show_ca_playoff(state, ca):
     with jtabs[-1]:
         render_standings_table(standings, advancing=3, show_thirds=True)
 
-    # ── Confirmar ─────────────────────────────────────────────────────
     st.markdown("---")
     if all_done or st.checkbox("🔓 Forzar clasificados CONMEBOL", key="force_capb"):
         if st.button("✅ Confirmar Clasificados CONMEBOL", type="primary"):
             top3      = [s["team"] for s in standings[:3]]
             repechaje = standings[3]["team"] if len(standings) > 3 else None
             ca["qualified"] = ([champion] if champion else []) + top3
+            # Agregar anfitrión CONMEBOL si aplica
+            if get_host_confederation() == "CONMEBOL" and HOST_TEAM not in ca["qualified"]:
+                ca["qualified"].insert(0, HOST_TEAM)
             ca["phase"]     = "completado"
             if repechaje:
                 state["playoff_teams"]["conmebol_slot"] = repechaje
@@ -1352,13 +1356,16 @@ def _show_ca_playoff(state, ca):
 def _show_ca_classified(state, ca):
     champion  = ca.get("champion")
     qualified = ca.get("qualified", [])
-    playoff_q = [t for t in qualified if t != champion]
+    playoff_q = [t for t in qualified if t != champion and t != HOST_TEAM]
     rep = state["playoff_teams"].get("conmebol_slot")
+    host_is_conmebol = (get_host_confederation() == "CONMEBOL")
 
     col1, col2 = st.columns(2)
     with col1:
         if champion:
             st.markdown(_qualified_card("🏆 Campeón Copa América — Directo", [champion], "🏆", "#ffd700"), unsafe_allow_html=True)
+        if host_is_conmebol and HOST_TEAM in qualified:
+            st.markdown(_qualified_card("🏟️ Anfitrión — Directo", [HOST_TEAM], "🏟️", "#ff8800"), unsafe_allow_html=True)
         if playoff_q:
             st.markdown(_qualified_card("🔄 Vía Playoff CONMEBOL", playoff_q, "✅", "#00cc66"), unsafe_allow_html=True)
     with col2:
@@ -1378,8 +1385,6 @@ def _show_ca_classified(state, ca):
 
 # ══════════════════════════════════════════════════════════════
 # COPA AFRICA — CAF 10 equipos, 2 grupos de 5
-# Campeón + Subcampeón directos.
-# 3ro-7mo → playoff todos contra todos → top 3 → mundial.
 # ══════════════════════════════════════════════════════════════
 def show_copa_africa():
     state = get_state()
@@ -1395,6 +1400,9 @@ def show_copa_africa():
             <div style='font-size:1.9rem;font-weight:900;color:#fff;font-family:Bebas Neue,sans-serif;letter-spacing:2px;'>COPA ÁFRICA FMMJ</div>
             <div style='color:#ffd088;font-size:.9rem;'>10 selecciones CAF · 2 grupos de 5 · Campeón + Subcampeón directos + Playoff → 5 cupos</div>
         </div>""", unsafe_allow_html=True)
+
+    if get_host_confederation() == "CAF":
+        st.info(f"🏟️ **{display_name(HOST_TEAM)}** es el país anfitrión — clasificado automáticamente y excluido del playoff CAF.")
 
     tabs = st.tabs(["🎲 Grupos", "📊 Fase Grupos", "⚽ Llaves", "🔄 Playoff CAF", "🌍 Clasificados"])
 
@@ -1500,7 +1508,16 @@ def _show_caf_playoff(state, tour):
         st.info("Se habilita al terminar las llaves de la Copa África.")
         return
 
+    # Excluir anfitrión CAF del playoff
     pool = tour.get("playoff_pool", [])
+    if get_host_confederation() == "CAF":
+        pool = exclude_host_from_pool(pool)
+        tour["playoff_pool"] = pool
+        if HOST_TEAM in tour.get("qualified_direct", []):
+            pass  # ya está en direct
+        else:
+            st.info(f"🏟️ **{display_name(HOST_TEAM)}** (anfitrión) excluido del playoff CAF.")
+
     if not pool:
         st.warning("No hay candidatos para el playoff.")
         return
@@ -1529,7 +1546,11 @@ def _show_caf_playoff(state, tour):
     if all_done or st.checkbox("🔓 Forzar clasificados CAF", key="force_cafpb"):
         if st.button("✅ Confirmar Clasificados CAF", type="primary"):
             top3 = [s["team"] for s in standings[:3]]
-            tour["qualified"] = list(dict.fromkeys(tour.get("qualified_direct", []) + top3))
+            base_direct = tour.get("qualified_direct", [])
+            # Agregar anfitrión CAF si aplica
+            if get_host_confederation() == "CAF" and HOST_TEAM not in base_direct:
+                base_direct = [HOST_TEAM] + base_direct
+            tour["qualified"] = list(dict.fromkeys(base_direct + top3))
             tour["phase"] = "completado"
             for t in tour["qualified"]:
                 if t not in state["world_cup_qualified"]:
@@ -1540,10 +1561,13 @@ def _show_caf_playoff(state, tour):
 def _show_caf_classified(state, tour):
     direct    = tour.get("qualified_direct", [])
     qualified = tour.get("qualified", [])
-    playoff_q = [t for t in qualified if t not in direct]
+    playoff_q = [t for t in qualified if t not in direct and t != HOST_TEAM]
+    host_is_caf = (get_host_confederation() == "CAF")
 
     col1, col2 = st.columns(2)
     with col1:
+        if host_is_caf and HOST_TEAM in qualified:
+            st.markdown(_qualified_card("🏟️ Anfitrión — Directo", [HOST_TEAM], "🏟️", "#ff8800"), unsafe_allow_html=True)
         if direct:
             extras = ["🏆 Campeón" if i == 0 else "🥈 Subcampeón" for i in range(len(direct))]
             st.markdown(_qualified_card("⚽ Directos — Copa África", direct, "✅", "#ffd700", extras), unsafe_allow_html=True)
@@ -1564,15 +1588,21 @@ def _show_caf_classified(state, tour):
 
 # ══════════════════════════════════════════════════════════════
 # TORNEOS 6 EQUIPOS: Copa Oro (CONCACAF) y Copa Asia (AFC)
-# 2 grupos de 3 → Semis → Final
-# CONCACAF: campeón directo, 2do-4to playoff → top 2 + 3ro repechaje
-# AFC:      campeón directo, 2do-5to playoff → top 3 + 4to repechaje
+# CONCACAF: campeón directo, 2do-3ro playoff → 2 cupos + 3ro repechaje
+# AFC:      campeón directo, 2do-4to playoff → 3 cupos + 4to repechaje
 # ══════════════════════════════════════════════════════════════
 def _show_6team_tournament(state, tour_key, torneo_name, teams, direct_spots,
                             playoff_spots, repechaje_slot_key, header_html):
     tour = state[tour_key]
 
     st.markdown(header_html, unsafe_allow_html=True)
+
+    # Determinar confederación del torneo para mensajes del anfitrión
+    conf_map = {"copa_oro": "CONCACAF", "copa_asia": "AFC"}
+    tour_conf = conf_map.get(tour_key, "")
+    if get_host_confederation() == tour_conf:
+        st.info(f"🏟️ **{display_name(HOST_TEAM)}** es el país anfitrión — clasificado automáticamente y excluido del playoff {tour_conf}.")
+
     tabs = st.tabs(["🎲 Grupos", "📊 Fase Grupos", "⚽ Llaves", "🔄 Playoff", "🌍 Clasificados"])
 
     with tabs[0]:
@@ -1665,8 +1695,16 @@ def _show_6team_knockout(state, tour, torneo_name, tour_key):
 
 
 def _show_6team_playoff(state, tour, torneo_name, tour_key, playoff_spots, repechaje_slot_key):
-    rep_text = f" · {playoff_spots+1}to → Repechaje Internacional" if repechaje_slot_key else ""
+    """
+    CONCACAF (Copa Oro): playoff_spots=2, repechaje=3ro → concacaf_slot
+    AFC (Copa Asia):     playoff_spots=3, repechaje=4to → afc_slot
+    """
+    conf_map = {"copa_oro": "CONCACAF", "copa_asia": "AFC"}
+    tour_conf = conf_map.get(tour_key, "")
+    rep_pos = playoff_spots + 1
+    rep_text = f" · {rep_pos}to → Repechaje Internacional" if repechaje_slot_key else ""
     conf_color = "#cc0000" if "Oro" in torneo_name else "#6600cc"
+
     st.markdown(_playoff_header(
         f"🔄 PLAYOFF {torneo_name.upper()} — {playoff_spots} CUPOS",
         f"Todos contra todos · Top {playoff_spots} → Mundial FMMJ{rep_text}",
@@ -1678,9 +1716,29 @@ def _show_6team_playoff(state, tour, torneo_name, tour_key, playoff_spots, repec
         return
 
     pool = tour.get("playoff_pool", [])
+
+    # Excluir anfitrión del playoff si corresponde a esta confederación
+    if get_host_confederation() == tour_conf:
+        pool = exclude_host_from_pool(pool)
+        tour["playoff_pool"] = pool
+
     if not pool:
         st.warning("No hay candidatos para el playoff.")
         return
+
+    # Mostrar quién va al repechaje claramente
+    if repechaje_slot_key and len(pool) > playoff_spots:
+        rep_team_preview = pool[playoff_spots] if len(pool) > playoff_spots else None
+        if rep_team_preview:
+            st.markdown(
+                f"<div style='background:#1a0e00;border:1px solid #ff880055;border-radius:8px;"
+                f"padding:8px 14px;margin-bottom:10px;font-size:0.83rem;'>"
+                f"🔁 <b style='color:#ff8800;'>Repechaje Internacional:</b> "
+                f"El <b style='color:#ffd700;'>{rep_pos}° clasificado</b> del playoff irá al Repechaje Internacional "
+                f"<span style='color:#507090;'>(actualmente: {flag_html(rep_team_preview, 16, 12)}"
+                f"<b>{display_name(rep_team_preview)}</b> si no mejora)</span></div>",
+                unsafe_allow_html=True
+            )
 
     pb = tour.setdefault("playoff_bracket", {})
     results = pb.setdefault("results", {})
@@ -1703,6 +1761,33 @@ def _show_6team_playoff(state, tour, torneo_name, tour_key, playoff_spots, repec
     pb["standings"] = standings
     render_standings_table(standings, advancing=playoff_spots)
 
+    # Mostrar tabla con destinos claros
+    if standings:
+        st.markdown("#### 📋 Destinos")
+        html = "<div style='display:flex;flex-wrap:wrap;gap:8px;margin:8px 0;'>"
+        for i, row in enumerate(standings):
+            t = row["team"]
+            fu = get_flag_url(t, 18, 13)
+            flag_tag = f"<img src='{fu}' style='vertical-align:middle;margin-right:4px;border-radius:2px;' width='18' height='13'>" if fu else ""
+            tname = TEAM_DISPLAY_NAMES.get(t, t)
+            pos = i + 1
+            if pos <= playoff_spots:
+                color_dest = "#00cc66"
+                badge = f"{pos}° → 🌍 Mundial"
+            elif pos == rep_pos and repechaje_slot_key:
+                color_dest = "#ff8800"
+                badge = f"{pos}° → 🔁 Repechaje"
+            else:
+                color_dest = "#406080"
+                badge = f"{pos}° → Eliminado"
+            html += (f"<div style='background:#091525;border:1px solid {color_dest}55;"
+                     f"border-radius:8px;padding:6px 12px;min-width:160px;'>"
+                     f"<div style='font-size:0.7rem;color:{color_dest};font-weight:700;'>{badge}</div>"
+                     f"<div style='color:#dce8ff;font-size:0.83rem;margin-top:2px;'>{flag_tag}{tname}</div>"
+                     f"</div>")
+        html += "</div>"
+        st.markdown(html, unsafe_allow_html=True)
+
     st.markdown("---")
     if all_done or st.checkbox(f"🔓 Forzar resultado {torneo_name}", key=f"force_pb_{tour_key}"):
         if st.button(f"✅ Confirmar Clasificados {torneo_name}", type="primary", key=f"confirm_{tour_key}"):
@@ -1710,6 +1795,9 @@ def _show_6team_playoff(state, tour, torneo_name, tour_key, playoff_spots, repec
             top_n = [s["team"] for s in standings[:playoff_spots]]
             repechaje = standings[playoff_spots]["team"] if len(standings) > playoff_spots else None
             tour["qualified"] = ([champion] if champion else []) + top_n
+            # Agregar anfitrión si es de esta confederación
+            if get_host_confederation() == tour_conf and HOST_TEAM not in tour["qualified"]:
+                tour["qualified"].insert(0, HOST_TEAM)
             tour["phase"] = "completado"
             if repechaje and repechaje_slot_key:
                 state["playoff_teams"][repechaje_slot_key] = repechaje
@@ -1722,20 +1810,26 @@ def _show_6team_playoff(state, tour, torneo_name, tour_key, playoff_spots, repec
 def _show_6team_classified(state, tour, torneo_name, repechaje_slot_key):
     champion  = tour.get("champion")
     qualified = tour.get("qualified", [])
-    playoff_q = [t for t in qualified if t != champion]
+    playoff_q = [t for t in qualified if t != champion and t != HOST_TEAM]
     rep = state["playoff_teams"].get(repechaje_slot_key) if repechaje_slot_key else None
     conf_color = "#cc0000" if "Oro" in torneo_name else "#6600cc"
+    conf_map = {"Copa Oro FMMJ": "CONCACAF", "Copa Asia FMMJ": "AFC"}
+    tour_conf = conf_map.get(torneo_name, "")
     cupos = 3 if "Oro" in torneo_name else 4
+    host_is_this_conf = (get_host_confederation() == tour_conf)
 
     col1, col2 = st.columns(2)
     with col1:
         if champion:
             st.markdown(_qualified_card(f"🏆 Campeón {torneo_name} — Directo", [champion], "🏆", "#ffd700"), unsafe_allow_html=True)
+        if host_is_this_conf and HOST_TEAM in qualified:
+            st.markdown(_qualified_card("🏟️ Anfitrión — Directo", [HOST_TEAM], "🏟️", "#ff8800"), unsafe_allow_html=True)
         if playoff_q:
             st.markdown(_qualified_card("🔄 Vía Playoff", playoff_q, "✅", conf_color), unsafe_allow_html=True)
     with col2:
         if rep:
-            st.markdown(_qualified_card("🔁 Repechaje Internacional", [rep], "🔁", "#ff8800"), unsafe_allow_html=True)
+            conf_rep = "CONCACAF" if "Oro" in torneo_name else "AFC"
+            st.markdown(_qualified_card(f"🔁 Repechaje Internacional ({conf_rep})", [rep], "🔁", "#ff8800"), unsafe_allow_html=True)
 
     total = len(qualified)
     color = "#00cc66" if total >= cupos else "#ffd700"
@@ -1757,7 +1851,7 @@ def show_copa_oro():
     header = """<div style='background:linear-gradient(135deg,#600000 0%,#cc0000 60%,#600000 100%);
         border-radius:16px;padding:20px 28px;margin-bottom:20px;'>
         <div style='font-size:1.9rem;font-weight:900;color:#ffd700;font-family:Bebas Neue,sans-serif;letter-spacing:2px;'>COPA ORO FMMJ</div>
-        <div style='color:#ffaaaa;font-size:.9rem;'>6 selecciones CONCACAF · 2 grupos de 3 · Campeón directo + Playoff → 3 cupos | 4to → Repechaje</div>
+        <div style='color:#ffaaaa;font-size:.9rem;'>6 selecciones CONCACAF · 2 grupos de 3 · Campeón directo + 2do & 3ro playoff → 3 cupos | 4to → Repechaje</div>
     </div>"""
     with col_title:
         pass
@@ -1776,7 +1870,7 @@ def show_copa_asia():
     header = """<div style='background:linear-gradient(135deg,#350060 0%,#6600cc 60%,#350060 100%);
         border-radius:16px;padding:20px 28px;margin-bottom:20px;'>
         <div style='font-size:1.9rem;font-weight:900;color:#ffd700;font-family:Bebas Neue,sans-serif;letter-spacing:2px;'>COPA ASIA FMMJ</div>
-        <div style='color:#ddaaff;font-size:.9rem;'>6 selecciones AFC · 2 grupos de 3 · Campeón directo + Playoff → 4 cupos | 5to → Repechaje</div>
+        <div style='color:#ddaaff;font-size:.9rem;'>6 selecciones AFC · 2 grupos de 3 · Campeón directo + 2do, 3ro & 4to playoff → 4 cupos | 5to → Repechaje</div>
     </div>"""
     with col_title:
         pass
@@ -1804,6 +1898,29 @@ def show_repechaje():
     ofc_team = "New Zealand"
     concacaf_team = playoff.get("concacaf_slot")
     afc_team = playoff.get("afc_slot")
+
+    # Info de qué equipos van a repechaje y de dónde vienen
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown(
+            f"<div style='background:#0a1020;border:1px solid #1a3060;border-radius:8px;padding:10px 14px;margin-bottom:12px;'>"
+            f"<div style='font-size:0.72rem;color:#406080;text-transform:uppercase;margin-bottom:6px;'>Llave 1 — CONMEBOL vs OFC</div>"
+            f"<div style='font-size:0.85rem;'>{flag_html(conmebol_team or '')} <b style='color:#dce8ff;'>{display_name(conmebol_team) if conmebol_team else '⏳ Pendiente (4to Qualifier CONMEBOL)'}</b></div>"
+            f"<div style='color:#506080;font-size:0.75rem;margin:4px 0;'>vs</div>"
+            f"<div style='font-size:0.85rem;'>{flag_html(ofc_team)} <b style='color:#dce8ff;'>{display_name(ofc_team)}</b> <span style='color:#506080;font-size:0.72rem;'>(OFC)</span></div>"
+            f"</div>",
+            unsafe_allow_html=True
+        )
+    with col2:
+        st.markdown(
+            f"<div style='background:#0a1020;border:1px solid #1a3060;border-radius:8px;padding:10px 14px;margin-bottom:12px;'>"
+            f"<div style='font-size:0.72rem;color:#406080;text-transform:uppercase;margin-bottom:6px;'>Llave 2 — CONCACAF vs AFC</div>"
+            f"<div style='font-size:0.85rem;'>{flag_html(concacaf_team or '')} <b style='color:#dce8ff;'>{display_name(concacaf_team) if concacaf_team else '⏳ Pendiente (3ro Playoff Copa Oro)'}</b></div>"
+            f"<div style='color:#506080;font-size:0.75rem;margin:4px 0;'>vs</div>"
+            f"<div style='font-size:0.85rem;'>{flag_html(afc_team or '')} <b style='color:#dce8ff;'>{display_name(afc_team) if afc_team else '⏳ Pendiente (4to Playoff Copa Asia)'}</b></div>"
+            f"</div>",
+            unsafe_allow_html=True
+        )
 
     tabs = st.tabs(["🌎 Llave 1: CONMEBOL vs OFC", "🌏 Llave 2: CONCACAF vs AFC", "✅ Resultados"])
 
@@ -1926,9 +2043,10 @@ def show_ranking():
         if search and search.lower() not in display_name(team).lower() and search.lower() not in team.lower(): continue
         pos_real += 1
         qualified = team in state["world_cup_qualified"]
-        status_color = "#00cc66" if qualified else "#506080"
-        status = "✅ Clasificado" if qualified else "⏳"
-        row_bg = "#0c3a22" if qualified else ("#091525" if pos_real % 2 == 0 else "#06101e")
+        is_host = (team == HOST_TEAM)
+        status_color = "#ffd700" if is_host else ("#00cc66" if qualified else "#506080")
+        status = "🏟️ Anfitrión" if is_host else ("✅ Clasificado" if qualified else "⏳")
+        row_bg = "#1a1a00" if is_host else ("#0c3a22" if qualified else ("#091525" if pos_real % 2 == 0 else "#06101e"))
         html += f"""<tr style='background:{row_bg};border-bottom:1px solid #101e38;'>
             <td style='padding:8px;text-align:center;color:#555;font-weight:700;'>{pos}</td>
             <td style='padding:8px;'>{flag_html(team)} <span style='font-weight:600;color:#dce8ff;'>{display_name(team)}</span></td>
@@ -2060,26 +2178,13 @@ def show_qualifiers():
 
     with tab_uefa:
         euro = state["euro"]
-        st.markdown(_playoff_header(
-            "🔄 PLAYOFF UEFA — 8 CUPOS",
-            "16 equipos · 4 grupos de 4 · 3 jornadas · Top 2 cada grupo → Mundial",
-            "#003580"
-        ), unsafe_allow_html=True)
-        if euro["phase"] not in ["playoff_uefa", "completado"]:
-            st.info("🔒 Se activa al completar las llaves de la Eurocopa.")
-        else:
-            _show_euro_playoff(state, euro)
+        _show_euro_playoff(state, euro)
         st.markdown("---")
         st.markdown("#### 🌍 Clasificados UEFA")
         _show_euro_classified(state, euro)
 
     with tab_conmebol:
         ca = state["copa_america"]
-        st.markdown(_playoff_header(
-            "🔄 PLAYOFF CONMEBOL — 3 CUPOS + 1 REPECHAJE",
-            "2do–7mo Copa América · Todos contra todos · Top 3 → Mundial · 4to → Repechaje",
-            "#006b3c"
-        ), unsafe_allow_html=True)
         if ca["phase"] not in ["playoff", "completado"]:
             st.info("🔒 Se activa al completar las llaves de la Copa América.")
         else:
@@ -2090,11 +2195,6 @@ def show_qualifiers():
 
     with tab_caf:
         caf = state["copa_africa"]
-        st.markdown(_playoff_header(
-            "🔄 PLAYOFF CAF — 3 CUPOS",
-            "3ro–7mo Copa África · Todos contra todos · Top 3 → Mundial",
-            "#7a4500"
-        ), unsafe_allow_html=True)
         if caf["phase"] not in ["playoff", "completado"]:
             st.info("🔒 Se activa al completar las llaves de la Copa África.")
         else:
@@ -2105,11 +2205,6 @@ def show_qualifiers():
 
     with tab_concacaf:
         oro = state["copa_oro"]
-        st.markdown(_playoff_header(
-            "🔄 PLAYOFF CONCACAF — 2 CUPOS + 1 REPECHAJE",
-            "2do–4to Copa Oro · Todos contra todos · Top 2 → Mundial · 3ro → Repechaje",
-            "#6a0000"
-        ), unsafe_allow_html=True)
         if oro["phase"] not in ["playoff", "completado"]:
             st.info("🔒 Se activa al completar las llaves de la Copa Oro.")
         else:
@@ -2120,11 +2215,6 @@ def show_qualifiers():
 
     with tab_afc:
         asia = state["copa_asia"]
-        st.markdown(_playoff_header(
-            "🔄 PLAYOFF AFC — 3 CUPOS + 1 REPECHAJE",
-            "2do–5to Copa Asia · Todos contra todos · Top 3 → Mundial · 4to → Repechaje",
-            "#3a0060"
-        ), unsafe_allow_html=True)
         if asia["phase"] not in ["playoff", "completado"]:
             st.info("🔒 Se activa al completar las llaves de la Copa Asia.")
         else:
@@ -2135,11 +2225,12 @@ def show_qualifiers():
 
 
 # ══════════════════════════════════════════════════════════════
-# HOME
+# HOME — Mejorado con clasificados y banderas
 # ══════════════════════════════════════════════════════════════
 def show_home(state):
     qualified = state.get("world_cup_qualified", [])
 
+    # Hero banner
     st.markdown(f"""<div style='background:linear-gradient(135deg,#06101e 0%,#0c1e3a 50%,#06101e 100%);
         border:2px solid #c8a000;border-radius:20px;padding:36px;margin-bottom:24px;text-align:center;'>
         <div style='font-size:3.2rem;font-family:Bebas Neue,sans-serif;font-weight:700;
@@ -2149,8 +2240,13 @@ def show_home(state):
         <div style='font-size:0.95rem;color:#406080;letter-spacing:3px;margin-top:6px;'>
             SIMULADOR OFICIAL · {state.get("edition",1)}ª EDICIÓN
         </div>
+        <div style='margin-top:12px;font-size:0.9rem;color:#5090a0;'>
+            🏟️ País Anfitrión: {flag_html(HOST_TEAM, 22, 16)} <b style='color:#ffd700;'>{display_name(HOST_TEAM)}</b>
+            <span style='color:#406080;font-size:0.78rem;margin-left:8px;'>({get_host_confederation()} — clasificado automáticamente)</span>
+        </div>
     </div>""", unsafe_allow_html=True)
 
+    # Estado por torneo
     torneos = [
         ("🏆 Eurocopa",    "euro",         "UEFA",     13, "#003580"),
         ("🌎 Copa América","copa_america",  "CONMEBOL",  4, "#006b3c"),
@@ -2166,7 +2262,6 @@ def show_home(state):
             phase = state.get(key, {}).get("phase", "—")
             q = len(state.get(key, {}).get("qualified", []))
         else:
-            pt = state.get("playoff_teams", {})
             q = sum(1 for s in ["slot1","slot2"] if state.get("playoff_results",{}).get(s))
             phase = "completado" if q >= 2 else "pendiente"
         done  = q >= total
@@ -2186,47 +2281,220 @@ def show_home(state):
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    c1, c2 = st.columns(2)
-    with c1:
+    # ── PANEL PRINCIPAL: Clasificados + Guía ─────────────────────────
+    left_col, right_col = st.columns([3, 2])
+
+    with left_col:
+        _show_home_qualified_panel(state, qualified)
+
+    with right_col:
         st.markdown("### 🗺️ Guía del Simulador")
-        st.markdown("""
-1. **🏅 Ranking FMMJ** — Ranking dinámico por resultados
-2. **🏆 Eurocopa** — 24 equipos UEFA · Grupos + Llaves
-3. **🌎 Copa América** — 10 CONMEBOL + 6 invitadas
-4. **🌍 Copa África** — 10 equipos CAF
-5. **⭐ Copa Oro** — 6 CONCACAF
-6. **🌏 Copa Asia** — 6 AFC
-7. **🌐 Qualifiers** — Playoffs y clasificados por confederación
-8. **🔁 Repechaje** — 2 llaves ida y vuelta
-        """)
-    with c2:
-        st.markdown("### ✅ Clasificados Recientes")
-        if qualified:
-            for t in reversed(qualified[-12:]):
-                conf = get_team_confederation(t)
-                conf_colors = {"UEFA":"#003580","CONMEBOL":"#006b3c","CAF":"#7a4500",
-                               "CONCACAF":"#6a0000","AFC":"#3a0060","OFC":"#1a3a1a"}
-                cc = conf_colors.get(conf,"#1a1a2e")
-                from data import get_flag_url, TEAM_DISPLAY_NAMES
-                fu = get_flag_url(t, 20, 15)
-                flag_tag = f"<img src='{fu}' style='vertical-align:middle;margin-right:5px;border-radius:2px;' width='20' height='15'>" if fu else ""
+        guide_items = [
+            ("🏟️", "Anfitrión", f"{display_name(HOST_TEAM)} clasificado automáticamente"),
+            ("🏆", "Eurocopa", "24 UEFA · 13 cupos"),
+            ("🌎", "Copa América", "16 equipos · 4 cupos CONMEBOL"),
+            ("🌍", "Copa África", "10 CAF · 5 cupos"),
+            ("⭐", "Copa Oro", "6 CONCACAF · 3 cupos"),
+            ("🌏", "Copa Asia", "6 AFC · 4 cupos"),
+            ("🔁", "Repechaje", "2 llaves · 2 cupos finales"),
+        ]
+        for icon, title, desc in guide_items:
+            st.markdown(
+                f"<div style='display:flex;align-items:center;padding:6px 10px;"
+                f"background:#091525;border-radius:8px;margin-bottom:4px;border:1px solid #12203a;'>"
+                f"<span style='font-size:1.1rem;margin-right:10px;'>{icon}</span>"
+                f"<div><span style='color:#c0d0f0;font-weight:600;font-size:0.85rem;'>{title}</span>"
+                f"<span style='color:#406080;font-size:0.75rem;margin-left:6px;'>{desc}</span></div>"
+                f"</div>",
+                unsafe_allow_html=True
+            )
+
+        # Progreso global
+        total_qualified = len(qualified)
+        host_count = 1 if HOST_TEAM not in qualified else 0  # host puede ya estar en qualified
+        total_with_host = total_qualified + host_count
+        pct = min(100, int(total_with_host / 32 * 100))
+        color_bar = "#00cc66" if pct == 100 else "#ffd700"
+        st.markdown(f"""
+        <div style='margin-top:14px;background:#091525;border:1px solid #1a3060;border-radius:10px;padding:14px;'>
+            <div style='display:flex;justify-content:space-between;margin-bottom:6px;'>
+                <span style='color:#c0d0f0;font-size:0.82rem;font-weight:700;'>Progreso Global</span>
+                <span style='color:{color_bar};font-size:0.9rem;font-weight:900;font-family:Bebas Neue,sans-serif;'>{total_with_host}/32</span>
+            </div>
+            <div style='background:#0a1428;border-radius:6px;height:10px;overflow:hidden;'>
+                <div style='background:linear-gradient(90deg,{color_bar},{color_bar}88);height:100%;width:{pct}%;border-radius:6px;transition:width 0.3s;'></div>
+            </div>
+            <div style='font-size:0.7rem;color:#406080;margin-top:4px;'>{pct}% completado</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+
+def _show_home_qualified_panel(state, qualified):
+    """Panel de clasificados con banderas, agrupados por confederación."""
+    from data import get_flag_url, TEAM_DISPLAY_NAMES
+
+    conf_colors = {
+        "UEFA":     {"bg": "#001840", "border": "#003580", "label": "#6090ff"},
+        "CONMEBOL": {"bg": "#001a0e", "border": "#006b3c", "label": "#40cc80"},
+        "CAF":      {"bg": "#1a0e00", "border": "#7a4500", "label": "#cc8800"},
+        "CONCACAF": {"bg": "#1a0000", "border": "#6a0000", "label": "#ff4444"},
+        "AFC":      {"bg": "#0e0020", "border": "#3a0060", "label": "#aa44ff"},
+        "OFC":      {"bg": "#001a0a", "border": "#1a4a1a", "label": "#44aa66"},
+    }
+    conf_icons = {"UEFA":"🏆","CONMEBOL":"🌎","CAF":"🌍","CONCACAF":"⭐","AFC":"🌏","OFC":"🔁"}
+
+    # Agrupar clasificados por confederación
+    by_conf = {}
+    for t in qualified:
+        c = get_team_confederation(t)
+        by_conf.setdefault(c, []).append(t)
+
+    # Añadir anfitrión si no está en qualified aún
+    host_conf = get_host_confederation()
+    host_shown = HOST_TEAM in qualified
+
+    cupos_por_conf = {"UEFA": 13, "CONMEBOL": 4, "CAF": 5, "CONCACAF": 3, "AFC": 4, "OFC": 1}
+    # OFC = New Zealand va al repechaje, si gana → 1 cupo
+
+    total_q = len(qualified) + (0 if host_shown else 1)
+
+    st.markdown(f"""
+    <div style='display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;'>
+        <div style='font-family:Bebas Neue,sans-serif;font-size:1.5rem;color:#c0d0ff;letter-spacing:2px;'>
+            ✅ CLASIFICADOS AL MUNDIAL
+        </div>
+        <div style='background:#091525;border:1px solid #ffd70044;border-radius:20px;padding:4px 14px;'>
+            <span style='color:#ffd700;font-size:1rem;font-weight:900;font-family:Bebas Neue,sans-serif;'>{total_q}/32</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Anfitrión siempre primero
+    host_col_html = (
+        f"<div style='background:#1a1400;border:1px solid #ffd70066;border-radius:10px;"
+        f"padding:10px 12px;margin-bottom:10px;'>"
+        f"<div style='font-size:0.68rem;color:#ffd700;text-transform:uppercase;font-weight:700;"
+        f"letter-spacing:1px;margin-bottom:6px;'>🏟️ ANFITRIÓN</div>"
+        f"<div style='display:flex;align-items:center;padding:4px 0;'>"
+    )
+    fu = get_flag_url(HOST_TEAM, 28, 21)
+    flag_tag = f"<img src='{fu}' style='border-radius:3px;margin-right:8px;border:1px solid #ffd70044;' width='28' height='21'>" if fu else ""
+    tname = TEAM_DISPLAY_NAMES.get(HOST_TEAM, HOST_TEAM)
+    host_col_html += (
+        f"{flag_tag}<span style='color:#ffd700;font-weight:700;font-size:0.9rem;'>{tname}</span>"
+        f"<span style='margin-left:auto;font-size:0.72rem;background:#ffd70022;color:#ffd700;"
+        f"padding:2px 8px;border-radius:10px;'>Host</span>"
+        f"</div></div>"
+    )
+    st.markdown(host_col_html, unsafe_allow_html=True)
+
+    # Por confederación
+    conf_order = ["UEFA", "CONMEBOL", "CAF", "CONCACAF", "AFC", "OFC"]
+    for conf in conf_order:
+        teams_in_conf = by_conf.get(conf, [])
+        max_cupos = cupos_por_conf.get(conf, 0)
+        if not teams_in_conf and max_cupos == 0:
+            continue
+
+        cc = conf_colors.get(conf, {"bg": "#091525", "border": "#1a3060", "label": "#5090c0"})
+        icon = conf_icons.get(conf, "🌍")
+        count = len(teams_in_conf)
+
+        html = (
+            f"<div style='background:{cc['bg']};border:1px solid {cc['border']};border-radius:10px;"
+            f"padding:10px 12px;margin-bottom:10px;'>"
+            f"<div style='display:flex;align-items:center;justify-content:space-between;"
+            f"margin-bottom:6px;border-bottom:1px solid {cc['border']};padding-bottom:5px;'>"
+            f"<span style='font-size:0.68rem;color:{cc['label']};text-transform:uppercase;"
+            f"font-weight:700;letter-spacing:1px;'>{icon} {conf}</span>"
+            f"<span style='font-size:0.72rem;background:{cc['border']}55;color:{cc['label']};"
+            f"padding:2px 8px;border-radius:10px;font-weight:700;'>{count}/{max_cupos}</span>"
+            f"</div>"
+        )
+
+        if teams_in_conf:
+            # Grid de equipos 2 columnas
+            html += "<div style='display:grid;grid-template-columns:1fr 1fr;gap:4px;'>"
+            for t in teams_in_conf:
+                fu = get_flag_url(t, 22, 16)
+                flag_tag = f"<img src='{fu}' style='vertical-align:middle;margin-right:5px;border-radius:2px;border:1px solid {cc['border']};' width='22' height='16'>" if fu else ""
                 tname = TEAM_DISPLAY_NAMES.get(t, t)
-                st.markdown(
-                    f"<div style='display:flex;align-items:center;padding:4px 8px;border-radius:6px;"
-                    f"background:#091525;margin-bottom:3px;'>"
-                    f"{flag_tag}<span style='color:#dce8ff;font-size:0.85rem;'>{tname}</span>"
-                    f"<span style='margin-left:auto;background:{cc};color:#fff;font-size:0.65rem;"
-                    f"padding:2px 6px;border-radius:10px;'>{conf}</span></div>",
-                    unsafe_allow_html=True
+                html += (
+                    f"<div style='display:flex;align-items:center;padding:3px 6px;"
+                    f"background:{cc['bg']};border-radius:6px;'>"
+                    f"{flag_tag}<span style='color:#dce8ff;font-size:0.78rem;font-weight:500;"
+                    f"white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{tname}</span>"
+                    f"</div>"
+                )
+            html += "</div>"
+
+            # Slots vacíos
+            remaining = max_cupos - count
+            if remaining > 0:
+                html += (
+                    f"<div style='margin-top:5px;font-size:0.7rem;color:{cc['border']};'>"
+                    f"{'⬜ ' * remaining}<span style='color:#304060;'>{remaining} cupo{'s' if remaining > 1 else ''} pendiente{'s' if remaining > 1 else ''}</span></div>"
                 )
         else:
-            st.info("Ningún clasificado aún. Empieza por la Eurocopa.")
+            html += f"<div style='color:#304060;font-size:0.78rem;font-style:italic;'>Sin clasificados aún</div>"
+
+        html += "</div>"
+        st.markdown(html, unsafe_allow_html=True)
 
 
+# ══════════════════════════════════════════════════════════════
+# CONFIGURACIÓN — Con selector de anfitrión
+# ══════════════════════════════════════════════════════════════
 def show_config(state):
     st.markdown("### ⚙️ Configuración del Simulador FMMJ")
     st.markdown("---")
 
+    # ── Selector de Anfitrión ──────────────────────────────────────────
+    st.markdown("#### 🏟️ País Anfitrión")
+    st.caption("El anfitrión clasifica automáticamente y queda excluido del qualifier de su confederación.")
+
+    all_teams_sorted = sorted(
+        UEFA_TEAMS + CONMEBOL_TEAMS + CAF_TEAMS + CONCACAF_TEAMS + AFC_TEAMS,
+        key=lambda t: display_name(t)
+    )
+    current_host = state.get("host_team", "Nigeria")
+    current_host_conf = get_team_confederation(current_host)
+
+    col_h1, col_h2 = st.columns(2)
+    with col_h1:
+        host_idx = all_teams_sorted.index(current_host) if current_host in all_teams_sorted else 0
+        new_host = st.selectbox(
+            "Seleccionar anfitrión",
+            all_teams_sorted,
+            index=host_idx,
+            format_func=lambda t: f"{display_name(t)} ({get_team_confederation(t)})"
+        )
+    with col_h2:
+        if new_host != current_host:
+            st.markdown(f"""
+            <div style='background:#0a1020;border:1px solid #ffd70044;border-radius:8px;padding:10px;margin-top:8px;'>
+                <div style='color:#ffd700;font-size:0.82rem;font-weight:700;'>Nuevo anfitrión:</div>
+                <div style='font-size:0.9rem;margin-top:4px;'>{flag_html(new_host, 24, 18)} <b>{display_name(new_host)}</b></div>
+                <div style='color:#506080;font-size:0.75rem;'>Conf: {get_team_confederation(new_host)}</div>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.markdown(f"""
+            <div style='background:#0a1020;border:1px solid #00cc6644;border-radius:8px;padding:10px;margin-top:8px;'>
+                <div style='color:#00cc66;font-size:0.82rem;font-weight:700;'>✅ Anfitrión actual:</div>
+                <div style='font-size:0.9rem;margin-top:4px;'>{flag_html(current_host, 24, 18)} <b>{display_name(current_host)}</b></div>
+                <div style='color:#506080;font-size:0.75rem;'>Conf: {current_host_conf}</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+    if new_host != current_host:
+        if st.button(f"✅ Confirmar anfitrión: {display_name(new_host)}", type="primary"):
+            state["host_team"] = new_host
+            save_state()
+            st.success(f"✅ {display_name(new_host)} definido como anfitrión.")
+            st.rerun()
+
+    st.markdown("---")
     st.markdown("#### 💾 Gestión de Datos")
     c1, c2, c3 = st.columns(3)
     with c1:
@@ -2248,6 +2516,8 @@ def show_config(state):
     st.markdown("#### 📊 Estado Actual")
     st.json({
         "edicion": state.get("edition"),
+        "anfitrion": display_name(HOST_TEAM),
+        "anfitrion_conf": get_host_confederation(),
         "clasificados": len(state.get("world_cup_qualified",[])),
         "eurocopa": state.get("euro",{}).get("phase"),
         "copa_america": state.get("copa_america",{}).get("phase"),
@@ -2272,11 +2542,18 @@ with st.sidebar:
     edition = state.get("edition", 1)
     qc = len(state.get("world_cup_qualified", []))
 
+    # Mostrar anfitrión en sidebar
+    st.markdown(f"""<div style='background:#091525;border:1px solid #ffd70033;border-radius:10px;padding:10px;margin-bottom:8px;'>
+        <div style='font-size:0.65rem;color:#ffd700;text-transform:uppercase;margin-bottom:3px;'>🏟️ Anfitrión</div>
+        <div style='font-size:0.88rem;font-weight:700;color:#ffd700;'>{flag_html(HOST_TEAM, 18, 13)} {display_name(HOST_TEAM)}</div>
+        <div style='font-size:0.65rem;color:#406080;'>{get_host_confederation()}</div>
+    </div>""", unsafe_allow_html=True)
+
     st.markdown(f"""<div style='background:#091525;border:1px solid #1a3a6a;border-radius:10px;padding:12px;margin-bottom:14px;'>
         <div style='font-size:0.68rem;color:#406080;text-transform:uppercase;'>Edición</div>
         <div style='font-size:1rem;font-weight:700;color:#ffd700;font-family:Bebas Neue,sans-serif;'>FMMJ {edition}ª Copa</div>
         <div style='margin-top:5px;font-size:0.68rem;color:#406080;'>Clasificados</div>
-        <div style='font-size:1rem;font-weight:700;color:{"#00cc66" if qc >= 31 else "#ffd700"};'>{qc} clasificados</div>
+        <div style='font-size:1rem;font-weight:700;color:{"#00cc66" if qc >= 31 else "#ffd700"};'>{qc} / 32</div>
     </div>""", unsafe_allow_html=True)
 
     menu_options = {
