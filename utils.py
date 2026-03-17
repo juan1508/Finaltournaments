@@ -112,8 +112,11 @@ def render_standings_table(standings, advancing=2, show_thirds=False):
         html += f"<tr style='background:{bg};border-bottom:1px solid #111e35;'>"
         html += f"<td style='padding:7px 8px;text-align:center;'>{badge}</td>"
         html += f"<td style='padding:7px 8px;text-align:center;color:#666;font-weight:700;'>{i+1}</td>"
+        fu = get_flag_url(row["team"], 20, 15)
+        flag_cell = (f"<img src='{fu}' style='vertical-align:middle;margin-right:5px;"
+                     f"border-radius:2px;border:1px solid #1a2a4a;' width='20' height='15'>") if fu else ""
         html += (f"<td style='padding:7px 8px;text-align:left;color:#e0e8ff;'>"
-                 f"<img src='{get_flag_url(row['team'],18,13)}' style='vertical-align:middle;margin-right:4px;border-radius:2px;' width='18' height='13'>&nbsp;{display_name(row['team'])}</td>")
+                 f"{flag_cell}{display_name(row['team'])}</td>")
         for k in ["pj","pg","pe","pp","gf","ga","gd"]:
             color = "#ffd700" if k == "gd" else "#e0e8ff"
             html += f"<td style='padding:7px 8px;text-align:center;color:{color};'>{row[k]}</td>"
