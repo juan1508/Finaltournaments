@@ -990,7 +990,12 @@ def _build_ca_knockout(state, ca):
         "semis": [], "tercer_puesto": [], "final": []
     }
     ca["knockout_results"] = {}
-    ca["playoff_pool"] = thirds + fourths
+
+    # Pool: puestos 2-7 de equipos CONMEBOL únicamente (sin invitados)
+    # Se construye al terminar las llaves con los eliminados, filtrando invitados
+    ca["playoff_pool"] = []
+    ca["_thirds"] = thirds
+    ca["_fourths"] = fourths
     ca["phase"] = "llaves"
 
 
@@ -1020,13 +1025,43 @@ def _show_ca_knockout(state, ca):
         if champion and not ca.get("champion"):
             ca["champion"] = champion
             ca["qualified_direct"] = [champion]
-            # Add finalist + semi losers to playoff pool
+
+            # Construir pool SOLO con equipos CONMEBOL, puestos 2-7
+            guests = ca.get("guests", [])
+
+            def is_conmebol(team):
+                return team not in guests
+
+            # Recolectar equipos eliminados en orden: finalista, semis, cuartos, 3ros/4tos grupos
+            ordered = []
+
+            # Finalista (2do)
             for m in bracket.get("final", []):
                 if m.get("winner"):
                     runner = m["home"] if m["winner"] == m["away"] else m["away"]
-                    pool = ca.get("playoff_pool", [])
-                    if runner and runner not in pool: pool.insert(0, runner)
-                    ca["playoff_pool"] = pool
+                    if runner and runner not in ordered: ordered.append(runner)
+
+            # Perdedores semis (3ro-4to)
+            for i, m in enumerate(bracket.get("semis", [])):
+                r = results.get(f"ca_semis_{i}", {})
+                if r.get("winner"):
+                    loser = m["home"] if r["winner"] == m["away"] else m["away"]
+                    if loser and loser not in ordered: ordered.append(loser)
+
+            # Perdedores cuartos (5to-8vo)
+            for i, m in enumerate(bracket.get("cuartos", [])):
+                r = results.get(f"ca_cuartos_{i}", {})
+                if r.get("winner"):
+                    loser = m["home"] if r["winner"] == m["away"] else m["away"]
+                    if loser and loser not in ordered: ordered.append(loser)
+
+            # 3eros y 4tos de grupo
+            for t in ca.get("_thirds", []) + ca.get("_fourths", []):
+                if t and t not in ordered: ordered.append(t)
+
+            # Filtrar invitados y tomar puestos 2-7 (los 6 siguientes al campeón)
+            pool = [t for t in ordered if is_conmebol(t)][:6]
+            ca["playoff_pool"] = pool
             ca["phase"] = "playoff"
             update_ranking(champion, RANKING_POINTS["champion"], state)
             save_state(); st.rerun()
