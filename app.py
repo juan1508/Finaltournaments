@@ -915,41 +915,69 @@ def _show_ca_knockout(state, ca):
             ca["qualified_direct"] = [champion]
             guests = set(ca.get("guests", []))
 
-            copa_ranking = []
-            copa_ranking.append(champion)
+            # ── Construir copa_ranking con TODOS los equipos ordenados ──
+            # Orden por etapa de eliminación (mejor posición primero):
+            # 1. Campeón
+            # 2. Finalista
+            # 3-4. Perdedores semis
+            # 5-8. Perdedores cuartos
+            # 9-12. 3eros de grupo
+            # 13-16. 4tos de grupo
+            # Los invitados y CONMEBOL se mezclan en el ranking general,
+            # pero el pool del qualifier solo usa los CONMEBOL.
 
+            ranked_by_stage = []
+
+            # 1. Campeón
+            ranked_by_stage.append(champion)
+
+            # 2. Finalista
             for m in bracket.get("final", []):
                 if m.get("winner"):
                     runner = m["home"] if m["winner"] == m["away"] else m["away"]
-                    if runner and runner not in copa_ranking:
-                        copa_ranking.append(runner)
+                    if runner and runner not in ranked_by_stage:
+                        ranked_by_stage.append(runner)
 
+            # 3-4. Perdedores semis
             for i, m in enumerate(bracket.get("semis", [])):
                 r = results.get(f"ca_semis_{i}", {})
                 if r.get("winner"):
                     loser = m["home"] if r["winner"] == m["away"] else m["away"]
-                    if loser and loser not in copa_ranking:
-                        copa_ranking.append(loser)
+                    if loser and loser not in ranked_by_stage:
+                        ranked_by_stage.append(loser)
 
+            # 5-8. Perdedores cuartos
             for i, m in enumerate(bracket.get("cuartos", [])):
                 r = results.get(f"ca_cuartos_{i}", {})
                 if r.get("winner"):
                     loser = m["home"] if r["winner"] == m["away"] else m["away"]
-                    if loser and loser not in copa_ranking:
-                        copa_ranking.append(loser)
+                    if loser and loser not in ranked_by_stage:
+                        ranked_by_stage.append(loser)
 
+            # 9-12. 3eros de grupo (del group_standings, en orden de grupos A,B,C,D)
             for t in ca.get("_thirds", []):
-                if t and t not in copa_ranking:
-                    copa_ranking.append(t)
+                if t and t not in ranked_by_stage:
+                    ranked_by_stage.append(t)
 
+            # 13-16. 4tos de grupo
             for t in ca.get("_fourths", []):
-                if t and t not in copa_ranking:
-                    copa_ranking.append(t)
+                if t and t not in ranked_by_stage:
+                    ranked_by_stage.append(t)
 
-            ca["copa_ranking"] = copa_ranking
+            # Asegurarse de que TODOS los equipos estén (por si alguno no apareció)
+            all_teams_in_tournament = []
+            for g_teams in ca.get("groups", {}).values():
+                for t in g_teams:
+                    if t not in all_teams_in_tournament:
+                        all_teams_in_tournament.append(t)
+            for t in all_teams_in_tournament:
+                if t not in ranked_by_stage:
+                    ranked_by_stage.append(t)
+
+            ca["copa_ranking"] = ranked_by_stage
 
             # Pool: puestos 2-7 del ranking filtrado SOLO CONMEBOL
-            conmebol_only = [t for t in copa_ranking if t in CONMEBOL_TEAMS]
+            conmebol_only = [t for t in ranked_by_stage if t in CONMEBOL_TEAMS]
             pool = [t for t in conmebol_only if t != champion][:6]
             ca["playoff_pool"] = pool
 
@@ -998,6 +1026,10 @@ def _show_ca_playoff(state, ca):
                 if loser and loser not in copa_ranking: copa_ranking.append(loser)
         for t in thirds + fourths:
             if t and t not in copa_ranking: copa_ranking.append(t)
+        # Incluir TODOS los equipos del torneo que falten
+        for g_teams in ca.get("groups", {}).values():
+            for t in g_teams:
+                if t and t not in copa_ranking: copa_ranking.append(t)
         ca["copa_ranking"] = copa_ranking
 
     # ── Pool: puestos 2-7 del ranking filtrado SOLO CONMEBOL ─────────
@@ -1007,10 +1039,45 @@ def _show_ca_playoff(state, ca):
     ca["playoff_pool"] = pool
     save_state()
 
-    # ── Botón reset qualifier ─────────────────────────────────────────
-    if st.button("🔄 Resetear Qualifier", type="secondary", key="reset_ca_pb"):
-        ca["playoff_bracket"] = {}
-        save_state(); st.rerun()
+    # ── Botones reset / reconstruir ──────────────────────────────────
+    col_btn1, col_btn2, _ = st.columns([1, 1.5, 3])
+    with col_btn1:
+        if st.button("🔄 Resetear Qualifier", type="secondary", key="reset_ca_pb"):
+            ca["playoff_bracket"] = {}
+            save_state(); st.rerun()
+    with col_btn2:
+        if st.button("🔧 Reconstruir Ranking", type="secondary", key="rebuild_ca_ranking"):
+            # Reconstruir copa_ranking incluyendo TODOS los equipos del torneo
+            bracket_r = ca.get("knockout_bracket", {})
+            results_r = ca.get("knockout_results", {})
+            thirds_r  = ca.get("_thirds", [])
+            fourths_r = ca.get("_fourths", [])
+            new_ranking = [champion] if champion else []
+            for m in bracket_r.get("final", []):
+                if m.get("winner"):
+                    runner = m["home"] if m["winner"] == m["away"] else m["away"]
+                    if runner and runner not in new_ranking: new_ranking.append(runner)
+            for i, m in enumerate(bracket_r.get("semis", [])):
+                r2 = results_r.get(f"ca_semis_{i}", {})
+                if r2.get("winner"):
+                    loser = m["home"] if r2["winner"] == m["away"] else m["away"]
+                    if loser and loser not in new_ranking: new_ranking.append(loser)
+            for i, m in enumerate(bracket_r.get("cuartos", [])):
+                r2 = results_r.get(f"ca_cuartos_{i}", {})
+                if r2.get("winner"):
+                    loser = m["home"] if r2["winner"] == m["away"] else m["away"]
+                    if loser and loser not in new_ranking: new_ranking.append(loser)
+            for t in thirds_r + fourths_r:
+                if t and t not in new_ranking: new_ranking.append(t)
+            # Incluir TODOS los equipos del torneo que falten
+            for g_teams in ca.get("groups", {}).values():
+                for t in g_teams:
+                    if t and t not in new_ranking: new_ranking.append(t)
+            ca["copa_ranking"] = new_ranking
+            conmebol_rebuilt = [t for t in new_ranking if t in CONMEBOL_TEAMS]
+            ca["playoff_pool"] = [t for t in conmebol_rebuilt if t != champion][:6]
+            ca.setdefault("playoff_bracket", {})["results"] = {}
+            save_state(); st.rerun()
 
     if not pool:
         st.warning("No hay candidatos CONMEBOL para el qualifier.")
