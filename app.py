@@ -109,6 +109,7 @@ def show_match_row(home, away, prefix_key, results_dict, torneo_name, state, sho
     if save:
         winner = home if hg > ag else (away if ag > hg else pw)
         results_dict[prefix_key] = {
+            "home_team": home, "away_team": away,
             "home_goals": hg, "away_goals": ag, "winner": winner,
             "penalty_winner": pw, "home_scorers": hs, "away_scorers": as_, "played": True
         }
