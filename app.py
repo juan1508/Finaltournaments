@@ -151,7 +151,6 @@ def _render_groups_grid(groups, cols_n=3):
             html += f"<div style='font-size:1rem;font-weight:700;color:#ffd700;border-bottom:2px solid #ffd700;padding-bottom:6px;margin-bottom:10px;font-family:Bebas Neue,sans-serif;'>GRUPO {g}</div>"
             for t in teams:
                 html += f"<div style='padding:3px 0;'>{flag_html(t)} {display_name(t)}</div>"
-            html += "</div>"
             st.markdown(html, unsafe_allow_html=True)
 
 
@@ -490,7 +489,6 @@ def _render_euro_bracket(euro, bracket, results):
             html += f"<div style='font-size:0.65rem;color:#406080;text-transform:uppercase;margin-bottom:4px;'>{phase_label}</div>"
         html += team_cell(home, h_win, h_score)
         html += team_cell(away, a_win, a_score)
-        html += "</div>"
         return html
 
     octavos = bracket.get("octavos", [])
@@ -516,36 +514,30 @@ def _render_euro_bracket(euro, bracket, results):
     for i in [2, 3]:
         r = results.get(f"euro_octavos_{i}", {})
         html += match_card(octavos[i] if i < len(octavos) else {}, r, labels[i])
-    html += "</div>"
 
     html += f"<div style='flex:0 0 200px;margin-top:{CARD_H}px;'>"
     html += "<div style='font-size:0.65rem;color:#406080;text-transform:uppercase;margin-bottom:5px;letter-spacing:1px;'>Cuartos</div>"
     for i in [0, 1]:
         r = results.get(f"euro_cuartos_{i}", {})
         html += match_card(cuartos[i] if i < len(cuartos) else {}, r)
-    html += "</div>"
 
     html += f"<div style='flex:0 0 200px;margin-top:{CARD_H*2 + 10}px;'>"
     html += "<div style='font-size:0.65rem;color:#406080;text-transform:uppercase;margin-bottom:5px;letter-spacing:1px;'>Semifinal</div>"
     html += match_card(semis[0] if semis else {}, results.get("euro_semis_0", {}))
-    html += "</div>"
 
     html += f"<div style='flex:0 0 200px;margin-top:{CARD_H*3 + 15}px;'>"
     html += "<div style='font-size:0.65rem;color:#ffd700;text-transform:uppercase;margin-bottom:5px;letter-spacing:1px;font-weight:700;'>🏆 Gran Final</div>"
     html += match_card(final[0] if final else {}, results.get("euro_final_0", {}))
-    html += "</div>"
 
     html += f"<div style='flex:0 0 200px;margin-top:{CARD_H*2 + 10}px;'>"
     html += "<div style='font-size:0.65rem;color:#406080;text-transform:uppercase;margin-bottom:5px;letter-spacing:1px;'>Semifinal</div>"
     html += match_card(semis[1] if len(semis) > 1 else {}, results.get("euro_semis_1", {}))
-    html += "</div>"
 
     html += f"<div style='flex:0 0 200px;margin-top:{CARD_H}px;'>"
     html += "<div style='font-size:0.65rem;color:#406080;text-transform:uppercase;margin-bottom:5px;letter-spacing:1px;'>Cuartos</div>"
     for i in [2, 3]:
         r = results.get(f"euro_cuartos_{i}", {})
         html += match_card(cuartos[i] if i < len(cuartos) else {}, r)
-    html += "</div>"
 
     html += "<div style='flex:0 0 200px;'>"
     html += "<div style='font-size:0.65rem;color:#406080;text-transform:uppercase;margin-bottom:5px;letter-spacing:1px;'>Octavos de final</div>"
@@ -556,7 +548,6 @@ def _render_euro_bracket(euro, bracket, results):
     for i in [6, 7]:
         r = results.get(f"euro_octavos_{i}", {})
         html += match_card(octavos[i] if i < len(octavos) else {}, r, labels[i])
-    html += "</div>"
 
     html += "</div></div>"
 
@@ -658,7 +649,6 @@ def _qualified_card(title, teams, badge="✅", color="#00cc66", extras=None):
     for i, t in enumerate(teams):
         ex = extras[i] if extras and i < len(extras) else ""
         html += _team_row(t, badge, ex)
-    html += "</div>"
     return html
 
 
@@ -1253,7 +1243,6 @@ def _show_ca_playoff(state, ca):
                  f"padding:5px 12px;font-size:0.82rem;color:#dce8ff;'>"
                  f"<span style='color:#ffd700;font-weight:700;margin-right:4px;'>P{conm_pos}</span>"
                  f"{flag_tag}{tname}</span>")
-    html += "</div>"
     st.markdown(html, unsafe_allow_html=True)
 
     if len(pool) < 6:
@@ -1835,7 +1824,6 @@ def _show_6team_playoff(state, tour, torneo_name, tour_key, playoff_spots, repec
                      f"<div style='font-size:0.7rem;color:{color_dest};font-weight:700;'>{badge}</div>"
                      f"<div style='color:#dce8ff;font-size:0.83rem;margin-top:2px;'>{flag_tag}{tname}</div>"
                      f"</div>")
-        html += "</div>"
         st.markdown(html, unsafe_allow_html=True)
 
     st.markdown("---")
@@ -2381,7 +2369,21 @@ def show_home(state):
 
 def _show_home_qualified_panel(state, qualified):
     """Panel de clasificados con banderas, agrupados por confederación."""
-    from data import get_flag_url, TEAM_DISPLAY_NAMES
+    from data import TEAM_DISPLAY_NAMES
+
+    # ── Clasificados reales precargados por confederación ─────────────
+    # Estos equipos ya tienen su cupo directo al Mundial FMMJ asegurado
+    REAL_QUALIFIED = {
+        "UEFA":     ["France", "Germany", "Spain", "Portugal", "England",
+                     "Netherlands", "Italy", "Belgium", "Croatia", "Switzerland",
+                     "Denmark", "Austria", "Poland"],
+        "CONMEBOL": ["Argentina", "Brazil", "Colombia", "Uruguay"],
+        "CAF":      ["Morocco", "Senegal", "Egypt", "Cameroon", "Ghana"],
+        "CONCACAF": ["Mexico", "United States", "Costa Rica"],
+        "AFC":      ["Japan", "South Korea", "Saudi Arabia", "Iran",
+                     "Australia"],
+        "OFC":      [],
+    }
 
     conf_colors = {
         "UEFA":     {"bg": "#001840", "border": "#003580", "label": "#6090ff"},
@@ -2392,21 +2394,26 @@ def _show_home_qualified_panel(state, qualified):
         "OFC":      {"bg": "#001a0a", "border": "#1a4a1a", "label": "#44aa66"},
     }
     conf_icons = {"UEFA":"🏆","CONMEBOL":"🌎","CAF":"🌍","CONCACAF":"⭐","AFC":"🌏","OFC":"🔁"}
+    cupos_por_conf = {"UEFA": 13, "CONMEBOL": 4, "CAF": 5, "CONCACAF": 3, "AFC": 4, "OFC": 1}
 
-    # Agrupar clasificados por confederación
+    # Combinar: reales precargados + los que se vayan confirmando en el simulador
+    # El simulador puede sobreescribir/complementar según avance
     by_conf = {}
+    # Primero los reales
+    for conf, teams in REAL_QUALIFIED.items():
+        for t in teams:
+            by_conf.setdefault(conf, [])
+            if t not in by_conf[conf]:
+                by_conf[conf].append(t)
+    # Luego los del simulador (pueden ser distintos según la simulación)
     for t in qualified:
         c = get_team_confederation(t)
-        by_conf.setdefault(c, []).append(t)
+        by_conf.setdefault(c, [])
+        if t not in by_conf[c]:
+            by_conf[c].append(t)
 
-    # Añadir anfitrión si no está en qualified aún
-    host_conf = get_host_confederation()
-    host_shown = HOST_TEAM in qualified
-
-    cupos_por_conf = {"UEFA": 13, "CONMEBOL": 4, "CAF": 5, "CONCACAF": 3, "AFC": 4, "OFC": 1}
-    # OFC = New Zealand va al repechaje, si gana → 1 cupo
-
-    total_q = len(qualified) + (0 if host_shown else 1)
+    host_shown = HOST_TEAM in qualified or any(HOST_TEAM in v for v in by_conf.values())
+    total_q = sum(len(v) for v in by_conf.values()) + (0 if host_shown else 1)
 
     st.markdown(f"""
     <div style='display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;'>
@@ -2419,77 +2426,80 @@ def _show_home_qualified_panel(state, qualified):
     </div>
     """, unsafe_allow_html=True)
 
-    # Anfitrión siempre primero
-    host_col_html = (
+    # Anfitrión siempre primero — usando st.columns para que flag_html funcione
+    tname_host = TEAM_DISPLAY_NAMES.get(HOST_TEAM, HOST_TEAM)
+    st.markdown(
         f"<div style='background:#1a1400;border:1px solid #ffd70066;border-radius:10px;"
-        f"padding:10px 12px;margin-bottom:10px;'>"
-        f"<div style='font-size:0.68rem;color:#ffd700;text-transform:uppercase;font-weight:700;"
-        f"letter-spacing:1px;margin-bottom:6px;'>🏟️ ANFITRIÓN</div>"
-        f"<div style='display:flex;align-items:center;padding:4px 0;'>"
-    )
-    fu = get_flag_url(HOST_TEAM, 28, 21)
-    flag_tag = f"<img src='{fu}' style='border-radius:3px;margin-right:8px;border:1px solid #ffd70044;' width='28' height='21'>" if fu else ""
-    tname = TEAM_DISPLAY_NAMES.get(HOST_TEAM, HOST_TEAM)
-    host_col_html += (
-        f"{flag_tag}<span style='color:#ffd700;font-weight:700;font-size:0.9rem;'>{tname}</span>"
-        f"<span style='margin-left:auto;font-size:0.72rem;background:#ffd70022;color:#ffd700;"
+        f"padding:8px 12px;margin-bottom:10px;display:flex;align-items:center;gap:8px;'>"
+        f"<span style='font-size:0.68rem;color:#ffd700;text-transform:uppercase;font-weight:700;"
+        f"letter-spacing:1px;white-space:nowrap;'>🏟️ Anfitrión</span>"
+        f"<span style='margin-left:4px;'>{flag_html(HOST_TEAM, 24, 18)}</span>"
+        f"<span style='color:#ffd700;font-weight:700;font-size:0.88rem;'>{tname_host}</span>"
+        f"<span style='margin-left:auto;font-size:0.7rem;background:#ffd70022;color:#ffd700;"
         f"padding:2px 8px;border-radius:10px;'>Host</span>"
-        f"</div></div>"
+        f"</div>",
+        unsafe_allow_html=True
     )
-    st.markdown(host_col_html, unsafe_allow_html=True)
 
     # Por confederación
     conf_order = ["UEFA", "CONMEBOL", "CAF", "CONCACAF", "AFC", "OFC"]
     for conf in conf_order:
         teams_in_conf = by_conf.get(conf, [])
         max_cupos = cupos_por_conf.get(conf, 0)
-        if not teams_in_conf and max_cupos == 0:
-            continue
 
         cc = conf_colors.get(conf, {"bg": "#091525", "border": "#1a3060", "label": "#5090c0"})
         icon = conf_icons.get(conf, "🌍")
         count = len(teams_in_conf)
 
-        html = (
+        # Cabecera de confederación
+        st.markdown(
             f"<div style='background:{cc['bg']};border:1px solid {cc['border']};border-radius:10px;"
-            f"padding:10px 12px;margin-bottom:10px;'>"
-            f"<div style='display:flex;align-items:center;justify-content:space-between;"
-            f"margin-bottom:6px;border-bottom:1px solid {cc['border']};padding-bottom:5px;'>"
+            f"padding:8px 12px;margin-bottom:4px;display:flex;align-items:center;"
+            f"justify-content:space-between;'>"
             f"<span style='font-size:0.68rem;color:{cc['label']};text-transform:uppercase;"
             f"font-weight:700;letter-spacing:1px;'>{icon} {conf}</span>"
             f"<span style='font-size:0.72rem;background:{cc['border']}55;color:{cc['label']};"
             f"padding:2px 8px;border-radius:10px;font-weight:700;'>{count}/{max_cupos}</span>"
-            f"</div>"
+            f"</div>",
+            unsafe_allow_html=True
         )
 
         if teams_in_conf:
-            # Grid de equipos 2 columnas
-            html += "<div style='display:grid;grid-template-columns:1fr 1fr;gap:4px;'>"
-            for t in teams_in_conf:
-                fu = get_flag_url(t, 22, 16)
-                flag_tag = f"<img src='{fu}' style='vertical-align:middle;margin-right:5px;border-radius:2px;border:1px solid {cc['border']};' width='22' height='16'>" if fu else ""
-                tname = TEAM_DISPLAY_NAMES.get(t, t)
-                html += (
-                    f"<div style='display:flex;align-items:center;padding:3px 6px;"
-                    f"background:{cc['bg']};border-radius:6px;'>"
-                    f"{flag_tag}<span style='color:#dce8ff;font-size:0.78rem;font-weight:500;"
-                    f"white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{tname}</span>"
-                    f"</div>"
-                )
-            html += "</div>"
-
+            # Renderizar equipos en pares de columnas usando st.columns
+            # para que flag_html (con <img>) se muestre correctamente
+            pairs = [teams_in_conf[i:i+2] for i in range(0, len(teams_in_conf), 2)]
+            for pair in pairs:
+                cols = st.columns(2)
+                for ci, t in enumerate(pair):
+                    tname = TEAM_DISPLAY_NAMES.get(t, t)
+                    with cols[ci]:
+                        st.markdown(
+                            f"<div style='display:flex;align-items:center;padding:3px 6px;"
+                            f"background:{cc['bg']};border:1px solid {cc['border']}44;"
+                            f"border-radius:6px;margin-bottom:3px;'>"
+                            f"{flag_html(t, 20, 15)}"
+                            f"<span style='color:#dce8ff;font-size:0.78rem;font-weight:500;"
+                            f"white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'>{tname}</span>"
+                            f"</div>",
+                            unsafe_allow_html=True
+                        )
             # Slots vacíos
             remaining = max_cupos - count
             if remaining > 0:
-                html += (
-                    f"<div style='margin-top:5px;font-size:0.7rem;color:{cc['border']};'>"
-                    f"{'⬜ ' * remaining}<span style='color:#304060;'>{remaining} cupo{'s' if remaining > 1 else ''} pendiente{'s' if remaining > 1 else ''}</span></div>"
+                st.markdown(
+                    f"<div style='padding:3px 12px;margin-bottom:6px;font-size:0.7rem;color:{cc['border']};'>"
+                    f"{'⬜ ' * remaining}"
+                    f"<span style='color:#304060;'>{remaining} cupo{'s' if remaining > 1 else ''} pendiente{'s' if remaining > 1 else ''}</span>"
+                    f"</div>",
+                    unsafe_allow_html=True
                 )
         else:
-            html += f"<div style='color:#304060;font-size:0.78rem;font-style:italic;'>Sin clasificados aún</div>"
+            st.markdown(
+                f"<div style='color:#304060;font-size:0.78rem;font-style:italic;"
+                f"padding:4px 12px;margin-bottom:6px;'>Sin clasificados aún</div>",
+                unsafe_allow_html=True
+            )
 
-        html += "</div>"
-        st.markdown(html, unsafe_allow_html=True)
 
 
 # ══════════════════════════════════════════════════════════════
