@@ -105,9 +105,9 @@ def get_jornadas(teams):
 def calculate_standings(group_teams, results, prefix=""):
     """
     Calcula la tabla de posiciones.
-    Si se pasa `prefix`, busca los resultados con esa clave prefijada
-    (ej: "CAF_A_Algeria||Ghana"), evitando duplicados en group_results.
-    Si no, busca con match_key puro como fallback.
+    Usa home_team/away_team guardados en el resultado para asignar goles
+    correctamente sin importar el orden alfabético de match_key.
+    Si no existen esos campos (retrocompatibilidad), asume que t1=home, t2=away.
     """
     table = {t: {"team": t, "pts": 0, "gf": 0, "ga": 0, "gd": 0,
                  "pj": 0, "pg": 0, "pe": 0, "pp": 0} for t in group_teams}
@@ -125,16 +125,27 @@ def calculate_standings(group_teams, results, prefix=""):
                 continue
             hg = int(res.get("home_goals", 0))
             ag = int(res.get("away_goals", 0))
-            table[t1]["pj"] += 1; table[t2]["pj"] += 1
-            table[t1]["gf"] += hg; table[t1]["ga"] += ag
-            table[t2]["gf"] += ag; table[t2]["ga"] += hg
-            if hg > ag:
-                table[t1]["pts"] += 3; table[t1]["pg"] += 1; table[t2]["pp"] += 1
-            elif hg < ag:
-                table[t2]["pts"] += 3; table[t2]["pg"] += 1; table[t1]["pp"] += 1
+            # Usar home_team/away_team guardados para asignar goles correctamente.
+            # match_key ordena alfabéticamente, pero home_goals pertenece al
+            # equipo que era LOCAL cuando se jugó el partido.
+            real_home = res.get("home_team")
+            real_away = res.get("away_team")
+            if real_home and real_away and real_home in table and real_away in table:
+                # Tenemos info exacta de localía
+                h, a = real_home, real_away
             else:
-                table[t1]["pts"] += 1; table[t2]["pts"] += 1
-                table[t1]["pe"] += 1; table[t2]["pe"] += 1
+                # Retrocompatibilidad: asumir t1=home, t2=away
+                h, a = t1, t2
+            table[h]["pj"] += 1; table[a]["pj"] += 1
+            table[h]["gf"] += hg; table[h]["ga"] += ag
+            table[a]["gf"] += ag; table[a]["ga"] += hg
+            if hg > ag:
+                table[h]["pts"] += 3; table[h]["pg"] += 1; table[a]["pp"] += 1
+            elif hg < ag:
+                table[a]["pts"] += 3; table[a]["pg"] += 1; table[h]["pp"] += 1
+            else:
+                table[h]["pts"] += 1; table[a]["pts"] += 1
+                table[h]["pe"] += 1; table[a]["pe"] += 1
     for t in table.values():
         t["gd"] = t["gf"] - t["ga"]
     return sorted(table.values(), key=lambda x: (-x["pts"], -x["gd"], -x["gf"]))
