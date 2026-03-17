@@ -147,6 +147,9 @@ def show_group_jornadas(state, tour, torneo_name, advancing=2):
         st.warning("No hay grupos configurados.")
         return False
 
+    # Prefijo del torneo para las keys de resultados
+    pfx4 = torneo_name[:4]
+
     all_complete = True
     for g, teams in groups.items():
         with st.expander(f"**GRUPO {g}** — {' · '.join([display_name(t) for t in teams])}", expanded=False):
@@ -157,14 +160,12 @@ def show_group_jornadas(state, tour, torneo_name, advancing=2):
                 with jtabs[ji]:
                     for home, away in jornada:
                         mk = match_key(home, away)
-                        prefix = f"{torneo_name[:4]}_{g}_{mk}"
-                        played = show_match_row(home, away, prefix, results, torneo_name, state)
-                        # normalise to match_key for standings
-                        if results.get(prefix, {}).get("played"):
-                            results[mk] = results[prefix]
+                        prefix = f"{pfx4}_{g}_{mk}"
+                        show_match_row(home, away, prefix, results, torneo_name, state)
                         st.markdown("<hr style='margin:4px 0;border-color:#0f2040;'>", unsafe_allow_html=True)
             with jtabs[-1]:
-                standings = calculate_standings(teams, results)
+                # calculate_standings con prefijo para evitar duplicados
+                standings = calculate_standings(teams, results, prefix=f"{pfx4}_{g}_")
                 standings_all[g] = standings
                 render_standings_table(standings, advancing=advancing)
 
@@ -172,8 +173,9 @@ def show_group_jornadas(state, tour, torneo_name, advancing=2):
         for i in range(len(teams)):
             for j in range(i+1, len(teams)):
                 mk = match_key(teams[i], teams[j])
-                prefix = f"{torneo_name[:4]}_{g}_{mk}"
-                if not results.get(mk, {}).get("played") and not results.get(prefix, {}).get("played"):
+                prefix_key = f"{pfx4}_{g}_{mk}"
+                # Solo verificar con prefijo (fuente de verdad), con fallback a key pura
+                if not results.get(prefix_key, {}).get("played") and not results.get(mk, {}).get("played"):
                     all_complete = False
     return all_complete
 
