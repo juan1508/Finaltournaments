@@ -102,19 +102,29 @@ def get_jornadas(teams):
     return jornadas
 
 
-def calculate_standings(group_teams, results):
+def calculate_standings(group_teams, results, prefix=""):
+    """
+    Calcula la tabla de posiciones.
+    Si se pasa `prefix`, busca los resultados con esa clave prefijada
+    (ej: "CAF_A_Algeria||Ghana"), evitando duplicados en group_results.
+    Si no, busca con match_key puro como fallback.
+    """
     table = {t: {"team": t, "pts": 0, "gf": 0, "ga": 0, "gd": 0,
                  "pj": 0, "pg": 0, "pe": 0, "pp": 0} for t in group_teams}
     for i, t1 in enumerate(group_teams):
         for j, t2 in enumerate(group_teams):
             if i >= j:
                 continue
-            key = match_key(t1, t2)
-            res = results.get(key, {})
+            mk = match_key(t1, t2)
+            # Buscar con prefijo primero; si no, con key pura (retrocompatibilidad)
+            if prefix:
+                res = results.get(f"{prefix}{mk}", results.get(mk, {}))
+            else:
+                res = results.get(mk, {})
             if not res.get("played"):
                 continue
-            hg = res.get("home_goals", 0)
-            ag = res.get("away_goals", 0)
+            hg = int(res.get("home_goals", 0))
+            ag = int(res.get("away_goals", 0))
             table[t1]["pj"] += 1; table[t2]["pj"] += 1
             table[t1]["gf"] += hg; table[t1]["ga"] += ag
             table[t2]["gf"] += ag; table[t2]["ga"] += hg
