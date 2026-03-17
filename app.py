@@ -973,11 +973,17 @@ def _build_ca_knockout(state, ca):
     thirds  = [standings[g][2]["team"] for g in groups if len(standings.get(g,[])) > 2]
     fourths = [standings[g][3]["team"] for g in groups if len(standings.get(g,[])) > 3]
 
+    # Cuadro Copa América:
+    # Izquierda: (1A v 2D) v (1C v 2B)
+    # Derecha:   (1B v 2C) v (1D v 2A)
+    def first(x):  return standings[x][0]["team"] if standings.get(x) else ""
+    def second(x): return standings[x][1]["team"] if len(standings.get(x,[])) > 1 else ""
+
     qf = [
-        (firsts[0], seconds[1]),
-        (firsts[1], seconds[0]),
-        (firsts[2], seconds[3]) if len(firsts)>2 and len(seconds)>3 else (firsts[2], seconds[2]),
-        (firsts[3], seconds[2]) if len(firsts)>3 else (seconds[3], thirds[0] if thirds else ""),
+        (first("A"), second("D")),  # Izq arriba: 1A v 2D
+        (first("C"), second("B")),  # Izq abajo:  1C v 2B
+        (first("B"), second("C")),  # Der arriba: 1B v 2C
+        (first("D"), second("A")),  # Der abajo:  1D v 2A
     ]
     ca["knockout_bracket"] = {
         "cuartos": [{"home": a, "away": b, "winner": None} for a, b in qf if a and b],
