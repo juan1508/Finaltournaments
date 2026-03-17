@@ -35,39 +35,71 @@ def match_key(t1, t2):
 
 
 def get_jornadas(teams):
+    """
+    Genera jornadas round-robin con localía alternada.
+    Cada jornada tiene floor(n/2) partidos y cada equipo juega exactamente una vez por jornada.
+    Algoritmo de rueda (circle method) estándar para torneos.
+    """
     n = len(teams)
+
+    # Casos hardcodeados para 3 y 4 (grupos de Copa)
+    if n == 3:
+        return [
+            [(teams[0], teams[1])],
+            [(teams[0], teams[2])],
+            [(teams[1], teams[2])],
+        ]
+
     if n == 4:
         return [
             [(teams[0], teams[1]), (teams[2], teams[3])],
             [(teams[0], teams[2]), (teams[1], teams[3])],
             [(teams[0], teams[3]), (teams[1], teams[2])],
         ]
-    elif n == 3:
-        return [
-            [(teams[0], teams[1])],
-            [(teams[0], teams[2])],
-            [(teams[1], teams[2])],
-        ]
-    elif n == 5:
-        fixtures = [(teams[i], teams[j]) for i in range(n) for j in range(i+1, n)]
-        jornadas, jornada = [], []
-        for pair in fixtures:
-            used_in_round = set(t for p in jornada for t in p)
-            if not set(pair) & used_in_round:
-                jornada.append(pair)
-                if len(jornada) == 2:
-                    jornadas.append(jornada)
-                    jornada = []
+
+    # Para 5, 6 o cualquier otro número: algoritmo de rueda (circle method)
+    # Si n es impar, añadimos un "bye" fantasma para hacer n par
+    lst = list(teams)
+    if n % 2 == 1:
+        lst.append(None)  # bye
+    m = len(lst)  # m es par
+    num_rounds = m - 1
+    matches_per_round = m // 2
+
+    jornadas = []
+    # El primer equipo es el "fijo", el resto rota
+    fixed = lst[0]
+    rotating = lst[1:]
+
+    for ronda in range(num_rounds):
+        pairs = []
+        # Par del equipo fijo con el primero de la rueda
+        opp = rotating[0]
+        if fixed is not None and opp is not None:
+            # Alternar localía: ronda par → fijo es local, impar → fijo es visitante
+            if ronda % 2 == 0:
+                pairs.append((fixed, opp))
             else:
-                if jornada:
-                    jornadas.append(jornada)
-                jornada = [pair]
-        if jornada:
-            jornadas.append(jornada)
-        return jornadas
-    else:
-        fixtures = [(teams[i], teams[j]) for i in range(n) for j in range(i+1, n)]
-        return [[f] for f in fixtures]
+                pairs.append((opp, fixed))
+
+        # Resto de pares de la rueda
+        for i in range(1, matches_per_round):
+            a = rotating[i]
+            b = rotating[m - 1 - i]
+            if a is not None and b is not None:
+                # Alternar localía según posición de ronda
+                if (ronda + i) % 2 == 0:
+                    pairs.append((a, b))
+                else:
+                    pairs.append((b, a))
+
+        if pairs:
+            jornadas.append(pairs)
+
+        # Rotar: el último de rotating va al frente
+        rotating = [rotating[-1]] + rotating[:-1]
+
+    return jornadas
 
 
 def calculate_standings(group_teams, results):
@@ -191,7 +223,6 @@ def manual_group_setup(state, tour_key, teams, num_groups, teams_per_group, conf
         for idx, team in enumerate(unassigned):
             with cols_un[idx % 4]:
                 opts = ["— Grupo —"] + [f"Grupo {g}" for g in group_keys]
-                # ✅ tlabel() usa emoji Unicode → funciona en selectbox
                 sel = st.selectbox(
                     tlabel(team),
                     opts,
@@ -222,7 +253,6 @@ def manual_group_setup(state, tour_key, teams, num_groups, teams_per_group, conf
                 for t in list(dg.get(g, [])):
                     c1, c2 = st.columns([5, 1])
                     with c1:
-                        # ✅ emoji en markdown también OK
                         st.markdown(
                             f"<div style='padding:2px 0;font-size:0.9rem;'>"
                             f"<img src='{get_flag_url(t,16,11)}' style='vertical-align:middle;margin-right:4px;border-radius:2px;' width='16' height='11'>&nbsp;{display_name(t)}</div>",
