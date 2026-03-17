@@ -1524,23 +1524,48 @@ def _show_caf_playoff(state, tour):
 
     pb = tour.setdefault("playoff_bracket", {})
     results = pb.setdefault("results", {})
-    all_done = True
+    pfx = "cafpb"
 
-    with st.expander("⚽ Partidos — Todos contra todos", expanded=True):
-        fixtures = [(pool[i], pool[j]) for i in range(len(pool)) for j in range(i+1, len(pool))]
-        for home, away in fixtures:
-            mk = match_key(home, away)
-            key = f"cafpb_{mk}"
-            show_match_row(home, away, key, results, "Playoff CAF", state, show_scorers=False)
-            if results.get(key, {}).get("played"):
-                results[mk] = results[key]
-            elif not results.get(mk, {}).get("played"):
-                all_done = False
-            st.markdown("<hr style='margin:2px 0;border-color:#0f1e38;'>", unsafe_allow_html=True)
+    jornadas = get_jornadas(pool)
+
+    st.markdown(
+        f"<div style='color:#a0b8d8;font-size:0.85rem;margin-bottom:10px;'>"
+        f"📅 <b>{len(jornadas)} jornadas</b> · 🟢 Top 3 → Mundial · 🟡 4to en adelante → Eliminado</div>",
+        unsafe_allow_html=True
+    )
+
+    all_fixtures = [(h, a) for j in jornadas for h, a in j]
+    all_done = True
+    for h, a in all_fixtures:
+        mk  = match_key(h, a)
+        key = f"{pfx}_{mk}"
+        if not results.get(key, {}).get("played") and not results.get(mk, {}).get("played"):
+            all_done = False
+
+    jtabs = st.tabs([f"Jornada {i+1}" for i in range(len(jornadas))] + ["📊 Tabla"])
+
+    for ji, jornada in enumerate(jornadas):
+        with jtabs[ji]:
+            st.markdown(
+                f"<div style='background:#091525;border:1px solid #1a3060;border-radius:8px;"
+                f"padding:6px 14px;margin-bottom:12px;color:#cc8800;font-size:0.8rem;font-weight:700;'>"
+                f"📅 Jornada {ji+1} — {len(jornada)} partido{'s' if len(jornada) != 1 else ''}</div>",
+                unsafe_allow_html=True
+            )
+            for pidx, (home, away) in enumerate(jornada):
+                if pidx > 0:
+                    st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
+                mk  = match_key(home, away)
+                key = f"{pfx}_{mk}"
+                show_match_row(home, away, key, results, "Playoff CAF", state, show_scorers=False)
+                if results.get(key, {}).get("played"):
+                    results[mk] = results[key]
 
     standings = calculate_standings(pool, results)
     pb["standings"] = standings
-    render_standings_table(standings, advancing=3)
+
+    with jtabs[-1]:
+        render_standings_table(standings, advancing=3)
 
     st.markdown("---")
     if all_done or st.checkbox("🔓 Forzar clasificados CAF", key="force_cafpb"):
@@ -1742,24 +1767,49 @@ def _show_6team_playoff(state, tour, torneo_name, tour_key, playoff_spots, repec
 
     pb = tour.setdefault("playoff_bracket", {})
     results = pb.setdefault("results", {})
-    all_done = True
     pfx = f"{tour_key[:4]}pb"
 
-    with st.expander("⚽ Partidos — Todos contra todos", expanded=True):
-        fixtures = [(pool[i], pool[j]) for i in range(len(pool)) for j in range(i+1, len(pool))]
-        for home, away in fixtures:
-            mk = match_key(home, away)
-            key = f"{pfx}_{mk}"
-            show_match_row(home, away, key, results, f"Playoff {torneo_name}", state, show_scorers=False)
-            if results.get(key, {}).get("played"):
-                results[mk] = results[key]
-            elif not results.get(mk, {}).get("played"):
-                all_done = False
-            st.markdown("<hr style='margin:2px 0;border-color:#0f1e38;'>", unsafe_allow_html=True)
+    jornadas = get_jornadas(pool)
+
+    st.markdown(
+        f"<div style='color:#a0b8d8;font-size:0.85rem;margin-bottom:10px;'>"
+        f"📅 <b>{len(jornadas)} jornadas</b> · 🟢 Top {playoff_spots} → Mundial"
+        f"{f' · 🟡 {rep_pos}° → Repechaje' if repechaje_slot_key else ''}</div>",
+        unsafe_allow_html=True
+    )
+
+    all_fixtures = [(h, a) for j in jornadas for h, a in j]
+    all_done = True
+    for h, a in all_fixtures:
+        mk  = match_key(h, a)
+        key = f"{pfx}_{mk}"
+        if not results.get(key, {}).get("played") and not results.get(mk, {}).get("played"):
+            all_done = False
+
+    jtabs = st.tabs([f"Jornada {i+1}" for i in range(len(jornadas))] + ["📊 Tabla"])
+
+    for ji, jornada in enumerate(jornadas):
+        with jtabs[ji]:
+            st.markdown(
+                f"<div style='background:#091525;border:1px solid #1a2040;border-radius:8px;"
+                f"padding:6px 14px;margin-bottom:12px;color:{conf_color};font-size:0.8rem;font-weight:700;'>"
+                f"📅 Jornada {ji+1} — {len(jornada)} partido{'s' if len(jornada) != 1 else ''}</div>",
+                unsafe_allow_html=True
+            )
+            for pidx, (home, away) in enumerate(jornada):
+                if pidx > 0:
+                    st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
+                mk  = match_key(home, away)
+                key = f"{pfx}_{mk}"
+                show_match_row(home, away, key, results, f"Playoff {torneo_name}", state, show_scorers=False)
+                if results.get(key, {}).get("played"):
+                    results[mk] = results[key]
 
     standings = calculate_standings(pool, results)
     pb["standings"] = standings
-    render_standings_table(standings, advancing=playoff_spots)
+
+    with jtabs[-1]:
+        render_standings_table(standings, advancing=playoff_spots)
 
     # Mostrar tabla con destinos claros
     if standings:
