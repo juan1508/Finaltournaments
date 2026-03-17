@@ -1091,11 +1091,48 @@ def _show_ca_playoff(state, ca):
         st.info("Se habilita al terminar las llaves de la Copa América.")
         return
 
-    # ── Garantizar pool solo CONMEBOL ─────────────────────────────────
-    champion = ca.get("champion", "")
-    raw_pool  = ca.get("playoff_pool", [])
-    pool      = [t for t in raw_pool if t in CONMEBOL_TEAMS and t != champion]
-    if pool != raw_pool:
+    # ── Garantizar pool: 6 equipos CONMEBOL puestos 2-7 ──────────────
+    champion     = ca.get("champion", "")
+    copa_ranking = ca.get("copa_ranking", [])
+    guests       = set(ca.get("guests", []))
+
+    # Reconstruir copa_ranking si no existe (state viejo)
+    if not copa_ranking:
+        bracket = ca.get("knockout_bracket", {})
+        results = ca.get("knockout_results", {})
+        thirds  = ca.get("_thirds", [])
+        fourths = ca.get("_fourths", [])
+        copa_ranking = [champion] if champion else []
+        # finalista
+        for m in bracket.get("final", []):
+            if m.get("winner"):
+                runner = m["home"] if m["winner"] == m["away"] else m["away"]
+                if runner and runner not in copa_ranking: copa_ranking.append(runner)
+        # semis losers
+        for i, m in enumerate(bracket.get("semis", [])):
+            r = results.get(f"ca_semis_{i}", {})
+            if r.get("winner"):
+                loser = m["home"] if r["winner"] == m["away"] else m["away"]
+                if loser and loser not in copa_ranking: copa_ranking.append(loser)
+        # cuartos losers
+        for i, m in enumerate(bracket.get("cuartos", [])):
+            r = results.get(f"ca_cuartos_{i}", {})
+            if r.get("winner"):
+                loser = m["home"] if r["winner"] == m["away"] else m["away"]
+                if loser and loser not in copa_ranking: copa_ranking.append(loser)
+        for t in thirds + fourths:
+            if t and t not in copa_ranking: copa_ranking.append(t)
+        ca["copa_ranking"] = copa_ranking
+
+    # Pool: exactamente 6 CONMEBOL puestos 2-7
+    # Siempre reconstruir desde copa_ranking para ignorar state corrupto
+    pool = [t for t in copa_ranking
+            if t in CONMEBOL_TEAMS and t != champion][:6]
+    ca["playoff_pool"] = pool  # actualizar state siempre
+    save_state()
+
+    # Actualizar state si cambió
+    if pool != ca.get("playoff_pool") or len(pool) != len(ca.get("playoff_pool", [])):
         ca["playoff_pool"] = pool
         save_state()
 
@@ -1162,8 +1199,42 @@ def _show_ca_playoff(state, ca):
     html += "</div>"
     st.markdown(html, unsafe_allow_html=True)
 
-    # ── 5 jornadas × 3 partidos = 15 total ──────────────────────────
-    jornadas = get_jornadas(pool)   # round-robin 6 equipos
+    # ── Validar pool: si no tiene 6 equipos, ofrecer reconstruir ────
+    if len(pool) != 6:
+        st.warning(f"⚠️ El qualifier tiene {len(pool)} equipos en lugar de 6.")
+        if st.button("🔧 Reconstruir pool desde las llaves", type="primary", key="rebuild_ca_pool"):
+            bracket = ca.get("knockout_bracket", {})
+            results_k = ca.get("knockout_results", {})
+            thirds  = ca.get("_thirds", [])
+            fourths = ca.get("_fourths", [])
+            ranking = [champion] if champion else []
+            for m in bracket.get("final", []):
+                if m.get("winner"):
+                    runner = m["home"] if m["winner"] == m["away"] else m["away"]
+                    if runner and runner not in ranking: ranking.append(runner)
+            for i, m in enumerate(bracket.get("semis", [])):
+                r = results_k.get(f"ca_semis_{i}", {})
+                if r.get("winner"):
+                    loser = m["home"] if r["winner"] == m["away"] else m["away"]
+                    if loser and loser not in ranking: ranking.append(loser)
+            for i, m in enumerate(bracket.get("cuartos", [])):
+                r = results_k.get(f"ca_cuartos_{i}", {})
+                if r.get("winner"):
+                    loser = m["home"] if r["winner"] == m["away"] else m["away"]
+                    if loser and loser not in ranking: ranking.append(loser)
+            for t in thirds + fourths:
+                if t and t not in ranking: ranking.append(t)
+            ca["copa_ranking"] = ranking
+            new_pool = [t for t in ranking if t in CONMEBOL_TEAMS and t != champion][:6]
+            ca["playoff_pool"] = new_pool
+            pb["results"] = {}
+            pb["standings"] = {}
+            save_state()
+            st.rerun()
+        return
+
+    # ── 5 jornadas × 3 partidos ───────────────────────────────────────
+    jornadas = get_jornadas(pool)   # round-robin 6 equipos = 5 jornadas
 
     st.markdown(
         f"<div style='color:#a0b8d8;font-size:0.85rem;margin-bottom:10px;'>"
@@ -1180,7 +1251,7 @@ def _show_ca_playoff(state, ca):
         if not res.get(key, {}).get("played") and not res.get(mk, {}).get("played"):
             all_done = False
 
-    jtabs = st.tabs([f"J{i+1} ({len(j)} partidos)" for i, j in enumerate(jornadas)] + ["📊 Tabla"])
+    jtabs = st.tabs([f"Jornada {i+1}" for i in range(len(jornadas))] + ["📊 Tabla"])
 
     for ji, jornada in enumerate(jornadas):
         with jtabs[ji]:
