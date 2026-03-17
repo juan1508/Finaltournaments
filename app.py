@@ -997,6 +997,18 @@ def _build_ca_knockout(state, ca):
 def _show_ca_knockout(state, ca):
     bracket = ca.setdefault("knockout_bracket", {})
     results = ca.setdefault("knockout_results", {})
+
+    # ── Botón reset llaves ────────────────────────────────────────────
+    if st.button("🔄 Resetear Llaves", type="secondary", key="reset_ca_bracket"):
+        ca["knockout_bracket"] = {}
+        ca["knockout_results"] = {}
+        ca["champion"] = None
+        ca["qualified_direct"] = []
+        ca["playoff_pool"] = []
+        ca["phase"] = "grupos"
+        save_state()
+        st.rerun()
+
     phases = [
         ("cuartos", "🟡 Cuartos de Final", "semis"),
         ("semis",   "🟠 Semifinales",       "final"),
