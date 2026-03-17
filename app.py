@@ -2294,14 +2294,30 @@ def show_home(state):
         ("🔁 Repechaje",   None,            "OFC",       2, "#1a3a1a"),
     ]
 
+    # Contar clasificados por confederación desde world_cup_qualified (fuente de verdad)
+    wq = state.get("world_cup_qualified", [])
+    conf_counts = {}
+    for t in wq:
+        c = get_team_confederation(t)
+        conf_counts[c] = conf_counts.get(c, 0) + 1
+    # Anfitrión suma a su confederación si aún no está en wq
+    if HOST_TEAM not in wq:
+        hc = get_host_confederation()
+        conf_counts[hc] = conf_counts.get(hc, 0) + 1
+
     cols = st.columns(6)
     for col, (label, key, conf, total, color) in zip(cols, torneos):
         if key:
             phase = state.get(key, {}).get("phase", "—")
-            q = len(state.get(key, {}).get("qualified", []))
         else:
+            phase = "completado" if sum(1 for s in ["slot1","slot2"] if state.get("playoff_results",{}).get(s)) >= 2 else "pendiente"
+
+        # Para repechaje contar solo los slots ganados
+        if key is None:
             q = sum(1 for s in ["slot1","slot2"] if state.get("playoff_results",{}).get(s))
-            phase = "completado" if q >= 2 else "pendiente"
+        else:
+            q = conf_counts.get(conf, 0)
+
         done  = q >= total
         phase_label = {"sorteo":"Sorteo","grupos":"Grupos","llaves":"Llaves",
                        "playoff":"Playoff","playoff_uefa":"Playoff","completado":"✅ Listo",
