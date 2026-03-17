@@ -1156,39 +1156,41 @@ def _show_ca_playoff(state, ca):
     html += "</div>"
     st.markdown(html, unsafe_allow_html=True)
 
-    # ── 6 equipos · todos contra todos · 5 jornadas × 3 partidos ────
-    all_done = True
-    jornadas = get_jornadas(pool)   # round-robin: 5 jornadas de 3 partidos c/u
+    # ── 5 jornadas × 3 partidos = 15 total ──────────────────────────
+    jornadas = get_jornadas(pool)   # round-robin 6 equipos
 
-    n_partidos = sum(len(j) for j in jornadas)
     st.markdown(
         f"<div style='color:#a0b8d8;font-size:0.85rem;margin-bottom:10px;'>"
-        f"📅 <b>{len(jornadas)} jornadas</b> · {n_partidos} partidos · 🟢 Top 3 → Mundial · 🟡 4to → Repechaje</div>",
+        f"📅 <b>{len(jornadas)} jornadas · 3 partidos c/u</b> · 🟢 Top 3 → Mundial · 🟡 4to → Repechaje</div>",
         unsafe_allow_html=True
     )
 
-    jtabs = st.tabs([f"J{i+1}" for i in range(len(jornadas))] + ["📊 Tabla"])
+    # Calcular all_done revisando todos los partidos (no dentro del tab)
+    all_fixtures = [(h, a) for j in jornadas for h, a in j]
+    all_done = True
+    for h, a in all_fixtures:
+        mk  = match_key(h, a)
+        key = f"{pfx}_{mk}"
+        if not res.get(key, {}).get("played") and not res.get(mk, {}).get("played"):
+            all_done = False
+
+    jtabs = st.tabs([f"J{i+1} ({len(j)} partidos)" for i, j in enumerate(jornadas)] + ["📊 Tabla"])
 
     for ji, jornada in enumerate(jornadas):
         with jtabs[ji]:
-            st.markdown(f"**Jornada {ji+1} — {len(jornada)} partidos**")
             for home, away in jornada:
                 mk  = match_key(home, away)
                 key = f"{pfx}_{mk}"
                 show_match_row(home, away, key, res, "Qualifier CONMEBOL", state, show_scorers=False)
                 if res.get(key, {}).get("played"):
                     res[mk] = res[key]
-                elif not res.get(mk, {}).get("played"):
-                    all_done = False
-                st.markdown("<hr style='margin:2px 0;border-color:#0f1e38;'>", unsafe_allow_html=True)
-
-    with jtabs[-1]:
-        standings = calculate_standings(pool, res)
-        pb["standings"] = standings
-        render_standings_table(standings, advancing=3, show_thirds=True)
+                st.markdown("<hr style='margin:4px 0;border-color:#0f1e38;'>", unsafe_allow_html=True)
 
     standings = calculate_standings(pool, res)
     pb["standings"] = standings
+
+    with jtabs[-1]:
+        render_standings_table(standings, advancing=3, show_thirds=True)
 
     # ── Confirmar ─────────────────────────────────────────────────────
     st.markdown("---")
