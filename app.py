@@ -2066,36 +2066,73 @@ def show_ranking():
         "CONCACAF":"#5a0000","AFC":"#3a0060","OFC":"#1a3a1a"
     }
 
-    html = """<table style='width:100%;border-collapse:collapse;font-size:0.84rem;margin-top:12px;'>
-    <tr style='background:#091525;color:#5070a0;font-size:0.72rem;text-transform:uppercase;border-bottom:2px solid #182848;'>
-        <th style='padding:8px;text-align:center;width:36px;'>#</th>
-        <th style='padding:8px;text-align:left;'>Selección</th>
-        <th style='padding:8px;text-align:center;'>Conf.</th>"""
-    if show_pts: html += "<th style='padding:8px;text-align:center;'>Puntos</th>"
-    html += "<th style='padding:8px;text-align:center;'>Estado</th></tr>"
-
+    # Filtrar primero
+    filtered = []
     pos_real = 0
     for pos, (team, pts) in enumerate(sorted_ranking, 1):
         conf = get_team_confederation(team)
         if conf_filter != "Todas" and conf != conf_filter: continue
         if search and search.lower() not in display_name(team).lower() and search.lower() not in team.lower(): continue
         pos_real += 1
+        filtered.append((pos, pos_real, team, pts, conf))
+
+    # Cabecera
+    h_cols = [1, 4, 2]
+    if show_pts: h_cols.append(1.5)
+    h_cols.append(2)
+    header = st.columns(h_cols)
+    labels = ["#", "Selección", "Conf."]
+    if show_pts: labels.append("Pts")
+    labels.append("Estado")
+    for col, lbl in zip(header, labels):
+        with col:
+            st.markdown(f"<div style='font-size:0.68rem;color:#5070a0;text-transform:uppercase;"
+                        f"font-weight:700;padding:4px 0;border-bottom:2px solid #182848;'>{lbl}</div>",
+                        unsafe_allow_html=True)
+
+    for pos, pos_real, team, pts, conf in filtered:
         qualified = team in state["world_cup_qualified"]
-        is_host = (team == HOST_TEAM)
+        is_host   = (team == HOST_TEAM)
+        row_bg    = "#1a1a00" if is_host else ("#0c3a22" if qualified else ("#091525" if pos_real % 2 == 0 else "#06101e"))
         status_color = "#ffd700" if is_host else ("#00cc66" if qualified else "#506080")
-        status = "🏟️ Anfitrión" if is_host else ("✅ Clasificado" if qualified else "⏳")
-        row_bg = "#1a1a00" if is_host else ("#0c3a22" if qualified else ("#091525" if pos_real % 2 == 0 else "#06101e"))
-        html += f"""<tr style='background:{row_bg};border-bottom:1px solid #101e38;'>
-            <td style='padding:8px;text-align:center;color:#555;font-weight:700;'>{pos}</td>
-            <td style='padding:8px;'>{flag_html(team)} <span style='font-weight:600;color:#dce8ff;'>{display_name(team)}</span></td>
-            <td style='padding:8px;text-align:center;'>
-                <span class='conf-chip' style='background:{conf_colors.get(conf,"#222")};color:#fff;'>{conf}</span>
-            </td>"""
+        status    = "🏟️ Anfitrión" if is_host else ("✅ Clasificado" if qualified else "⏳")
+
+        row = st.columns(h_cols)
+        with row[0]:
+            st.markdown(
+                f"<div style='background:{row_bg};padding:6px 4px;text-align:center;"
+                f"color:#506080;font-weight:700;font-size:0.82rem;border-bottom:1px solid #101e38;'>{pos}</div>",
+                unsafe_allow_html=True)
+        with row[1]:
+            st.markdown(
+                f"<div style='background:{row_bg};padding:5px 4px;display:flex;align-items:center;"
+                f"border-bottom:1px solid #101e38;'>"
+                f"{flag_html(team, 20, 15)}"
+                f"<span style='font-weight:600;color:#dce8ff;font-size:0.84rem;'>{display_name(team)}</span>"
+                f"</div>",
+                unsafe_allow_html=True)
+        with row[2]:
+            cc_bg = conf_colors.get(conf, "#222")
+            st.markdown(
+                f"<div style='background:{row_bg};padding:6px 4px;text-align:center;"
+                f"border-bottom:1px solid #101e38;'>"
+                f"<span style='background:{cc_bg};color:#fff;"
+                f"font-size:0.68rem;font-weight:700;padding:2px 7px;border-radius:10px;'>{conf}</span>"
+                f"</div>",
+                unsafe_allow_html=True)
+        idx = 3
         if show_pts:
-            html += f"<td style='padding:8px;text-align:center;color:#ffd700;font-weight:800;font-size:0.95rem;'>{pts}</td>"
-        html += f"<td style='padding:8px;text-align:center;color:{status_color};font-size:0.8rem;'>{status}</td></tr>"
-    html += "</table>"
-    st.markdown(html, unsafe_allow_html=True)
+            with row[idx]:
+                st.markdown(
+                    f"<div style='background:{row_bg};padding:6px 4px;text-align:center;"
+                    f"color:#ffd700;font-weight:800;font-size:0.92rem;border-bottom:1px solid #101e38;'>{pts}</div>",
+                    unsafe_allow_html=True)
+            idx += 1
+        with row[idx]:
+            st.markdown(
+                f"<div style='background:{row_bg};padding:6px 4px;text-align:center;"
+                f"color:{status_color};font-size:0.8rem;border-bottom:1px solid #101e38;'>{status}</div>",
+                unsafe_allow_html=True)
 
 
 # ══════════════════════════════════════════════════════════════
