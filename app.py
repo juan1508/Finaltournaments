@@ -1097,6 +1097,12 @@ def _show_ca_playoff(state, ca):
     pool      = [t for t in raw_pool if t in CONMEBOL_TEAMS and t != champion]
     if pool != raw_pool:
         ca["playoff_pool"] = pool
+        save_state()
+
+    # ── Botón reset qualifier ─────────────────────────────────────────
+    if st.button("🔄 Resetear Qualifier", type="secondary", key="reset_ca_pb"):
+        ca["playoff_bracket"] = {}
+        save_state(); st.rerun()
 
     if not pool:
         st.warning("No hay candidatos CONMEBOL para el qualifier.")
@@ -1178,13 +1184,21 @@ def _show_ca_playoff(state, ca):
 
     for ji, jornada in enumerate(jornadas):
         with jtabs[ji]:
-            for home, away in jornada:
+            st.markdown(
+                f"<div style='background:#091525;border:1px solid #1a3060;border-radius:8px;"
+                f"padding:6px 14px;margin-bottom:12px;color:#5090c0;font-size:0.8rem;font-weight:700;'>"
+                f"📅 Jornada {ji+1} — {len(jornada)} partidos</div>",
+                unsafe_allow_html=True
+            )
+            for pidx, (home, away) in enumerate(jornada):
+                if pidx > 0:
+                    st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
                 mk  = match_key(home, away)
                 key = f"{pfx}_{mk}"
-                show_match_row(home, away, key, res, "Qualifier CONMEBOL", state, show_scorers=False)
+                with st.container():
+                    show_match_row(home, away, key, res, "Qualifier CONMEBOL", state, show_scorers=False)
                 if res.get(key, {}).get("played"):
                     res[mk] = res[key]
-                st.markdown("<hr style='margin:4px 0;border-color:#0f1e38;'>", unsafe_allow_html=True)
 
     standings = calculate_standings(pool, res)
     pb["standings"] = standings
