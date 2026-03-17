@@ -2368,22 +2368,9 @@ def show_home(state):
 
 
 def _show_home_qualified_panel(state, qualified):
-    """Panel de clasificados con banderas, agrupados por confederación."""
+    """Panel de clasificados con banderas, agrupados por confederación.
+    Muestra únicamente los equipos confirmados por el simulador hasta el momento."""
     from data import TEAM_DISPLAY_NAMES
-
-    # ── Clasificados reales precargados por confederación ─────────────
-    # Estos equipos ya tienen su cupo directo al Mundial FMMJ asegurado
-    REAL_QUALIFIED = {
-        "UEFA":     ["France", "Germany", "Spain", "Portugal", "England",
-                     "Netherlands", "Italy", "Belgium", "Croatia", "Switzerland",
-                     "Denmark", "Austria", "Poland"],
-        "CONMEBOL": ["Argentina", "Brazil", "Colombia", "Uruguay"],
-        "CAF":      ["Morocco", "Senegal", "Egypt", "Cameroon", "Ghana"],
-        "CONCACAF": ["Mexico", "United States", "Costa Rica"],
-        "AFC":      ["Japan", "South Korea", "Saudi Arabia", "Iran",
-                     "Australia"],
-        "OFC":      [],
-    }
 
     conf_colors = {
         "UEFA":     {"bg": "#001840", "border": "#003580", "label": "#6090ff"},
@@ -2393,68 +2380,61 @@ def _show_home_qualified_panel(state, qualified):
         "AFC":      {"bg": "#0e0020", "border": "#3a0060", "label": "#aa44ff"},
         "OFC":      {"bg": "#001a0a", "border": "#1a4a1a", "label": "#44aa66"},
     }
-    conf_icons = {"UEFA":"🏆","CONMEBOL":"🌎","CAF":"🌍","CONCACAF":"⭐","AFC":"🌏","OFC":"🔁"}
+    conf_icons    = {"UEFA":"🏆","CONMEBOL":"🌎","CAF":"🌍","CONCACAF":"⭐","AFC":"🌏","OFC":"🔁"}
     cupos_por_conf = {"UEFA": 13, "CONMEBOL": 4, "CAF": 5, "CONCACAF": 3, "AFC": 4, "OFC": 1}
 
-    # Combinar: reales precargados + los que se vayan confirmando en el simulador
-    # El simulador puede sobreescribir/complementar según avance
+    # Agrupar solo los clasificados confirmados por el simulador
     by_conf = {}
-    # Primero los reales
-    for conf, teams in REAL_QUALIFIED.items():
-        for t in teams:
-            by_conf.setdefault(conf, [])
-            if t not in by_conf[conf]:
-                by_conf[conf].append(t)
-    # Luego los del simulador (pueden ser distintos según la simulación)
     for t in qualified:
         c = get_team_confederation(t)
         by_conf.setdefault(c, [])
         if t not in by_conf[c]:
             by_conf[c].append(t)
 
-    host_shown = HOST_TEAM in qualified or any(HOST_TEAM in v for v in by_conf.values())
-    total_q = sum(len(v) for v in by_conf.values()) + (0 if host_shown else 1)
+    # Anfitrión siempre cuenta (aunque aún no esté en world_cup_qualified)
+    host_in_qualified = HOST_TEAM in qualified
+    total_q = len(qualified) + (0 if host_in_qualified else 1)
 
-    st.markdown(f"""
-    <div style='display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;'>
-        <div style='font-family:Bebas Neue,sans-serif;font-size:1.5rem;color:#c0d0ff;letter-spacing:2px;'>
-            ✅ CLASIFICADOS AL MUNDIAL
-        </div>
-        <div style='background:#091525;border:1px solid #ffd70044;border-radius:20px;padding:4px 14px;'>
-            <span style='color:#ffd700;font-size:1rem;font-weight:900;font-family:Bebas Neue,sans-serif;'>{total_q}/32</span>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # Anfitrión siempre primero — usando st.columns para que flag_html funcione
-    tname_host = TEAM_DISPLAY_NAMES.get(HOST_TEAM, HOST_TEAM)
+    # ── Título + contador ────────────────────────────────────────────
     st.markdown(
-        f"<div style='background:#1a1400;border:1px solid #ffd70066;border-radius:10px;"
-        f"padding:8px 12px;margin-bottom:10px;display:flex;align-items:center;gap:8px;'>"
-        f"<span style='font-size:0.68rem;color:#ffd700;text-transform:uppercase;font-weight:700;"
-        f"letter-spacing:1px;white-space:nowrap;'>🏟️ Anfitrión</span>"
-        f"<span style='margin-left:4px;'>{flag_html(HOST_TEAM, 24, 18)}</span>"
-        f"<span style='color:#ffd700;font-weight:700;font-size:0.88rem;'>{tname_host}</span>"
-        f"<span style='margin-left:auto;font-size:0.7rem;background:#ffd70022;color:#ffd700;"
-        f"padding:2px 8px;border-radius:10px;'>Host</span>"
-        f"</div>",
+        f"<div style='display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;'>"
+        f"<div style='font-family:Bebas Neue,sans-serif;font-size:1.5rem;color:#c0d0ff;letter-spacing:2px;'>"
+        f"✅ CLASIFICADOS AL MUNDIAL</div>"
+        f"<div style='background:#091525;border:1px solid #ffd70044;border-radius:20px;padding:4px 14px;'>"
+        f"<span style='color:#ffd700;font-size:1rem;font-weight:900;font-family:Bebas Neue,sans-serif;'>"
+        f"{total_q}/32</span></div></div>",
         unsafe_allow_html=True
     )
 
-    # Por confederación
+    # ── Anfitrión siempre primero ────────────────────────────────────
+    tname_host = TEAM_DISPLAY_NAMES.get(HOST_TEAM, HOST_TEAM)
+    st.markdown(
+        f"<div style='background:#1a1400;border:1px solid #ffd70066;border-radius:10px;"
+        f"padding:8px 12px;margin-bottom:8px;'>"
+        f"<div style='font-size:0.65rem;color:#ffd700;text-transform:uppercase;font-weight:700;"
+        f"letter-spacing:1px;margin-bottom:5px;'>🏟️ Anfitrión</div>"
+        f"<div style='display:flex;align-items:center;gap:6px;'>"
+        f"{flag_html(HOST_TEAM, 24, 18)}"
+        f"<span style='color:#ffd700;font-weight:700;font-size:0.88rem;'>{tname_host}</span>"
+        f"<span style='margin-left:auto;font-size:0.7rem;background:#ffd70022;color:#ffd700;"
+        f"padding:2px 8px;border-radius:10px;'>Host</span>"
+        f"</div></div>",
+        unsafe_allow_html=True
+    )
+
+    # ── Por confederación ────────────────────────────────────────────
     conf_order = ["UEFA", "CONMEBOL", "CAF", "CONCACAF", "AFC", "OFC"]
     for conf in conf_order:
         teams_in_conf = by_conf.get(conf, [])
-        max_cupos = cupos_por_conf.get(conf, 0)
-
-        cc = conf_colors.get(conf, {"bg": "#091525", "border": "#1a3060", "label": "#5090c0"})
-        icon = conf_icons.get(conf, "🌍")
-        count = len(teams_in_conf)
+        max_cupos     = cupos_por_conf.get(conf, 0)
+        cc            = conf_colors[conf]
+        icon          = conf_icons[conf]
+        count         = len(teams_in_conf)
 
         # Cabecera de confederación
         st.markdown(
             f"<div style='background:{cc['bg']};border:1px solid {cc['border']};border-radius:10px;"
-            f"padding:8px 12px;margin-bottom:4px;display:flex;align-items:center;"
+            f"padding:7px 12px;margin-bottom:4px;display:flex;align-items:center;"
             f"justify-content:space-between;'>"
             f"<span style='font-size:0.68rem;color:{cc['label']};text-transform:uppercase;"
             f"font-weight:700;letter-spacing:1px;'>{icon} {conf}</span>"
@@ -2465,8 +2445,7 @@ def _show_home_qualified_panel(state, qualified):
         )
 
         if teams_in_conf:
-            # Renderizar equipos en pares de columnas usando st.columns
-            # para que flag_html (con <img>) se muestre correctamente
+            # Equipos en pares con st.columns para que flag_html funcione
             pairs = [teams_in_conf[i:i+2] for i in range(0, len(teams_in_conf), 2)]
             for pair in pairs:
                 cols = st.columns(2)
@@ -2487,7 +2466,7 @@ def _show_home_qualified_panel(state, qualified):
             remaining = max_cupos - count
             if remaining > 0:
                 st.markdown(
-                    f"<div style='padding:3px 12px;margin-bottom:6px;font-size:0.7rem;color:{cc['border']};'>"
+                    f"<div style='padding:2px 12px;margin-bottom:6px;font-size:0.7rem;color:{cc['border']};'>"
                     f"{'⬜ ' * remaining}"
                     f"<span style='color:#304060;'>{remaining} cupo{'s' if remaining > 1 else ''} pendiente{'s' if remaining > 1 else ''}</span>"
                     f"</div>",
@@ -2499,7 +2478,6 @@ def _show_home_qualified_panel(state, qualified):
                 f"padding:4px 12px;margin-bottom:6px;'>Sin clasificados aún</div>",
                 unsafe_allow_html=True
             )
-
 
 
 # ══════════════════════════════════════════════════════════════
